@@ -14,8 +14,11 @@
  * ============================================================================= */
 #include "tests/selftest.h"
 
+#include "arch/cpu.h"
 #include "lib/kprintf.h"
+#include "lib/string.h"
 #include "mm/pmm.h"
+#include "mm/vmm.h"
 
 static int tests_run;
 static int tests_failed;
@@ -82,12 +85,72 @@ static void test_pmm(void)
     CHECK(pmm_free_frames_count() == free_before);
 }
 
+/* ---- VMM testlari ----------------------------------------------------------- */
+static void test_vmm(void)
+{
+    kprintf("[test] vmm...\n");
+    size_t free_before = pmm_free_frames_count();
+
+    uint64_t as = vmm_create_address_space();
+    CHECK(as != 0);
+
+    /* Yadro qismi yangi maydonda ham ko'rinadi (umumiy PD). */
+    CHECK(vmm_translate(as, 0xB8000, NULL) == 0xB8000);
+    /* 0-sahifa xaritalanmagan (NULL himoyasi). */
+    CHECK(vmm_translate(as, 0x0, NULL) == 0);
+
+    /* User sahifasini bog'lab, fizik manzil orqali yozamiz... */
+    uint64_t va = USER_SPACE_START + 0x5000;
+    uint64_t frame = pmm_alloc_frame();
+    CHECK(vmm_map_page(as, va, frame, PTE_WRITABLE | PTE_USER));
+    CHECK(vmm_translate(as, va + 0x123, NULL) == frame + 0x123);
+    *(volatile uint32_t *)(uintptr_t)(frame + 8) = 0xC0FFEE;
+
+    /* ...keyin shu manzil maydoniga O'TIB, VIRTUAL manzil orqali o'qiymiz. */
+    uint64_t flags = irq_save();
+    vmm_switch(as);
+    uint32_t seen = *(volatile uint32_t *)(uintptr_t)(va + 8);
+    vmm_switch(vmm_kernel_pml4());
+    irq_restore(flags);
+    CHECK(seen == 0xC0FFEE);
+
+    /* Yadro maydonida bu virtual manzil umuman yo'q - izolyatsiya! */
+    CHECK(vmm_translate(vmm_kernel_pml4(), va, NULL) == 0);
+
+    /* Foydalanuvchi buferini tekshirish (syscall xavfsizligi). */
+    CHECK(vmm_user_range_ok(as, va, 100, true));
+    CHECK(!vmm_user_range_ok(as, va + PAGE_SIZE, 1, false));   /* xaritalanmagan */
+    CHECK(!vmm_user_range_ok(as, 0x100000, 16, false));        /* yadro hududi */
+    CHECK(!vmm_user_range_ok(as, va, (size_t)-1, false));      /* overflow */
+
+    /* copy_to_space: ikki sahifa chegarasidan o'tadigan nusxa. */
+    CHECK(vmm_map_anonymous(as, va + PAGE_SIZE, 1, PTE_WRITABLE | PTE_USER));
+    static const char msg[] = "sahifa chegarasidan o'tuvchi satr";
+    uint64_t cross = va + PAGE_SIZE - 10;
+    CHECK(vmm_copy_to_space(as, cross, msg, sizeof(msg)));
+    char back[sizeof(msg)];
+    for (size_t i = 0; i < sizeof(msg); i++)
+        back[i] = *(char *)(uintptr_t)vmm_translate(as, cross + i, NULL);
+    CHECK(memcmp(back, msg, sizeof(msg)) == 0);
+
+    /* Unmap. */
+    CHECK(vmm_unmap_page(as, va) == frame);
+    CHECK(vmm_translate(as, va, NULL) == 0);
+    pmm_free_frame(frame);
+
+    /* Yo'q qilish: HAMMA freymlar (jadvallar ham) qaytishi kerak - xotira
+     * oqishi (memory leak) bo'lmasligi shart. */
+    vmm_destroy_address_space(as);
+    CHECK(pmm_free_frames_count() == free_before);
+}
+
 void selftest_run(void)
 {
     kprintf("[test] ===== SELFTEST boshlandi =====\n");
     tests_run = tests_failed = 0;
 
     test_pmm();
+    test_vmm();
 
     if (tests_failed == 0)
         kprintf("[test] SELFTEST: %d ta tekshiruv, hammasi PASSED\n", tests_run);

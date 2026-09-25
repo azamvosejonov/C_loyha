@@ -20,6 +20,7 @@
 #include "lib/panic.h"
 #include "lib/string.h"
 #include "mm/pmm.h"
+#include "mm/vmm.h"
 #include "tests/selftest.h"
 
 /* Yadroga berilgan buyruq qatori (masalan "selftest"). */
@@ -64,10 +65,13 @@ void kmain(uint32_t magic, uint32_t multiboot_info_phys)
     /* 3-qadam: fizik xotira. Endi bo'sh RAM freymlarini bera olamiz. */
     pmm_init(mbi);
 
+    /* 4-qadam: virtual xotira. NULL himoyasi, jarayon manzil maydonlari. */
+    vmm_init();
+
     if (cmdline_has("selftest"))
         selftest_run();
 
-    /* 4-qadam: qurilmalar. */
+    /* 5-qadam: qurilmalar. */
     pit_init();
     keyboard_init();
     console_enable_serial_input();
