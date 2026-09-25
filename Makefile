@@ -146,14 +146,22 @@ ROOTFS_DIRS := bin etc home mnt tmp
 
 # ---- QEMU sozlamalari ------------------------------------------------------------
 #   -cdrom       : ISO tasvirdan yuklash - xuddi haqiqiy kompyuterdagi kabi GRUB orqali
+#   -boot d      : avval CD dan yuklash (diskda ham MBR imzosi bor, lekin yuklovchi kodi yo'q)
 #   -m 256M      : 256 MB RAM
 #   -smp 2       : 2 ta CPU yadrosi (SMP qo'llab-quvvatlash uchun)
 #   -no-reboot   : triple fault bo'lsa qayta yuklanmasdan to'xtash (xatoni ko'rish uchun)
 #   -device isa-debug-exit : 0xf4 portiga yozilsa QEMU chiqib ketadi (testlar uchun)
+#   -machine     : pc  = i440fx chipset, disk IDE kontrollerda (drivers/ata.c)
+#                  q35 = zamonaviyroq chipset, disk SATA/AHCI da (drivers/ahci.c)
+#   -drive/-device ide-hd : disk tasviri birinchi portda (/dev/sda). "bus=ide.0"
+#                  ikkala mashinada ham ishlaydi (q35 da AHCI portlari ham ide.N deb ataladi)
 QEMU_MEM  ?= 256M
 QEMU_SMP  ?= 2
-QEMU_FLAGS := -cdrom $(BUILD)/myos.iso -m $(QEMU_MEM) -smp $(QEMU_SMP) -no-reboot \
-              -device isa-debug-exit,iobase=0xf4,iosize=0x04
+MACHINE   ?= pc
+DISK      ?= $(BUILD)/disk.img
+QEMU_FLAGS := -machine $(MACHINE) -boot d -cdrom $(BUILD)/myos.iso -m $(QEMU_MEM) -smp $(QEMU_SMP) \
+              -no-reboot -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
+              -drive file=$(DISK),format=raw,if=none,id=disk0 -device ide-hd,drive=disk0,bus=ide.0
 # UEFI firmware (Ubuntu: `apt install ovmf`)
 OVMF ?= /usr/share/OVMF/OVMF_CODE_4M.fd
 UEFI_FLAGS := -drive if=pflash,format=raw,readonly=on,file=$(OVMF)
@@ -164,14 +172,14 @@ APPEND ?=
 # =============================================================================
 #  QOIDALAR
 # =============================================================================
-.PHONY: all run run-uefi run-nographic debug test clean FORCE
+.PHONY: all disk run run-uefi run-nographic debug test clean FORCE
 
 # Make pattern zanjiridagi "oraliq" fayllarni (user .o va .elf lari) yig'ishdan keyin
 # o'chirib yuboradi. .PRECIOUS ularni saqlab qoladi (gdb uchun .elf kerak), lekin
 # .SECONDARY dan farqli ravishda o'chirilgan fayl QAYTA yig'iladi.
 .PRECIOUS: $(BUILD)/user/%.o $(BUILD)/user/bin/%.elf
 
-all: $(BUILD)/myos.iso
+all: $(BUILD)/myos.iso $(BUILD)/disk.img
 
 # ---- Yadroni bog'lash (link) ----
 $(BUILD)/kernel.elf: $(KERNEL_OBJ) kernel/linker.ld
@@ -278,19 +286,37 @@ $(BUILD)/myos.iso: $(BUILD)/kernel.elf $(BUILD)/initrd.tar $(BUILD)/iso/boot/gru
 	$(Q)$(GRUB_MKRESCUE) -o $@ $(BUILD)/iso > $(BUILD)/grub-mkrescue.log 2>&1 || \
 		(cat $(BUILD)/grub-mkrescue.log; false)
 
+# ---- Disk tasviri: MBR + ext2 (tools/mkdisk.py) ----
+# Ichida: docs/ (hujjatlarni tizim ichida o'qish uchun) va test fayllari.
+# DIQQAT: tizim diskka YOZADI. Toza diskni qayta yaratish: make disk
+DISK_SIZE_MB ?= 64
+DISK_BLOCK   ?= 1024
+$(BUILD)/disk.img: tools/mkdisk.py $(wildcard docs/*.md)
+	@rm -rf $(BUILD)/diskroot && mkdir -p $(BUILD)/diskroot/test $(BUILD)/diskroot/lost+found
+	@cp -r docs $(BUILD)/diskroot/docs
+	@echo "Salom, men ext2 diskdaman!" > $(BUILD)/diskroot/test/salom.txt
+	@python3 -c "import sys; sys.stdout.buffer.write(bytes((i * 7 + i // 4096) & 255 for i in range(300000)))" \
+		> $(BUILD)/diskroot/test/katta.bin
+	@ln -s ../docs/12-vfs.md $(BUILD)/diskroot/test/havola
+	$(Q)python3 tools/mkdisk.py $@ $(DISK_SIZE_MB) $(BUILD)/diskroot $(DISK_BLOCK)
+
+disk:
+	@rm -f $(BUILD)/disk.img
+	@$(MAKE) -s $(BUILD)/disk.img
+
 # ---- Ishga tushirish ----
-run: all
+run: all $(DISK)
 	$(QEMU) $(QEMU_FLAGS) -serial stdio
 
-run-uefi: all
+run-uefi: all $(DISK)
 	$(QEMU) $(QEMU_FLAGS) $(UEFI_FLAGS) -serial stdio
 
-run-nographic: all
+run-nographic: all $(DISK)
 	$(QEMU) $(QEMU_FLAGS) -nographic
 
 # -s : GDB serverini :1234 portida ochish, -S : birinchi instruksiyadan oldin to'xtab turish.
 # Boshqa terminalda:  gdb -x tools/gdbinit
-debug: all
+debug: all $(DISK)
 	$(QEMU) $(QEMU_FLAGS) -nographic -s -S
 
 test:

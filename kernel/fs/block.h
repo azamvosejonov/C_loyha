@@ -32,6 +32,9 @@ struct block_device {
     struct list_head node;
 };
 
+/* Keyingi "sdX" nomini va qurilma raqamini (major 8, minor = 16 * indeks) berish.
+ * ATA, AHCI va USB disklar hammasi shu nomlarni oladi (Linux libata kabi). */
+void blkdev_assign_sd(struct block_device *bd);
 /* Drayver diskni ro'yxatdan o'tkazadi; bo'limlar avtomatik skanerlanadi. */
 int blkdev_register(struct block_device *bd);
 struct block_device *blkdev_find(const char *name);

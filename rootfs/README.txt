@@ -9,7 +9,7 @@ fayl tizimiga (tmpfs) ochdi. Fayl tizimi daraxti:
   /etc      sozlamalar (motd - kirishdagi xabar)
   /home     sizning fayllaringiz
   /tmp      vaqtinchalik fayllar
-  /mnt      boshqa fayl tizimlarini ulash uchun
+  /mnt      DISK (ext2, /dev/sda1) - bu yerdagi fayllar o'chirib-yoqishdan keyin ham saqlanadi
 
 Sinab ko'ring:
 
@@ -24,5 +24,8 @@ Sinab ko'ring:
   fstest ; forktest               testlar
   crash null                      himoya: faqat shu dastur o'ladi
 
-DIQQAT: hozircha hamma narsa XOTIRADA (tmpfs). Qayta yuklashda yo'qoladi.
-Disk (ext2) keyingi qadamda qo'shiladi.
+DIQQAT: / (ildiz) XOTIRADA (tmpfs) - qayta yuklashda tiklanadi. Saqlanishi
+kerak bo'lgan fayllarni /mnt ga yozing (u diskda):
+
+  echo "muhim" > /mnt/eslatma.txt ; poweroff      keyingi yuklashda ham bor
+  cat /mnt/docs/13-disk-ext2.md                   hujjatlar diskda

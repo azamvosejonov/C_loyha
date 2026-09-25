@@ -1,0 +1,5 @@
+# /etc/rc - boot paytida /bin/init tomonidan BIR MARTA bajariladi.
+# Linux'dagi /etc/fstab + /etc/rc.local ning oddiy varianti.
+
+# Birinchi diskning birinchi bo'limi (ext2) -> /mnt. Disk bo'lmasa - jim o'tamiz.
+mount -t ext2 /dev/sda1 /mnt 2> /dev/null && echo "[rc] /dev/sda1 (ext2) -> /mnt"

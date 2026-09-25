@@ -17,6 +17,7 @@
  * ============================================================================= */
 #include "fs/block.h"
 
+#include "fs/devfs.h"
 #include "fs/vfs.h"
 #include "lib/common.h"
 #include "lib/kprintf.h"
@@ -100,7 +101,10 @@ static void add_partition(struct block_device *disk, int num, uint64_t start, ui
     p->ops = disk->ops;
     p->dev = disk->dev + (uint32_t)num;
     mutex_init(&p->lock, "blkpart");
+    mutex_lock(&disks_lock);
     list_add_tail(&p->node, &disks);
+    mutex_unlock(&disks_lock);
+    devfs_add_block(p);
     kprintf("[blk]  %s: bo'lim, sektor %lu, %lu MB\n", p->name, start, sectors / 2048);
 }
 
@@ -148,6 +152,14 @@ static void scan_partitions(struct block_device *disk)
     kfree(sec);
 }
 
+void blkdev_assign_sd(struct block_device *bd)
+{
+    static int next;                    /* sda, sdb, ... */
+    int idx = __atomic_fetch_add(&next, 1, __ATOMIC_RELAXED);
+    ksnprintf(bd->name, sizeof(bd->name), "sd%c", 'a' + idx % 26);
+    bd->dev = MKDEV(MAJOR_SD, idx * 16);    /* sda1 = 8:1, sdb = 8:16 ... */
+}
+
 int blkdev_register(struct block_device *bd)
 {
     mutex_init(&bd->lock, "blkdev");
@@ -157,6 +169,7 @@ int blkdev_register(struct block_device *bd)
     list_add_tail(&bd->node, &disks);
     mutex_unlock(&disks_lock);
     kprintf("[blk]  %s: %lu MB \"%s\"\n", bd->name, bd->sectors / 2048, bd->model);
+    devfs_add_block(bd);                /* /dev/sda (devfs hali tayyor bo'lmasa - keyinroq) */
     scan_partitions(bd);
     return 0;
 }

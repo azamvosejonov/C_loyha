@@ -29,6 +29,8 @@
 #include "arch/smp.h"
 #include "arch/tsc.h"
 #include "boot/bootinfo.h"
+#include "drivers/ahci.h"
+#include "drivers/ata.h"
 #include "drivers/console.h"
 #include "drivers/fbcon.h"
 #include "drivers/keyboard.h"
@@ -37,6 +39,7 @@
 #include "drivers/vga.h"
 #include "fs/block.h"
 #include "fs/devfs.h"
+#include "fs/ext2.h"
 #include "fs/initrd.h"
 #include "fs/tmpfs.h"
 #include "fs/vfs.h"
@@ -72,8 +75,11 @@ static int ticker_thread(void *arg)
     return 0;
 }
 
-/* pid 1: "init" yadro oqimi. Kerakli ishlarni bajaradi, keyin birinchi USER
- * dasturni - shell'ni ishga tushiradi va u tugasa qayta ishga tushiradi. */
+/* "init" yadro oqimi: yadro ichidagi tayyorgarlik ishlari (testlar, namoyishlar),
+ * keyin birinchi USER dastur - /bin/init ni ishga tushiradi. Qolgan hamma narsa
+ * (disklarni ulash, shell) - user rejimida, /bin/init va /etc/rc ning ishi.
+ * Linux ham shunday: yadro faqat bitta dasturni (init) ishga tushiradi.
+ * Buyruq qatorida init=/bin/sh - init'siz to'g'ridan-to'g'ri shell (tiklash rejimi). */
 static int init_thread(void *arg)
 {
     (void)arg;
@@ -87,15 +93,22 @@ static int init_thread(void *arg)
         proc_wait(b, NULL, false);
     }
 
+    static char path[64];
+    if (!cmdline_get("init", path, sizeof(path)))
+        strlcpy(path, "/bin/init", sizeof(path));
     for (;;) {
-        static char sh_name[] = "sh";
-        char *argv[] = { sh_name };
-        int pid = proc_spawn("/bin/sh", 1, argv);
+        char *argv[] = { path };
+        int pid = proc_spawn(path, 1, argv);
+        if (pid < 0 && strcmp(path, "/bin/sh") != 0) {
+            kprintf("[init] %s ishga tushmadi (xato %d) - /bin/sh ga o'tamiz\n", path, pid);
+            strlcpy(path, "/bin/sh", sizeof(path));
+            continue;
+        }
         if (pid < 0)
-            panic("init: /sh ni ishga tushirib bo'lmadi (xato %d)", pid);
+            panic("init: %s ni ishga tushirib bo'lmadi (xato %d)", path, pid);
         int code;
         proc_wait(pid, &code, false);
-        kprintf("[init] shell tugadi (kod %d). Qayta ishga tushiramiz...\n", code);
+        kprintf("[init] %s tugadi (kod %d) - qayta ishga tushiramiz\n", path, code);
     }
 }
 
@@ -145,6 +158,7 @@ void kmain(uint32_t magic, uint32_t mbi_phys)
 
     /* ---- Fayl tizimlari: tmpfs ildiz, /dev, initrd ---- */
     tmpfs_init();
+    ext2_init();
     vfs_mount_root(tmpfs_create_sb());
     bcache_init();
 
@@ -160,6 +174,8 @@ void kmain(uint32_t magic, uint32_t mbi_phys)
     /* ---- Vaqt, PCI qurilmalari (disk drayverlari shu yerda topiladi) ---- */
     rtc_init();
     pci_init();
+    ata_init();                         /* IDE disklar (PIO) */
+    ahci_init();                        /* SATA disklar (AHCI, DMA) */
     devfs_init();
     initrd_unpack(&boot_info);
 

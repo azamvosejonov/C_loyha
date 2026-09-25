@@ -13,6 +13,9 @@
  *    5. pipe + fork: 200 KB uzatish, EOF, o'quvchisiz yozish -> EPIPE
  *    6. dup2: stdout ni faylga yo'naltirish (shell'dagi `>` aynan shu)
  *    7. /dev/null, /dev/zero
+ *    8. Ko'p fayl: papka bir necha blokka o'sadi, o'chirilganlar o'rni qayta ishlatiladi
+ *
+ *  Ishlatish:  fstest [papka]    - sukut /tmp (tmpfs). `fstest /mnt` - ext2 diskda.
  * ============================================================================= */
 #include <dirent.h>
 #include <errno.h>
@@ -25,6 +28,18 @@
 #include <unistd.h>
 
 static int failures, checks;
+static char base[256] = "/tmp/fst";
+
+/* Test papkasiga nisbatan yo'l. Bir nechta natija bir vaqtda kerak bo'lishi
+ * mumkin (rename(P(a), P(b))) - shuning uchun aylanma buferlar. */
+static const char *P(const char *rel)
+{
+    static char bufs[4][PATH_MAX];
+    static int next;
+    char *b = bufs[next++ % 4];
+    snprintf(b, PATH_MAX, "%s%s", base, rel);
+    return b;
+}
 
 static void check(int ok, const char *what)
 {
@@ -38,10 +53,10 @@ static void check(int ok, const char *what)
 static void test_files(void)
 {
     puts("1. fayllar");
-    unlink("/tmp/fst/a.txt");
-    int fd = open("/tmp/fst/a.txt", O_RDWR | O_CREAT | O_EXCL, 0644);
+    unlink(P("/a.txt"));
+    int fd = open(P("/a.txt"), O_RDWR | O_CREAT | O_EXCL, 0644);
     check(fd >= 0, "O_CREAT|O_EXCL yangi fayl");
-    check(open("/tmp/fst/a.txt", O_RDWR | O_CREAT | O_EXCL, 0644) < 0 && errno == EEXIST,
+    check(open(P("/a.txt"), O_RDWR | O_CREAT | O_EXCL, 0644) < 0 && errno == EEXIST,
           "O_EXCL mavjud faylga -> EEXIST");
     check(write(fd, "salom dunyo", 11) == 11, "write 11 bayt");
     check(lseek(fd, 0, SEEK_CUR) == 11, "pozitsiya 11");
@@ -59,23 +74,23 @@ static void test_files(void)
     check(ftruncate(fd, 5) == 0 && fstat(fd, &st) == 0 && st.st_size == 5, "ftruncate 5");
     close(fd);
 
-    fd = open("/tmp/fst/a.txt", O_WRONLY | O_APPEND);
+    fd = open(P("/a.txt"), O_WRONLY | O_APPEND);
     check(fd >= 0 && write(fd, "!!", 2) == 2, "O_APPEND yozish");
     lseek(fd, 0, SEEK_SET);             /* O_APPEND: baribir oxiriga yoziladi */
     write(fd, "?", 1);
     close(fd);
-    fd = open("/tmp/fst/a.txt", O_RDONLY);
+    fd = open(P("/a.txt"), O_RDONLY);
     memset(buf, 0, sizeof(buf));
     check(read(fd, buf, sizeof(buf)) == 8 && strcmp(buf, "salom!!?") == 0,
           "O_APPEND lseek'dan qat'i nazar oxiriga yozadi");
     check(write(fd, "x", 1) < 0 && errno == EBADF, "O_RDONLY faylga yozish -> EBADF");
     close(fd);
-    fd = open("/tmp/fst/a.txt", O_WRONLY | O_TRUNC);
+    fd = open(P("/a.txt"), O_WRONLY | O_TRUNC);
     check(fd >= 0 && fstat(fd, &st) == 0 && st.st_size == 0, "O_TRUNC hajmni 0 qiladi");
     close(fd);
 
     /* Katta fayl: 300 KB yozib, qayta o'qib solishtiramiz. */
-    fd = open("/tmp/fst/katta", O_RDWR | O_CREAT | O_TRUNC, 0644);
+    fd = open(P("/katta"), O_RDWR | O_CREAT | O_TRUNC, 0644);
     static char big[300 * 1024];
     for (size_t i = 0; i < sizeof(big); i++)
         big[i] = (char)(i * 7 + i / 4096);
@@ -88,19 +103,19 @@ static void test_files(void)
     check(got == (ssize_t)sizeof(big) && memcmp(big, back, sizeof(big)) == 0,
           "300 KB qayta o'qildi va mos keldi");
     close(fd);
-    check(unlink("/tmp/fst/katta") == 0, "unlink");
+    check(unlink(P("/katta")) == 0, "unlink");
 }
 
 static void test_dirs(void)
 {
     puts("2. papkalar");
-    check(mkdir("/tmp/fst/d", 0755) == 0, "mkdir");
-    check(mkdir("/tmp/fst/d", 0755) < 0 && errno == EEXIST, "mkdir mavjud -> EEXIST");
-    close(open("/tmp/fst/d/f1", O_WRONLY | O_CREAT, 0644));
-    close(open("/tmp/fst/d/f2", O_WRONLY | O_CREAT, 0644));
-    check(mkdir("/tmp/fst/d/ichki", 0755) == 0, "ichki papka");
+    check(mkdir(P("/d"), 0755) == 0, "mkdir");
+    check(mkdir(P("/d"), 0755) < 0 && errno == EEXIST, "mkdir mavjud -> EEXIST");
+    close(open(P("/d/f1"), O_WRONLY | O_CREAT, 0644));
+    close(open(P("/d/f2"), O_WRONLY | O_CREAT, 0644));
+    check(mkdir(P("/d/ichki"), 0755) == 0, "ichki papka");
 
-    DIR *d = opendir("/tmp/fst/d");
+    DIR *d = opendir(P("/d"));
     int seen = 0, dots = 0;
     struct dirent *de;
     while (d && (de = readdir(d)) != NULL) {
@@ -115,39 +130,39 @@ static void test_dirs(void)
         closedir(d);
     check(seen == 3 && dots == 2, "readdir: . .. f1 f2 ichki/");
 
-    check(rmdir("/tmp/fst/d") < 0 && errno == ENOTEMPTY, "bo'sh bo'lmagan papka -> ENOTEMPTY");
-    check(rename("/tmp/fst/d/f1", "/tmp/fst/d/ichki/g") == 0, "rename boshqa papkaga");
+    check(rmdir(P("/d")) < 0 && errno == ENOTEMPTY, "bo'sh bo'lmagan papka -> ENOTEMPTY");
+    check(rename(P("/d/f1"), P("/d/ichki/g")) == 0, "rename boshqa papkaga");
     struct stat st;
-    check(stat("/tmp/fst/d/f1", &st) < 0 && errno == ENOENT, "eski nom yo'q");
-    check(stat("/tmp/fst/d/ichki/g", &st) == 0, "yangi nom bor");
-    check(rename("/tmp/fst/d", "/tmp/fst/d/ichki/x") < 0 && errno == EINVAL,
+    check(stat(P("/d/f1"), &st) < 0 && errno == ENOENT, "eski nom yo'q");
+    check(stat(P("/d/ichki/g"), &st) == 0, "yangi nom bor");
+    check(rename(P("/d"), P("/d/ichki/x")) < 0 && errno == EINVAL,
           "papkani o'z ichiga ko'chirish -> EINVAL");
 
     /* Nisbiy yo'llar va chdir. */
     char cwd[PATH_MAX];
     getcwd(cwd, sizeof(cwd));
-    check(chdir("/tmp/fst/d/ichki") == 0, "chdir");
+    check(chdir(P("/d/ichki")) == 0, "chdir");
     char now[PATH_MAX];
-    check(getcwd(now, sizeof(now)) && strcmp(now, "/tmp/fst/d/ichki") == 0, "getcwd");
+    check(getcwd(now, sizeof(now)) && strcmp(now, P("/d/ichki")) == 0, "getcwd");
     check(stat("g", &st) == 0 && stat("../f2", &st) == 0 && stat("./../../d/f2", &st) == 0,
           "nisbiy yo'llar: g, ../f2, ./../../d/f2");
-    check(chdir("..") == 0 && getcwd(now, sizeof(now)) && strcmp(now, "/tmp/fst/d") == 0,
+    check(chdir("..") == 0 && getcwd(now, sizeof(now)) && strcmp(now, P("/d")) == 0,
           "chdir ..");
     chdir(cwd);
 
-    unlink("/tmp/fst/d/ichki/g");
-    unlink("/tmp/fst/d/f2");
-    check(rmdir("/tmp/fst/d/ichki") == 0 && rmdir("/tmp/fst/d") == 0, "rmdir bo'sh papkalar");
+    unlink(P("/d/ichki/g"));
+    unlink(P("/d/f2"));
+    check(rmdir(P("/d/ichki")) == 0 && rmdir(P("/d")) == 0, "rmdir bo'sh papkalar");
 }
 
 static void test_unlink_open(void)
 {
     puts("3. ochiq faylni unlink");
-    int fd = open("/tmp/fst/vaqtincha", O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int fd = open(P("/vaqtincha"), O_RDWR | O_CREAT | O_TRUNC, 0644);
     write(fd, "hali shu yerda", 14);
-    check(unlink("/tmp/fst/vaqtincha") == 0, "unlink ochiq fayl");
+    check(unlink(P("/vaqtincha")) == 0, "unlink ochiq fayl");
     struct stat st;
-    check(stat("/tmp/fst/vaqtincha", &st) < 0, "nom yo'qoldi");
+    check(stat(P("/vaqtincha"), &st) < 0, "nom yo'qoldi");
     char buf[32] = { 0 };
     lseek(fd, 0, SEEK_SET);
     check(read(fd, buf, sizeof(buf)) == 14 && strcmp(buf, "hali shu yerda") == 0,
@@ -215,18 +230,18 @@ static void test_dup2(void)
     puts("6. dup2 (shell yo'naltirishi)");
     fflush(stdout);
     int saved = dup(STDOUT_FILENO);
-    int fd = open("/tmp/fst/chiqish", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open(P("/chiqish"), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     check(dup2(fd, STDOUT_FILENO) == STDOUT_FILENO, "dup2(fd, 1)");
     close(fd);
     write(STDOUT_FILENO, "faylga ketdi\n", 13);
     dup2(saved, STDOUT_FILENO);         /* stdout ni qaytaramiz */
     close(saved);
     char buf[32] = { 0 };
-    fd = open("/tmp/fst/chiqish", O_RDONLY);
+    fd = open(P("/chiqish"), O_RDONLY);
     check(read(fd, buf, sizeof(buf)) == 13 && strcmp(buf, "faylga ketdi\n") == 0,
           "stdout faylga yo'naltirildi");
     close(fd);
-    unlink("/tmp/fst/chiqish");
+    unlink(P("/chiqish"));
 
     int a = dup(STDIN_FILENO);
     check(a >= 3, "dup eng kichik bo'sh raqamni beradi");
@@ -250,10 +265,78 @@ static void test_dev(void)
     check(stat("/dev/console", &st) == 0 && S_ISCHR(st.st_mode), "/dev/console - belgili qurilma");
 }
 
-int main(void)
+static int count_entries(const char *dir)
 {
-    mkdir("/tmp", 0755);
-    mkdir("/tmp/fst", 0755);
+    DIR *d = opendir(dir);
+    int n = 0;
+    struct dirent *de;
+    while (d && (de = readdir(d)) != NULL)
+        if (de->d_name[0] != '.')
+            n++;
+    if (d)
+        closedir(d);
+    return n;
+}
+
+static void test_many(void)
+{
+    puts("8. ko'p fayl");
+    char name[PATH_MAX];
+    check(mkdir(P("/kop"), 0755) == 0, "mkdir kop");
+    int ok = 1;
+    for (int i = 0; i < 300 && ok; i++) {
+        /* Uzun nomlar - papka tezroq o'sadi (1 KB blokka ~20 ta sig'adi). */
+        snprintf(name, sizeof(name), "%s/fayl_uzunroq_nom_bilan_%03d", P("/kop"), i);
+        int fd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        ok = fd >= 0 && dprintf(fd, "fayl %d\n", i) > 0;
+        close(fd);
+    }
+    check(ok, "300 ta fayl yaratildi");
+    check(count_entries(P("/kop")) == 300, "readdir: 300 ta yozuv");
+    for (int i = 0; i < 300; i += 2) {
+        snprintf(name, sizeof(name), "%s/fayl_uzunroq_nom_bilan_%03d", P("/kop"), i);
+        ok &= unlink(name) == 0;
+    }
+    check(ok && count_entries(P("/kop")) == 150, "juftlari o'chirildi: 150 ta qoldi");
+    for (int i = 0; i < 100 && ok; i++) {
+        snprintf(name, sizeof(name), "%s/yangi%d", P("/kop"), i);
+        int fd = open(name, O_WRONLY | O_CREAT, 0644);
+        ok = fd >= 0;
+        close(fd);
+    }
+    check(ok && count_entries(P("/kop")) == 250, "bo'sh joylarga 100 ta yangi fayl");
+    snprintf(name, sizeof(name), "%s/fayl_uzunroq_nom_bilan_%03d", P("/kop"), 157);
+    char buf[32] = { 0 };
+    int fd = open(name, O_RDONLY);
+    check(fd >= 0 && read(fd, buf, sizeof(buf)) == 9 && strcmp(buf, "fayl 157\n") == 0,
+          "fayl mazmuni to'g'ri");
+    close(fd);
+    DIR *d = opendir(P("/kop"));
+    struct dirent *de;
+    char *names[300];
+    int n = 0;
+    while (d && (de = readdir(d)) != NULL && n < 300)
+        if (de->d_name[0] != '.')
+            names[n++] = strdup(de->d_name);
+    if (d)
+        closedir(d);
+    ok = 1;
+    for (int i = 0; i < n; i++) {
+        snprintf(name, sizeof(name), "%s/%s", P("/kop"), names[i]);
+        ok &= unlink(name) == 0;
+        free(names[i]);
+    }
+    check(ok && rmdir(P("/kop")) == 0, "hammasi o'chirildi, papka bo'sh");
+}
+
+int main(int argc, char **argv)
+{
+    if (argc > 1)
+        snprintf(base, sizeof(base), "%s/fst", argv[1]);
+    else
+        mkdir("/tmp", 0755);
+    printf("fstest: %s\n", base);
+    mkdir(P(""), 0755);
     test_files();
     test_dirs();
     test_unlink_open();
@@ -261,9 +344,10 @@ int main(void)
     test_pipe();
     test_dup2();
     test_dev();
-    rmdir("/tmp/fst/d");
-    unlink("/tmp/fst/a.txt");
-    rmdir("/tmp/fst");
+    test_many();
+    rmdir(P("/d"));
+    unlink(P("/a.txt"));
+    rmdir(P(""));
     if (failures == 0)
         printf("fstest: PASSED (%d tekshiruv)\n", checks);
     else

@@ -32,11 +32,12 @@ fstest: PASSED (53 tekshiruv)
 
 ```bash
 # Ubuntu / Debian / WSL:
-sudo apt install build-essential nasm qemu-system-x86 gdb \
+sudo apt install build-essential nasm qemu-system-x86 gdb e2fsprogs \
                  grub-pc-bin grub-efi-amd64-bin grub-common xorriso mtools ovmf
 make                    # build/myos.iso - BIOS va UEFI kompyuterlarda yuklanadi
 make run                # QEMU, BIOS rejimi
 make run-uefi           # QEMU, UEFI rejimi
+make run MACHINE=q35    # SATA/AHCI disk bilan (sukut: IDE)
 make run-nographic      # faqat terminal (chiqish: Ctrl-A, keyin X)
 make test               # avtomatik testlar (BIOS + UEFI)
 make debug              # GDB bilan (docs/08-test-debug.md)
@@ -66,10 +67,12 @@ Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qi
 | Jarayonlar | `kernel/proc/*`, `arch/syscall_entry.asm` | SMP scheduler, `syscall/sysret`, preemption | 10 |
 | Virtual xotira | `kernel/mm/mm.c` | VMA, demand paging, **fork + COW**, exec, mmap | 11 |
 | Fayllar | `kernel/fs/*`, `sys/sys_fs.c` | **VFS**, tmpfs, `/dev`, pipe, mount, errno | 12 |
+| Disklar | `drivers/{ata,ahci}.c`, `fs/block.c` | ATA PIO, SATA AHCI (DMA), MBR/GPT, buffer cache | 13 |
+| ext2 | `fs/ext2.c` | o'qish + yozish, e2fsck bilan tekshiriladi | 13 |
 | Terminal | `drivers/tty.c` | line discipline: echo, backspace, Ctrl-D, termios | 12 |
 | libc | `user/libc/*`, `user/include/*` | `stdio.h`, `unistd.h`, `FILE*` buferlash, `libc.a` | 12 |
 | Shell va utilitalar | `user/bin/*` | `|` `>` `<` `&&` `$?` glob; 40 ta dastur | 12 |
-| Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 31 ta integratsion test (BIOS + UEFI) | 08 |
+| Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 37 ta integratsion test (BIOS/IDE + UEFI/AHCI), e2fsck | 08 |
 
 ## Qanday o'rganish kerak
 
@@ -83,8 +86,8 @@ Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qi
    ```
 4. Har bir hujjat oxiridagi **"Sinab ko'ring"** bo'limini bajaring: kodni ataylab buzing va natijani kuzating.
 5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md), [docs/10-smp.md](docs/10-smp.md), [docs/11-fork-cow.md](docs/11-fork-cow.md),
-   [docs/12-vfs.md](docs/12-vfs.md) — hozirgi yadro: GRUB/UEFI, higher-half, buddy, slab, SMP, fork/COW,
-   VFS, pipe, terminal, libc va shell. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
+   [docs/12-vfs.md](docs/12-vfs.md), [docs/13-disk-ext2.md](docs/13-disk-ext2.md) — hozirgi yadro: GRUB/UEFI,
+   higher-half, buddy, slab, SMP, fork/COW, VFS, pipe, terminal, libc, shell, disklar va ext2. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
    shuning uchun avval o'shalarni o'qing.
 6. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**
 
@@ -97,8 +100,8 @@ kernel/
   acpi/      ACPI jadvallari: MADT (CPU'lar), FADT (o'chirish), DSDT (_S5)
   mm/        memblock, buddy (pmm), slab, vmalloc, vmm (sahifa jadvallari), mm (VMA, COW)
   proc/      jarayonlar, SMP scheduler, context switch, exec, fork
-  fs/        vfs, tmpfs, devfs, pipe, initrd, block (disklar, bo'limlar)
-  drivers/   console, fbcon, tty, keyboard, serial, pci, pit, rtc
+  fs/        vfs, tmpfs, devfs, pipe, initrd, block (disklar, bo'limlar), ext2
+  drivers/   ata, ahci, console, fbcon, tty, keyboard, serial, pci, pit, rtc
   sys/       syscall'lar, sys_fs (fayl syscall'lari), uaccess, ELF
   lib/       kprintf, spinlock, mutex, klog, panic
   tests/     selftest (100 ta tekshiruv), crashdemo
@@ -107,9 +110,9 @@ user/
   include/   libc sarlavhalari: stdio.h, unistd.h, fcntl.h, dirent.h, sys/stat.h ...
   libc/      crt0, syscall o'ramlari, stdio, printf, malloc, string, dirent, time
   bin/       sh va utilitalar -> diskdagi /bin
-rootfs/      /etc/motd, /README.txt -> initrd.tar ga qo'shiladi
+rootfs/      /etc/rc, /etc/motd, /README.txt -> initrd.tar ga qo'shiladi
 docs/        har bir qatlam bo'yicha batafsil tushuntirish
-tools/       test.sh, gdbinit, psf2c.py (shrift), screenshot.sh
+tools/       test.sh, mkdisk.py (MBR + ext2 disk), gdbinit, psf2c.py (shrift), screenshot.sh
 ```
 
 ## Xotira xaritasi (bir qarashda)

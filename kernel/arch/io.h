@@ -67,6 +67,19 @@ static inline uint32_t inl(uint16_t port)
     return value;
 }
 
+/* Portdan count ta 2 baytli so'zni ketma-ket xotiraga o'qish ("rep insw").
+ * ATA disk sektori (256 so'z) bitta instruksiya bilan o'qiladi: CPU o'zi
+ * RDI ni oshirib, RCX ni kamaytirib boradi. */
+static inline void insw(uint16_t port, void *buf, uint32_t count)
+{
+    __asm__ volatile("rep insw" : "+D"(buf), "+c"(count) : "d"(port) : "memory");
+}
+
+static inline void outsw(uint16_t port, const void *buf, uint32_t count)
+{
+    __asm__ volatile("rep outsw" : "+S"(buf), "+c"(count) : "d"(port) : "memory");
+}
+
 /* Juda qisqa kutish. Eski qurilmalar (masalan, PIC) buyruqlar orasida biroz vaqt
  * talab qiladi. 0x80 porti - BIOS POST kodlari uchun, unga yozish zararsiz va
  * taxminan 1 mikrosekund oladi. */

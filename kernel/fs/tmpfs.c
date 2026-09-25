@@ -296,6 +296,13 @@ static int tmpfs_rename(struct inode *odir, const char *oname, struct inode *ndi
     struct tmpfs_dirent *target = find(ndir, nname);
     if (target == d)
         return 0;
+    /* Papkani o'zining ichiga ko'chirishni oldini olish: ndir d ning avlodimi?
+     * (Hech narsani o'zgartirishdan OLDIN tekshiramiz.) */
+    if (S_ISDIR(d->inode->mode)) {
+        for (struct inode *p = ndir; p; p = NODE(p)->parent)
+            if (p == d->inode)
+                return -EINVAL;
+    }
     if (target) {
         if (S_ISDIR(target->inode->mode) != S_ISDIR(d->inode->mode))
             return S_ISDIR(target->inode->mode) ? -EISDIR : -ENOTDIR;
@@ -303,15 +310,14 @@ static int tmpfs_rename(struct inode *odir, const char *oname, struct inode *ndi
             return -ENOTEMPTY;
         /* Mavjud nishonni almashtiramiz (POSIX: rename atomar ravishda ustidan yozadi). */
         list_del(&target->node);
-        target->inode->nlink = S_ISDIR(target->inode->mode) ? 0 : target->inode->nlink - 1;
+        if (S_ISDIR(target->inode->mode)) {
+            target->inode->nlink = 0;
+            ndir->nlink--;              /* o'chgan papkaning ".." si */
+        } else {
+            target->inode->nlink--;
+        }
         iput(target->inode);
         kfree(target);
-    }
-    /* Papkani o'zining ichiga ko'chirishni oldini olish: ndir d ning avlodimi? */
-    if (S_ISDIR(d->inode->mode)) {
-        for (struct inode *p = ndir; p; p = NODE(p)->parent)
-            if (p == d->inode)
-                return -EINVAL;
     }
     list_del(&d->node);
     strlcpy(d->name, nname, sizeof(d->name));
