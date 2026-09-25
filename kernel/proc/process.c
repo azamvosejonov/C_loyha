@@ -39,6 +39,12 @@
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 
+/* ABI (myos/abi.h) dagi holat raqamlari enum bilan mos bo'lishi SHART - ps
+ * dasturi ularni ko'radi. Mos kelmasa, kompilyatsiya shu yerda to'xtaydi. */
+_Static_assert(PROC_EMBRYO == MYOS_PROC_EMBRYO && PROC_READY == MYOS_PROC_READY &&
+               PROC_RUNNING == MYOS_PROC_RUNNING && PROC_BLOCKED == MYOS_PROC_BLOCKED &&
+               PROC_ZOMBIE == MYOS_PROC_ZOMBIE, "proc_state va ABI mos emas");
+
 /* switch.asm */
 extern void context_switch(uint64_t *old_rsp, uint64_t new_rsp);
 extern void kthread_trampoline(void);
@@ -355,6 +361,10 @@ int proc_wait(int pid, int *exit_code, bool nohang)
         if (nohang) {
             irq_restore(flags);
             return 0;                   /* bolalar bor, lekin hali tugamagan */
+        }
+        if (current->killed) {          /* bizni kill() qilishdi - kutishni to'xtatamiz, */
+            irq_restore(flags);         /* aks holda uyg'onib, yana uxlab qolardik */
+            return -1;
         }
         proc_sleep_on(current);         /* bola exit() qilganda bizni uyg'otadi */
     }

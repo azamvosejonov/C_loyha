@@ -1,0 +1,33 @@
+# =============================================================================
+#  GitHub Actions: har bir push va pull request'da yadroni yig'ib, testlarni
+#  ishga tushiradi. Testlar yiqilsa - GitHub'da qizil belgi chiqadi.
+# =============================================================================
+name: build-and-test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vositalarni o'rnatish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nasm qemu-system-x86
+
+      - name: Yig'ish (ogohlantirishlar = xato)
+        run: make -j"$(nproc)"
+
+      - name: Testlar (yadro selftest + shell orqali integratsion testlar)
+        run: make test
+
+      - name: Test logini saqlash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: build/test-output.log

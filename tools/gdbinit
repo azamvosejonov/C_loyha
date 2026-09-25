@@ -1,0 +1,26 @@
+# =============================================================================
+#  tools/gdbinit - yadroni GDB bilan debug qilish uchun tayyor sozlamalar
+#
+#  Ishlatish (ikki terminal):
+#    1-terminal:  make debug
+#    2-terminal:  gdb -x tools/gdbinit
+# =============================================================================
+file build/kernel.elf
+target remote :1234
+set disassembly-flavor intel
+
+# Foydali to'xtash nuqtalari (keraksizini o'chiring yoki o'zingiznikini qo'shing):
+break kmain
+break panic
+
+# Qulay buyruqlar:
+#   continue (c)          - davom etish
+#   next (n) / step (s)   - keyingi qator (funksiyaga kirmasdan / kirib)
+#   bt                    - backtrace
+#   info registers        - registrlar
+#   x/16gx $rsp           - stekning 16 ta 8 baytlik qiymati
+#   p *current            - joriy jarayon strukturasi
+#   p procs[2]            - jarayonlar jadvalidagi 2-yozuv
+#   monitor info tlb      - QEMU monitor: joriy sahifa xaritasi
+#   monitor info registers- CR0, CR3, CR4, GDT, IDT ...
+continue
