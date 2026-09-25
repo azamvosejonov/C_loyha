@@ -16,9 +16,9 @@
 #define ALIGN_UP(x, align)   ALIGN_DOWN((x) + (align) - 1, align)
 #define IS_ALIGNED(x, align) (((x) & ((__typeof__(x))(align) - 1)) == 0)
 
-#define KiB (1024ULL)
-#define MiB (1024ULL * KiB)
-#define GiB (1024ULL * MiB)
+#define KiB (1024UL)
+#define MiB (1024UL * KiB)
+#define GiB (1024UL * MiB)
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

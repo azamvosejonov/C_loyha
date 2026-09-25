@@ -18,6 +18,18 @@
 #include "drivers/vga.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
+#include "lib/string.h"
+#include "mm/pmm.h"
+#include "tests/selftest.h"
+
+/* Yadroga berilgan buyruq qatori (masalan "selftest"). */
+static const char *kernel_cmdline = "";
+
+/* Buyruq qatorida shu so'z bormi? (juda sodda tekshiruv) */
+static int cmdline_has(const char *word)
+{
+    return strstr(kernel_cmdline, word) != NULL;
+}
 
 void kmain(uint32_t magic, uint32_t multiboot_info_phys);
 
@@ -37,6 +49,9 @@ void kmain(uint32_t magic, uint32_t multiboot_info_phys)
      * sifatida ishlatish mumkin (birinchi 1 GB da). */
     struct multiboot_info *mbi = (struct multiboot_info *)(uintptr_t)multiboot_info_phys;
     kprintf("[boot] 64-bitli Long Mode faol. multiboot_info = %p\n", (void *)mbi);
+    if (mbi->flags & MB_INFO_CMDLINE)
+        kernel_cmdline = (const char *)(uintptr_t)mbi->cmdline;
+    kprintf("[boot] Buyruq qatori: \"%s\"\n", kernel_cmdline);
 
     /* 2-qadam: uzilishlar. GDT (TSS bilan), IDT, PIC. */
     interrupts_init();
@@ -46,7 +61,13 @@ void kmain(uint32_t magic, uint32_t multiboot_info_phys)
      * ishlayotganini tekshirish uchun. Handler xabar berib, qaytadi. */
     __asm__ volatile("int3");
 
-    /* 3-qadam: qurilmalar. */
+    /* 3-qadam: fizik xotira. Endi bo'sh RAM freymlarini bera olamiz. */
+    pmm_init(mbi);
+
+    if (cmdline_has("selftest"))
+        selftest_run();
+
+    /* 4-qadam: qurilmalar. */
     pit_init();
     keyboard_init();
     console_enable_serial_input();
