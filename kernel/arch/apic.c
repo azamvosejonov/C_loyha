@@ -171,7 +171,8 @@ void lapic_timer_calibrate(void)
     uint32_t best = UINT32_MAX;
     for (int i = 0; i < 3; i++) {
         lapic_write(LAPIC_TIMER_INIT, 0xFFFFFFFF);
-        pit_wait_ms(10);
+        if (!pit_wait_ms(10))
+            mdelay(10);                 /* PIT yo'q: kalibrlangan TSC bilan o'lchaymiz */
         uint32_t elapsed = 0xFFFFFFFF - lapic_read(LAPIC_TIMER_CUR);
         if (elapsed < best)
             best = elapsed;

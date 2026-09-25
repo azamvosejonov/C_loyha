@@ -30,6 +30,7 @@
 #include "arch/interrupts.h"
 #include "arch/io.h"
 #include "drivers/console.h"
+#include "lib/kprintf.h"
 
 #define KBD_DATA_PORT 0x60
 
@@ -130,8 +131,14 @@ static void keyboard_irq(struct interrupt_frame *frame)
 
 void keyboard_init(void)
 {
-    /* Kontroller buferida qolib ketgan eski baytlarni tozalaymiz. */
-    while (inb(0x64) & 1)
+    /* Kontroller buferida qolib ketgan eski baytlarni tozalaymiz.
+     * HAQIQIY APPARAT: PS/2 kontrolleri umuman YO'Q kompyuterlarda (ko'plab
+     * zamonaviy UEFI mashinalar) mavjud bo'lmagan port 0xFF qaytaradi - 0-bit
+     * doim 1. Chegarasiz `while` bo'lsa, yadro shu yerda abadiy qotardi.
+     * Bufer 16 baytdan oshmaydi, shuning uchun 64 marta o'qish yetarli. */
+    if (inb(0x64) == 0xFF)
+        kprintf("[kbd]  PS/2 kontroller topilmadi (USB klaviatura hali qo'llab-quvvatlanmaydi)\n");
+    for (int i = 0; i < 64 && (inb(0x64) & 1); i++)
         inb(KBD_DATA_PORT);
     irq_register(IRQ_KEYBOARD, keyboard_irq);
 }

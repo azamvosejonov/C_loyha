@@ -11,7 +11,7 @@
 #      4) root fayl tizimini (build/rootfs: /bin, /etc ...) tar arxivga
 #         (build/initrd.tar) joylaydi - yadro uni boot paytida tmpfs ga ochadi
 #      5) GRUB bilan yuklanadigan ISO tasvir yaratadi (build/myos.iso). Uni USB
-#         fleshkaga yozib, HAQIQIY kompyuterda yuklash mumkin (docs/real-apparat.md)
+#         fleshkaga yozib, HAQIQIY kompyuterda yuklash mumkin (YAKUNIY.md, I qism)
 #
 #  ASOSIY BUYRUQLAR:
 #    make              - yadro + dasturlar + yuklanadigan ISO (build/myos.iso)

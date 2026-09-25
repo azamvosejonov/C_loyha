@@ -19,9 +19,19 @@
 #include "lib/kprintf.h"
 
 uint64_t tsc_khz;
+bool pit_usable = true;
 
-void pit_wait_ms(uint32_t ms)
+/* HAQIQIY APPARAT: ba'zi zamonaviy kompyuterlarda (Skylake va undan keyingi,
+ * BIOS'da "8254 Clock Gating" yoqilgan) PIT soati to'xtatib qo'yilgan - OUT2
+ * biti HECH QACHON 1 bo'lmaydi. Chegarasiz `while` bo'lsa, yadro shu yerda
+ * abadiy qotib qolardi (QEMU'da buni hech qachon ko'rmaysiz!). Shuning uchun
+ * sikl sonini cheklaymiz: 50 ms uchun ~100 ming `inb` yetarli, 2 mln - katta zaxira. */
+#define PIT_SPIN_LIMIT 2000000
+
+bool pit_wait_ms(uint32_t ms)
 {
+    if (!pit_usable)
+        return false;
     while (ms > 0) {
         uint32_t chunk = ms > 50 ? 50 : ms;             /* 16 bitli sanagichga sig'ishi uchun */
         uint16_t count = (uint16_t)(1193182UL * chunk / 1000);
@@ -33,10 +43,40 @@ void pit_wait_ms(uint32_t ms)
         v = inb(0x61) & ~0x01;
         outb(0x61, v);                                   /* gate ni qayta ishga tushirish */
         outb(0x61, v | 0x01);
-        while (!(inb(0x61) & 0x20))                      /* OUT2 = 1 bo'lguncha */
+        uint32_t spins = 0;
+        while (!(inb(0x61) & 0x20)) {                    /* OUT2 = 1 bo'lguncha */
+            if (++spins > PIT_SPIN_LIMIT) {
+                pit_usable = false;                      /* PIT ishlamayapti */
+                return false;
+            }
             cpu_pause();
+        }
         ms -= chunk;
     }
+    return true;
+}
+
+/* PIT ishlamasa: TSC chastotasini CPU'ning o'zidan so'raymiz.
+ *   CPUID 0x15: TSC = kristall * EBX / EAX (kristall chastotasi ECX da, Hz)
+ *   CPUID 0x16: EAX = CPU'ning bazaviy chastotasi (MHz) - taxminan TSC ga teng
+ * Ikkalasi ham bo'lmasa - 2 GHz deb taxmin qilamiz (vaqt noaniq bo'ladi, lekin
+ * tizim ishlaydi). Linux ham xuddi shunday zaxira yo'llardan foydalanadi. */
+static uint64_t tsc_khz_from_cpuid(void)
+{
+    uint32_t a, b, c, d;
+    cpuid(0, 0, &a, &b, &c, &d);
+    uint32_t max_leaf = a;
+    if (max_leaf >= 0x15) {
+        cpuid(0x15, 0, &a, &b, &c, &d);
+        if (a && b && c)
+            return (uint64_t)c * b / a / 1000;
+    }
+    if (max_leaf >= 0x16) {
+        cpuid(0x16, 0, &a, &b, &c, &d);
+        if (a & 0xFFFF)
+            return (uint64_t)(a & 0xFFFF) * 1000;
+    }
+    return 0;
 }
 
 void tsc_calibrate(void)
@@ -46,12 +86,21 @@ void tsc_calibrate(void)
     uint64_t best = UINT64_MAX;
     for (int i = 0; i < 3; i++) {
         uint64_t t0 = rdtsc();
-        pit_wait_ms(10);
+        if (!pit_wait_ms(10))
+            break;
         uint64_t d = rdtsc() - t0;
         if (d < best)
             best = d;
     }
-    tsc_khz = best / 10;
+    if (pit_usable) {
+        tsc_khz = best / 10;
+    } else {
+        tsc_khz = tsc_khz_from_cpuid();
+        kprintf("[tsc]  OGOHLANTIRISH: PIT ishlamayapti, TSC chastotasi CPUID'dan%s\n",
+                tsc_khz ? "" : " ham topilmadi - 2 GHz deb olindi");
+        if (!tsc_khz)
+            tsc_khz = 2000000;
+    }
     kprintf("[tsc]  TSC chastotasi: %lu.%03lu MHz%s\n", tsc_khz / 1000, tsc_khz % 1000,
             cpu_features.tsc_invariant ? " (invariant)" : "");
 }
