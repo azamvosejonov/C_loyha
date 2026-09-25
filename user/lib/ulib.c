@@ -47,7 +47,43 @@ static inline long syscall3(long n, long a1, long a2, long a3)
     return r;
 }
 
+/* 4-argument R10 da (RCX emas - uni syscall instruksiyasi buzadi). */
+static inline long syscall4(long n, long a1, long a2, long a3, long a4)
+{
+    long r;
+    register long r10 __asm__("r10") = a4;
+    __asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a1), "S"(a2), "d"(a3), "r"(r10)
+                     : "rcx", "r11", "memory");
+    return r;
+}
+
 /* ---- Syscall'lar ------------------------------------------------------------ */
+
+int fork(void)
+{
+    return (int)syscall0(SYS_FORK);
+}
+
+int exec(const char *path, char *const argv[])
+{
+    return (int)syscall2(SYS_EXEC, (long)path, (long)argv);
+}
+
+void *mmap(void *addr, size_t len, int prot, int flags)
+{
+    long r = syscall4(SYS_MMAP, (long)addr, (long)len, prot, flags);
+    return r < 0 ? MAP_FAILED : (void *)r;
+}
+
+int munmap(void *addr, size_t len)
+{
+    return (int)syscall2(SYS_MUNMAP, (long)addr, (long)len);
+}
+
+int getppid(void)
+{
+    return (int)syscall0(SYS_GETPPID);
+}
 
 void exit(int code)
 {

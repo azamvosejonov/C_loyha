@@ -48,6 +48,7 @@
 #include "lib/kprintf.h"
 #include "lib/string.h"
 #include "mm/slab.h"
+#include "mm/mm.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "myos/abi.h"
@@ -59,9 +60,13 @@
 
 /* ---- User xotirasi bilan xavfsiz ishlash ------------------------------------ */
 
+/* User bergan [addr, addr+len) xotirasi haqiqatan jarayonniki va (kerak bo'lsa)
+ * yozish mumkinmi? DEMAND PAGING tufayli sahifalar hali yaratilmagan bo'lishi
+ * mumkin - mm_prefault ularni hozir yaratadi (va COW ni buzadi). Shundan keyin
+ * yadro bu xotiraga to'g'ridan-to'g'ri page fault'siz murojaat qila oladi. */
 static bool user_ok(uint64_t addr, size_t len, bool write)
 {
-    return vmm_user_range_ok(current->pml4, addr, len, write);
+    return mm_prefault(current->mm, addr, len, write);
 }
 
 /* User satrini yadro buferiga nusxalash. Qaytaradi: uzunlik yoki -1.
@@ -132,48 +137,78 @@ static int64_t sys_close(int64_t fd)
     return 0;
 }
 
+/* User argv massivini yadroga nusxalash. storage - MAX_ARGS * ARG_MAX_LEN bayt.
+ * argv berilmagan bo'lsa argv[0] = path. Qaytaradi: argc yoki -1. */
+static int copy_argv_from_user(uint64_t uargv, const char *path, char *storage, char **argv)
+{
+    int argc = 0;
+    if (uargv) {
+        for (; argc <= MAX_ARGS; argc++) {
+            uint64_t slot = uargv + (uint64_t)argc * sizeof(uint64_t);
+            if (!user_ok(slot, sizeof(uint64_t), false))
+                return -1;
+            uint64_t uarg = *(const uint64_t *)(uintptr_t)slot;
+            if (uarg == 0)
+                break;                  /* NULL - massiv oxiri */
+            if (argc == MAX_ARGS)
+                return -1;              /* argumentlar juda ko'p */
+            argv[argc] = storage + argc * ARG_MAX_LEN;
+            if (copy_string_from_user(argv[argc], uarg, ARG_MAX_LEN) < 0)
+                return -1;
+        }
+    }
+    if (argc == 0) {
+        argv[0] = storage;
+        strlcpy(argv[0], path, ARG_MAX_LEN);
+        argc = 1;
+    }
+    return argc;
+}
+
 static int64_t sys_spawn(uint64_t upath, uint64_t uargv)
 {
     char path[PATH_MAX];
     if (copy_string_from_user(path, upath, sizeof(path)) < 0)
         return -1;
-
-    /* argv ni yadroga nusxalaymiz: avval ko'rsatkichlar massivi, keyin satrlar.
-     * Barcha satrlar bitta kmalloc buferida saqlanadi. */
     char *storage = kmalloc(MAX_ARGS * ARG_MAX_LEN);
     char *argv[MAX_ARGS];
-    int argc = 0;
     if (!storage)
         return -1;
-    if (uargv) {
-        for (; argc <= MAX_ARGS; argc++) {
-            uint64_t slot = uargv + (uint64_t)argc * sizeof(uint64_t);
-            if (!user_ok(slot, sizeof(uint64_t), false)) {
-                kfree(storage);
-                return -1;
-            }
-            uint64_t uarg = *(const uint64_t *)(uintptr_t)slot;
-            if (uarg == 0)
-                break;                  /* NULL - massiv oxiri */
-            if (argc == MAX_ARGS) {
-                kfree(storage);
-                return -1;              /* argumentlar juda ko'p */
-            }
-            argv[argc] = storage + argc * ARG_MAX_LEN;
-            if (copy_string_from_user(argv[argc], uarg, ARG_MAX_LEN) < 0) {
-                kfree(storage);
-                return -1;
-            }
-        }
-    }
-    if (argc == 0) {                    /* argv berilmagan: argv[0] = yo'l */
-        argv[0] = storage;
-        strlcpy(argv[0], path, ARG_MAX_LEN);
-        argc = 1;
-    }
-    int64_t pid = proc_spawn(path, argc, argv);
+    int argc = copy_argv_from_user(uargv, path, storage, argv);
+    int64_t pid = argc < 0 ? -1 : proc_spawn(path, argc, argv);
     kfree(storage);
     return pid;
+}
+
+/* exec: muvaffaqiyatda qaytmaydi (to'g'rirog'i, yangi dastur boshiga "qaytadi"). */
+static int64_t sys_exec(struct interrupt_frame *f, uint64_t upath, uint64_t uargv)
+{
+    char path[PATH_MAX];
+    if (copy_string_from_user(path, upath, sizeof(path)) < 0)
+        return -1;
+    char *storage = kmalloc(MAX_ARGS * ARG_MAX_LEN);
+    char *argv[MAX_ARGS];
+    if (!storage)
+        return -1;
+    /* argv ni ESKI manzil maydonidan HOZIR nusxalaymiz - exec dan keyin u yo'q. */
+    int argc = copy_argv_from_user(uargv, path, storage, argv);
+    int64_t r = argc < 0 ? -1 : proc_exec(f, path, argc, argv);
+    kfree(storage);
+    /* Muvaffaqiyat: freym allaqachon yangi dastur boshiga ko'rsatadi va 0 ni
+     * RAX ga yozish zararsiz (yangi dasturda RAX baribir 0). */
+    return r;
+}
+
+static int64_t sys_mmap(uint64_t addr, uint64_t len, uint64_t prot, uint64_t flags)
+{
+    if (!(flags & MAP_ANONYMOUS) || !(flags & MAP_PRIVATE))
+        return -1;                      /* hozircha faqat anonim xususiy xotira */
+    if (len == 0 || len > (1UL << 40))
+        return -1;
+    if (!(flags & MAP_FIXED))
+        addr = 0;                       /* joyni yadro tanlaydi */
+    uint64_t r = mm_map(current->mm, addr, len, (uint32_t)prot & 7, VMA_ANON);
+    return r ? (int64_t)r : -1;
 }
 
 static int64_t sys_wait(int64_t pid, uint64_t ustatus, uint64_t flags)
@@ -188,41 +223,12 @@ static int64_t sys_wait(int64_t pid, uint64_t ustatus, uint64_t flags)
 }
 
 /* sbrk: user heap'ini kattalashtirish/kichraytirish. Unix'dagi malloc aynan
- * shu chaqiruv ustiga qurilgan (user/lib/malloc.c ga qarang). */
+ * shu chaqiruv ustiga qurilgan (user/lib/malloc.c ga qarang). Sahifalar DARHOL
+ * ajratilmaydi - faqat heap VMA kengayadi, sahifa birinchi murojaatda paydo
+ * bo'ladi (demand paging). */
 static int64_t sys_sbrk(int64_t increment)
 {
-    struct process *p = current;
-    uint64_t old_brk = p->brk;
-    uint64_t new_brk = old_brk + (uint64_t)increment;
-    uint64_t limit = USER_STACK_TOP - USER_STACK_MAX - PAGE_SIZE;  /* stek + himoya */
-
-    if (increment > 0 && (new_brk < old_brk || new_brk > limit))
-        return -1;                      /* to'lib ketish yoki stekka urilish */
-    if (increment < 0 && new_brk < p->heap_start)
-        return -1;
-
-    uint64_t old_top = ALIGN_UP(old_brk, PAGE_SIZE);
-    uint64_t new_top = ALIGN_UP(new_brk, PAGE_SIZE);
-    if (new_top > old_top) {
-        if (!vmm_map_anonymous(p->pml4, old_top, (new_top - old_top) / PAGE_SIZE,
-                               PTE_USER | PTE_WRITABLE)) {
-            /* Qisman xaritalanganlarini qaytarib olamiz. */
-            for (uint64_t va = old_top; va < new_top; va += PAGE_SIZE) {
-                uint64_t phys = vmm_unmap_page(p->pml4, va);
-                if (phys)
-                    put_page(phys_to_page(phys));
-            }
-            return -1;
-        }
-    } else {
-        for (uint64_t va = new_top; va < old_top; va += PAGE_SIZE) {
-            uint64_t phys = vmm_unmap_page(p->pml4, va);
-            if (phys)
-                put_page(phys_to_page(phys));   /* xotirani tizimga QAYTARAMIZ */
-        }
-    }
-    p->brk = new_brk;
-    return (int64_t)old_brk;
+    return (int64_t)mm_sbrk(current->mm, increment);
 }
 
 static int64_t sys_readdir(uint64_t index, uint64_t udirent)
@@ -386,6 +392,11 @@ void syscall_dispatch(struct interrupt_frame *f)
     case SYS_REBOOT:   sys_reboot();
     case SYS_DMESG:    ret = sys_dmesg(a1, a2); break;
     case SYS_SYSINFO:  ret = sys_sysinfo(a1); break;
+    case SYS_FORK:     ret = proc_fork(f); break;
+    case SYS_EXEC:     ret = sys_exec(f, a1, a2); break;
+    case SYS_MMAP:     ret = sys_mmap(a1, a2, a3, f->r10); break;
+    case SYS_MUNMAP:   ret = mm_unmap(current->mm, a1, a2); break;
+    case SYS_GETPPID:  ret = current->parent ? current->parent->pid : 0; break;
     default:           ret = -1; break;         /* noma'lum syscall */
     }
     f->rax = (uint64_t)ret;             /* natija user'ning RAX registriga qaytadi */

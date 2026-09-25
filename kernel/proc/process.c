@@ -43,6 +43,7 @@
 #include "lib/kprintf.h"
 #include "lib/panic.h"
 #include "lib/string.h"
+#include "mm/mm.h"
 #include "mm/pmm.h"
 #include "mm/vmalloc.h"
 #include "mm/vmm.h"
@@ -116,9 +117,10 @@ static void proc_release_resources(struct process *p)
         vfree((void *)p->kstack_base);
         p->kstack_base = 0;
     }
-    if (p->is_user && p->pml4 && p->pml4 != vmm_kernel_pml4()) {
-        vmm_destroy_address_space(p->pml4);
-        p->pml4 = 0;
+    if (p->mm) {
+        mm_destroy(p->mm);
+        p->mm = NULL;
+        p->pml4 = vmm_kernel_pml4();
     }
 }
 
@@ -379,15 +381,16 @@ void proc_exit(int code)
 
     /* User xotirasini DARHOL qaytaramiz (ko'p bo'lishi mumkin). Avval yadro
      * maydoniga o'tamiz: joriy CR3 ni yo'q qilib bo'lmaydi. */
-    if (me->is_user && me->pml4 != vmm_kernel_pml4()) {
-        /* pml4 ni QULF OSTIDA almashtiramiz: proc_list (ps) jadvallarni qulf
+    if (me->mm) {
+        /* mm ni QULF OSTIDA almashtiramiz: proc_list (ps) jadvallarni qulf
          * ostida yuradi va bo'shatilgan jadvallarga tegib qolmasligi kerak. */
         spin_lock(&proc_lock);
-        uint64_t old = me->pml4;
+        struct mm *old = me->mm;
+        me->mm = NULL;
         me->pml4 = vmm_kernel_pml4();
         spin_unlock(&proc_lock);
         vmm_switch(me->pml4);
-        vmm_destroy_address_space(old);
+        mm_destroy(old);
     }
 
     spin_lock(&proc_lock);

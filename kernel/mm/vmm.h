@@ -57,6 +57,9 @@ bool vmm_map_anonymous(uint64_t pml4, uint64_t virt, size_t pages, uint64_t flag
 bool vmm_copy_to_space(uint64_t pml4, uint64_t virt, const void *src, size_t len);
 bool vmm_user_range_ok(uint64_t pml4, uint64_t virt, size_t len, bool write);
 uint64_t vmm_count_user_pages(uint64_t pml4);
+/* [start, end) user oralig'idagi BO'SHAB QOLGAN sahifa jadvallarini (PT, PD, PDPT)
+ * buddy'ga qaytarish. munmap va sbrk kichraytirishidan keyin. */
+void vmm_prune_tables(uint64_t pml4, uint64_t start, uint64_t end);
 
 /* Yadro sahifasini BARCHA CPU'larda TLB dan o'chirish (SMP: IPI orqali). */
 void vmm_flush_page(uint64_t virt);

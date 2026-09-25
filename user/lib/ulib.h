@@ -23,6 +23,11 @@
 #define STDERR  2
 
 /* ---- Syscall o'ramlari ---- */
+int fork(void);                         /* otaga: bola pid, bolaga: 0, xato: -1 */
+int exec(const char *path, char *const argv[]);    /* faqat xatoda qaytadi */
+void *mmap(void *addr, size_t len, int prot, int flags);
+int munmap(void *addr, size_t len);
+int getppid(void);
 __attribute__((noreturn)) void exit(int code);
 long write(int fd, const void *buf, size_t len);
 long read(int fd, void *buf, size_t len);

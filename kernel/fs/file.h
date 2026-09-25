@@ -15,6 +15,7 @@ enum file_type {
 
 struct file {
     enum file_type type;
+    int refcount;                       /* nechta fd bu obyektga ko'rsatadi (fork, dup) */
     const struct tar_file *tar;         /* FILE_TAR uchun */
     size_t offset;                      /* keyingi read() qayerdan o'qiydi */
 };
@@ -24,6 +25,8 @@ struct file *file_console(void);
 /* initrd dan faylni ochish. Topilmasa NULL. */
 struct file *file_open(const char *path);
 void file_close(struct file *f);
+/* Yana bitta ko'rsatkich (fork/dup): refcount++ */
+struct file *file_dup(struct file *f);
 
 /* buf - chaqiruvchi tekshirgan (yadro yoki tasdiqlangan user) bufer.
  * Qaytaradi: baytlar soni, 0 = fayl oxiri, manfiy = xato. */

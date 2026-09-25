@@ -41,6 +41,8 @@ enum proc_state {
 };
 
 struct file;                            /* fs/file.h da */
+struct mm;                              /* mm/mm.h da */
+struct interrupt_frame;
 
 struct process {
     int pid;
@@ -65,8 +67,7 @@ struct process {
     uint64_t wake_tick;                 /* sleep: qaysi tikda uyg'onish kerak */
 
     /* --- User xotirasi --- */
-    uint64_t heap_start;                /* ELF segmentlaridan keyingi birinchi sahifa */
-    uint64_t brk;                       /* joriy heap chegarasi (sbrk) */
+    struct mm *mm;                      /* manzil maydoni (yadro oqimlarida NULL) */
 
     /* --- Fayllar --- */
     struct file *files[MAX_FDS];
@@ -122,6 +123,11 @@ int proc_kill(int pid);
 /* ps uchun. Qaytaradi: nechta yozuv to'ldirildi. */
 int proc_list(struct myos_proc_info *out, int max);
 
-/* ELF dasturni initrd dan yuklab, yangi USER jarayon yaratish (7-bosqich).
+/* ELF dasturni yuklab, yangi USER jarayon yaratish.
  * argv - yadro xotirasidagi satrlar. Qaytaradi: pid yoki manfiy xato. */
 int proc_spawn(const char *path, int argc, char *const argv[]);
+/* Joriy jarayonni boshqa dastur bilan ALMASHTIRISH. Muvaffaqiyatda frame
+ * yangi dasturning boshiga ko'rsatadi (0); xatoda eski dastur davom etadi (<0). */
+int proc_exec(struct interrupt_frame *f, const char *path, int argc, char *const argv[]);
+/* Joriy jarayon nusxasi (copy-on-write). Otaga bola pid, bolaga 0 qaytadi. */
+int proc_fork(struct interrupt_frame *f);

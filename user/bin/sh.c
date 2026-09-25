@@ -5,10 +5,11 @@
  *  Shell - oddiy user dasturi, hech qanday maxsus huquqi yo'q. U faqat:
  *    1) qatorni o'qiydi                         (read syscall)
  *    2) uni so'zlarga ajratadi                  ("cat README.txt" -> ["cat", "README.txt"])
- *    3) dasturni ishga tushiradi                (spawn syscall)
- *    4) tugashini kutadi                        (wait syscall)
+ *    3) nusxasini yaratadi                      (fork syscall)
+ *    4) nusxa o'zini dasturga aylantiradi       (exec syscall)
+ *    5) tugashini kutadi                        (wait syscall)
  *
- *  Bash, zsh ham asosan shu tsiklni bajaradi (fork+exec+wait bilan).
+ *  Bash, zsh ham aynan shu tsiklni bajaradi.
  *
  *  Ichki (builtin) buyruqlar: help, exit, shutdown.
  *  Qolgan har bir so'z - initrd dagi dastur nomi.
@@ -108,19 +109,27 @@ int main(int argc, char **argv)
         if (strcmp(args[0], "shutdown") == 0)
             shutdown();
 
-        /* --- Tashqi dastur --- */
-        int pid = spawn(args[0], args);
+        /* --- Tashqi dastur: klassik Unix usuli - fork + exec --- */
+        int pid = fork();
         if (pid < 0) {
-            printf("sh: '%s' topilmadi yoki ishga tushmadi (xato %d)\n", args[0], pid);
+            printf("sh: fork xatosi\n");
             continue;
         }
+        if (pid == 0) {
+            /* BOLA: shell'ning nusxasi. Endi o'zini kerakli dasturga aylantiradi. */
+            exec(args[0], args);
+            /* exec qaytdi = xato (dastur topilmadi) */
+            printf("sh: '%s' topilmadi yoki ishga tushmadi\n", args[0]);
+            exit(127);                  /* Unix an'anasi: 127 = "buyruq topilmadi" */
+        }
+        /* OTA (shell) */
         if (background) {
             printf("[fon] pid %d ishga tushdi\n", pid);
             continue;
         }
         int status;
         wait(pid, &status, 0);
-        if (status != 0)
+        if (status != 0 && status != 127)
             printf("[sh] '%s' kod %d bilan tugadi\n", args[0], status);
     }
 }

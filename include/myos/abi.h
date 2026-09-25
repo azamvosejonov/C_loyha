@@ -44,7 +44,23 @@
 #define SYS_REBOOT   18                 /* reboot()                         */
 #define SYS_DMESG    19                 /* dmesg(buf, size) -> baytlar      */
 #define SYS_SYSINFO  20                 /* sysinfo(&info)                   */
-#define SYS_COUNT    21
+#define SYS_FORK     21                 /* fork() -> bolaga 0, otaga bola pid */
+#define SYS_EXEC     22                 /* exec(path, argv) - faqat xatoda qaytadi */
+#define SYS_MMAP     23                 /* mmap(addr, len, prot, flags) -> manzil */
+#define SYS_MUNMAP   24                 /* munmap(addr, len)                */
+#define SYS_GETPPID  25                 /* getppid()                        */
+#define SYS_COUNT    26
+
+/* mmap: himoya bitlari */
+#define PROT_NONE    0
+#define PROT_READ    1
+#define PROT_WRITE   2
+#define PROT_EXEC    4
+/* mmap: bayroqlar (Linux bilan bir xil qiymatlar) */
+#define MAP_PRIVATE   0x02
+#define MAP_FIXED     0x10
+#define MAP_ANONYMOUS 0x20
+#define MAP_FAILED    ((void *)-1)
 
 /* wait() bayroqlari */
 #define WAIT_NOHANG  1                  /* bola hali tugamagan bo'lsa kutmasdan 0 qaytar */

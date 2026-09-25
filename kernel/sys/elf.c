@@ -31,7 +31,8 @@
 
 #include "lib/common.h"
 #include "lib/string.h"
-#include "mm/pmm.h"
+#include "mm/layout.h"
+#include "mm/mm.h"
 #include "mm/vmm.h"
 
 struct elf64_ehdr {
@@ -67,12 +68,10 @@ struct elf64_phdr {
 #define ET_EXEC       2
 #define EM_X86_64     62
 #define PT_LOAD       1
+#define PF_X          1
 #define PF_W          2
 
-/* Stekning eng katta hajmi va himoya sahifasi uchun joy qoldiramiz. */
-#define USER_IMAGE_LIMIT (USER_STACK_TOP - USER_STACK_MAX - PAGE_SIZE)
-
-int elf_load(uint64_t pml4, const uint8_t *data, size_t size, uint64_t *entry,
+int elf_load(struct mm *mm, const uint8_t *data, size_t size, uint64_t *entry,
              uint64_t *image_end)
 {
     if (size < sizeof(struct elf64_ehdr))
@@ -107,35 +106,35 @@ int elf_load(uint64_t pml4, const uint8_t *data, size_t size, uint64_t *entry,
             return -8;                  /* ma'lumot fayldan tashqarida */
         uint64_t start = p->p_vaddr;
         uint64_t end = p->p_vaddr + p->p_memsz;
-        if (end < start || start < USER_SPACE_START || end > USER_IMAGE_LIMIT)
+        if (end < start || start < USER_SPACE_START || end > MMAP_TOP)
             return -9;                  /* yadro hududiga yoki stekka yuklashga urinish! */
 
-        /* --- Sahifalarni ajratish --- */
-        uint64_t flags = PTE_USER | ((p->p_flags & PF_W) ? PTE_WRITABLE : 0);
-        for (uint64_t va = ALIGN_DOWN(start, PAGE_SIZE); va < end; va += PAGE_SIZE) {
-            uint64_t old_flags;
-            if (vmm_translate(pml4, va, &old_flags)) {
-                /* Sahifa oldingi segment bilan umumiy: ruxsatlarni birlashtiramiz. */
-                vmm_update_flags(pml4, va, old_flags | flags);
-                continue;
-            }
-            if (!vmm_map_anonymous(pml4, va, 1, flags))   /* nollangan freym = .bss tayyor */
-                return -10;
+        /* --- VMA: segmentning ruxsatlari bilan (kod r-x, ma'lumot rw-) --- */
+        uint32_t prot = PROT_READ | ((p->p_flags & PF_W) ? PROT_WRITE : 0) |
+                        ((p->p_flags & PF_X) ? PROT_EXEC : 0);
+        uint64_t vstart = ALIGN_DOWN(start, PAGE_SIZE);
+        uint64_t vend = ALIGN_UP(end, PAGE_SIZE);
+        if (!mm_map(mm, vstart, vend - vstart, prot, VMA_ELF))
+            return -10;                 /* boshqa segment bilan ustma-ust */
+
+        /* --- Fayldagi baytlar: sahifalarni hozir ajratib, nusxalaymiz.
+         * (.bss qismi - memsz > filesz - birinchi murojaatda nollangan sahifa
+         * bo'lib paydo bo'ladi: demand paging.) --- */
+        if (p->p_filesz) {
+            if (!mm_populate(mm, start, p->p_filesz))
+                return -11;
+            if (!vmm_copy_to_space(mm->pml4, start, data + p->p_offset, p->p_filesz))
+                return -11;
         }
 
-        /* --- Fayldagi baytlarni nusxalash (fizik manzillar orqali, chunki bu
-         *     manzil maydoni hozir faol emas) --- */
-        if (!vmm_copy_to_space(pml4, start, data + p->p_offset, p->p_filesz))
-            return -11;
-
-        if (eh->e_entry >= start && eh->e_entry < end)
+        if (eh->e_entry >= start && eh->e_entry < end && (prot & PROT_EXEC))
             entry_ok = true;
         if (end > highest)
             highest = end;
     }
 
     if (!entry_ok)
-        return -12;                     /* kirish nuqtasi yuklangan kod ichida emas */
+        return -12;                     /* kirish nuqtasi bajariladigan segment ichida emas */
     *entry = eh->e_entry;
     *image_end = highest;
     return 0;

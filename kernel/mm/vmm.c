@@ -410,6 +410,57 @@ bool vmm_user_range_ok(uint64_t pml4, uint64_t virt, size_t len, bool write)
     return true;
 }
 
+static bool table_empty(const uint64_t *t)
+{
+    for (int i = 0; i < 512; i++)
+        if (t[i] & PTE_PRESENT)
+            return false;
+    return true;
+}
+
+void vmm_prune_tables(uint64_t pml4, uint64_t start, uint64_t end)
+{
+    if (end > USER_SPACE_END)
+        end = USER_SPACE_END;
+    bool freed = false;
+    uint64_t *l4 = table_virt(pml4);
+    /* Har bir 2 MB oraliq (bitta PT qamrab oladigan hudud) bo'yicha yuramiz. */
+    for (uint64_t va = ALIGN_DOWN(start, 2 * MiB); va < end; va += 2 * MiB) {
+        uint64_t *e4 = &l4[PML4_INDEX(va)];
+        if (!(*e4 & PTE_PRESENT)) {
+            va = ALIGN_DOWN(va, 512 * GiB) + 512 * GiB - 2 * MiB;    /* butun PML4 yozuvi bo'sh */
+            continue;
+        }
+        uint64_t *l3 = table_virt(*e4);
+        uint64_t *e3 = &l3[PDPT_INDEX(va)];
+        if (!(*e3 & PTE_PRESENT)) {
+            va = ALIGN_DOWN(va, GiB) + GiB - 2 * MiB;
+            continue;
+        }
+        uint64_t *l2 = table_virt(*e3);
+        uint64_t *e2 = &l2[PD_INDEX(va)];
+        if ((*e2 & PTE_PRESENT) && !(*e2 & PTE_HUGE) && table_empty(table_virt(*e2))) {
+            pmm_free_page(*e2 & PTE_ADDR_MASK);
+            *e2 = 0;
+            freed = true;
+        }
+        if (table_empty(l2)) {
+            pmm_free_page(*e3 & PTE_ADDR_MASK);
+            *e3 = 0;
+            freed = true;
+            if (table_empty(l3)) {
+                pmm_free_page(*e4 & PTE_ADDR_MASK);
+                *e4 = 0;
+            }
+            va = ALIGN_DOWN(va, GiB) + GiB - 2 * MiB;
+        }
+    }
+    /* CPU jadval yozuvlarini ham keshlaydi ("paging-structure caches") -
+     * bo'shatilgan jadvalga murojaat qolmasligi uchun to'liq tozalash. */
+    if (freed && pml4 == cpu_read_cr3())
+        cpu_write_cr3(pml4);
+}
+
 uint64_t vmm_count_user_pages(uint64_t pml4)
 {
     uint64_t count = 0;

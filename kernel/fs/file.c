@@ -35,6 +35,7 @@ struct file *file_open(const char *path)
     if (!f)
         return NULL;
     f->type = FILE_TAR;
+    f->refcount = 1;
     f->tar = tf;
     f->offset = 0;
     return f;
@@ -42,8 +43,17 @@ struct file *file_open(const char *path)
 
 void file_close(struct file *f)
 {
-    if (f && f != &console_file)        /* konsol umumiy - bo'shatilmaydi */
-        kfree(f);
+    if (!f || f == &console_file)       /* konsol umumiy - bo'shatilmaydi */
+        return;
+    if (__atomic_sub_fetch(&f->refcount, 1, __ATOMIC_ACQ_REL) == 0)
+        kfree(f);                       /* oxirgi foydalanuvchi */
+}
+
+struct file *file_dup(struct file *f)
+{
+    if (f && f != &console_file)
+        __atomic_add_fetch(&f->refcount, 1, __ATOMIC_RELAXED);
+    return f;
 }
 
 long file_read(struct file *f, void *buf, size_t len)

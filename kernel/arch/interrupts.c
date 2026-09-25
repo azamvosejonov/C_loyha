@@ -23,6 +23,7 @@
 #include "drivers/pic.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
+#include "mm/mm.h"
 #include "proc/process.h"
 
 static interrupt_handler_t handlers[256];
@@ -94,6 +95,13 @@ static void handle_exception(struct interrupt_frame *frame)
     /* USER DASTURIDAGI XATO: faqat o'sha jarayonni o'ldiramiz, yadro va
      * boshqa jarayonlar ishlashda davom etadi. Bu - himoya halqalari va
      * virtual xotiraning butun mazmuni! Linux'da bu "Segmentation fault". */
+    /* PAGE FAULT user rejimida: ko'pincha bu XATO EMAS! Demand paging (sahifa
+     * hali yaratilmagan), copy-on-write (fork dan keyin yozish) yoki stek o'sishi.
+     * mm_handle_fault hal qilsa - dastur hech narsa sezmasdan davom etadi. */
+    if (v == 14 && frame_from_user(frame) &&
+        mm_handle_fault(current->mm, cpu_read_cr2(), frame->error_code))
+        return;
+
     if (frame_from_user(frame)) {
         kprintf("\n[kernel] '%s' (pid %d) o'ldirildi: %s, RIP=%p\n",
                 current->name, current->pid, exception_names[v], (void *)frame->rip);

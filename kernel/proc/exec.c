@@ -1,31 +1,30 @@
 /* =============================================================================
- *  proc/exec.c - user dasturini ishga tushirish (proc_spawn)
+ *  proc/exec.c - dastur ishga tushirish: spawn, exec, fork
  * =============================================================================
  *
- *  Unix'da yangi dastur ikki qadamda ishga tushadi: fork() (nusxa) + exec()
- *  (almashtirish). Biz soddaroq "spawn" modelini tanladik (Windows'dagi
- *  CreateProcess va POSIX'dagi posix_spawn kabi): bitta chaqiruv yangi
- *  jarayon yaratadi va unga dasturni yuklaydi.
+ *  UNIX MODELI - ikki qadam:
+ *     fork()  - joriy jarayonning NUSXASI (copy-on-write tufayli arzon)
+ *     exec()  - nusxa ichida BOSHQA dasturni yuklash (manzil maydoni almashadi)
+ *  Shell buyruqni aynan shunday bajaradi:
+ *     pid = fork();
+ *     if (pid == 0) exec("ls", argv);     // bola: ls ga aylanadi
+ *     else wait(pid);                     // ota: kutadi
+ *  Nega ikki qadam? Fork va exec orasida bola o'z muhitini sozlaydi (fayllarni
+ *  yo'naltirish: `ls > fayl`, pipe'lar `ls | cat`) - ota jarayonga tegmasdan.
  *
- *  QADAMLAR:
- *    1. initrd dan faylni topish
- *    2. struct process + yadro steki (proc_alloc)
- *    3. yangi manzil maydoni (vmm_create_address_space)
- *    4. ELF segmentlarini yuklash (elf_load)
- *    5. user stekini ajratish va unga argc/argv ni joylash
- *    6. yadro stekiga "soxta uzilish freymi" qo'yish: scheduler bu jarayonga
- *       birinchi marta o'tganda, context_switch -> interrupt_return -> iretq
- *       CPU'ni ring 3 ga, dasturning _start nuqtasiga "qaytaradi".
- *    7. fd 0/1/2 = konsol, READY holatiga o'tkazish
+ *  spawn() - ikkalasini bitta chaqiruvda (posix_spawn kabi), init uchun qulay.
  *
- *  USER STEKI (argv joylashuvi), USER_STACK_TOP dan pastga:
+ *  YANGI MANZIL MAYDONI (load_image):
+ *    1. ELF segmentlari -> VMA lar (kod r-x, ma'lumot rw-), fayl baytlari nusxalanadi
+ *    2. heap VMA (brk) - bo'sh, demand paging bilan o'sadi
+ *    3. stek VMA - USER_STACK_TOP ostida, 8 MB gacha avtomatik o'sadi
+ *    4. argv satrlari stekning tepasiga:
  *
  *    USER_STACK_TOP ┌────────────────────┐
  *                   │ "hello\0" "-v\0"   │ <- argv satrlari
  *                   ├────────────────────┤ (16 ga tekislash)
- *                   │ argv[0] ───────────┼──► "hello"
- *                   │ argv[1] ───────────┼──► "-v"
- *                   │ argv[2] = NULL     │
+ *                   │ argv[0], argv[1]   │
+ *                   │ NULL               │
  *        RSP ─────► └────────────────────┘   RDI = argc, RSI = &argv[0]
  * ============================================================================= */
 #include "proc/process.h"
@@ -36,6 +35,7 @@
 #include "fs/tarfs.h"
 #include "lib/common.h"
 #include "lib/string.h"
+#include "mm/mm.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "sys/elf.h"
@@ -43,34 +43,38 @@
 extern void interrupt_return(void);    /* isr.asm */
 extern void new_proc_start(void);      /* switch.asm */
 
-#define MAX_ARG_BYTES 2048              /* argv satrlari uchun jami chegara */
+#define MAX_ARG_BYTES 4096
+#define INITIAL_STACK (64 * 1024)       /* argv uchun darhol ajratiladigan qism */
 
-/* argv ni user stekiga joylash. Qaytaradi: yangi RSP (0 = xato). */
-static uint64_t setup_user_stack(uint64_t pml4, int argc, char *const argv[], uint64_t *argv_va)
+struct image {
+    struct mm *mm;
+    uint64_t entry;
+    uint64_t sp;
+    uint64_t argv_va;
+};
+
+static uint64_t setup_user_stack(struct mm *mm, int argc, char *const argv[], uint64_t *argv_va)
 {
     uint64_t sp = USER_STACK_TOP;
     uint64_t ptrs[MAX_ARGS + 1];
-
-    /* Satrlarni teskari tartibda stekka ko'chiramiz. */
     for (int i = argc - 1; i >= 0; i--) {
         size_t len = strlen(argv[i]) + 1;
         sp -= len;
-        if (!vmm_copy_to_space(pml4, sp, argv[i], len))
+        if (!vmm_copy_to_space(mm->pml4, sp, argv[i], len))
             return 0;
         ptrs[i] = sp;
     }
-    ptrs[argc] = 0;                     /* argv[argc] = NULL (C standarti talabi) */
-
+    ptrs[argc] = 0;                     /* argv[argc] = NULL (C standarti) */
     sp = ALIGN_DOWN(sp, 16);
     sp -= (uint64_t)(argc + 1) * sizeof(uint64_t);
     sp = ALIGN_DOWN(sp, 16);            /* ABI: _start da RSP 16 ga karrali */
-    if (!vmm_copy_to_space(pml4, sp, ptrs, (size_t)(argc + 1) * sizeof(uint64_t)))
+    if (!vmm_copy_to_space(mm->pml4, sp, ptrs, (size_t)(argc + 1) * sizeof(uint64_t)))
         return 0;
     *argv_va = sp;
     return sp;
 }
 
-int proc_spawn(const char *path, int argc, char *const argv[])
+static int load_image(const char *path, int argc, char *const argv[], struct image *out)
 {
     if (argc < 0 || argc > MAX_ARGS)
         return -1;
@@ -80,68 +84,57 @@ int proc_spawn(const char *path, int argc, char *const argv[])
     if (total > MAX_ARG_BYTES)
         return -1;
 
-    /* 1. Faylni topamiz. */
     const struct tar_file *tf = tarfs_find(path);
     if (!tf)
-        return -2;                      /* "fayl topilmadi" */
+        return -2;                      /* fayl topilmadi */
 
-    /* 2. Jarayon. Nomi - yo'lning oxirgi qismi. */
-    const char *name = path;
-    for (const char *s = path; *s; s++)
-        if (*s == '/')
-            name = s + 1;
-    struct process *p = proc_alloc(name);
-    if (!p)
+    struct mm *mm = mm_create();
+    if (!mm)
         return -3;
-    p->is_user = true;
-
-    /* 3. Manzil maydoni. */
-    p->pml4 = vmm_create_address_space();
-    if (!p->pml4) {
-        proc_free(p);
+    uint64_t entry, image_end;
+    int err = elf_load(mm, tf->data, tf->size, &entry, &image_end);
+    if (err < 0) {
+        mm_destroy(mm);
         return -4;
     }
-
-    /* 4. ELF. */
-    uint64_t entry, image_end;
-    int err = elf_load(p->pml4, tf->data, tf->size, &entry, &image_end);
-    if (err < 0) {
-        proc_free(p);
+    /* Heap: ELF dan keyingi sahifadan (1 sahifalik VMA, sbrk bilan o'sadi). */
+    mm->brk_start = mm->brk = ALIGN_UP(image_end, PAGE_SIZE);
+    uint64_t stack_bottom = USER_STACK_TOP - INITIAL_STACK;
+    uint64_t argv_va;
+    if (!mm_map(mm, mm->brk_start, PAGE_SIZE, PROT_READ | PROT_WRITE, VMA_HEAP | VMA_ANON) ||
+        !mm_map(mm, stack_bottom, INITIAL_STACK, PROT_READ | PROT_WRITE, VMA_STACK | VMA_ANON) ||
+        !mm_populate(mm, USER_STACK_TOP - PAGE_SIZE * 2, PAGE_SIZE * 2) ||
+        !setup_user_stack(mm, argc, argv, &argv_va)) {
+        mm_destroy(mm);
         return -5;
     }
-    p->heap_start = p->brk = ALIGN_UP(image_end, PAGE_SIZE);
+    out->mm = mm;
+    out->entry = entry;
+    out->sp = argv_va;
+    out->argv_va = argv_va;
+    return 0;
+}
 
-    /* 5. User steki: USER_STACK_TOP ostida USER_STACK_PAGES sahifa. Undan
-     * pastdagi sahifa xaritalanmaydi - stek to'lsa page fault (himoya). */
-    uint64_t stack_bottom = USER_STACK_TOP - USER_STACK_PAGES * PAGE_SIZE;
-    if (!vmm_map_anonymous(p->pml4, stack_bottom, USER_STACK_PAGES, PTE_USER | PTE_WRITABLE)) {
-        proc_free(p);
-        return -6;
-    }
-    uint64_t argv_va;
-    uint64_t user_sp = setup_user_stack(p->pml4, argc, argv, &argv_va);
-    if (!user_sp) {
-        proc_free(p);
-        return -7;
-    }
-
-    /* 6. Yadro stekida soxta uzilish freymi. interrupt_return uni "tiklab",
-     * iretq qiladi -> ring 3, RIP = entry. */
-    uint64_t kstack_top = p->kstack_base + KSTACK_PAGES * PAGE_SIZE;
-    struct interrupt_frame *f = (struct interrupt_frame *)(kstack_top - sizeof(*f));
+/* User rejimiga "qaytish" freymi: ring 3, RIP = entry. */
+static void init_user_frame(struct interrupt_frame *f, const struct image *img, int argc)
+{
     memset(f, 0, sizeof(*f));
-    f->rip = entry;                     /* dastur shu yerdan boshlanadi (_start) */
-    f->cs = GDT_USER_CODE;              /* 0x23: ring 3 kod segmenti */
-    f->rflags = 0x202;                  /* IF=1 (uzilishlar yoqilgan) + 1-bit (doim 1) */
-    f->rsp = user_sp;                   /* user steki */
-    f->ss = GDT_USER_DATA;              /* 0x1B: ring 3 stek segmenti */
+    f->rip = img->entry;
+    f->cs = GDT_USER_CODE;              /* 0x23 */
+    f->rflags = 0x202;                  /* IF=1 */
+    f->rsp = img->sp;
+    f->ss = GDT_USER_DATA;              /* 0x1B */
     f->rdi = (uint64_t)argc;            /* main(argc, argv) */
-    f->rsi = argv_va;
+    f->rsi = img->argv_va;
+}
 
-    /* context_switch uchun freym: `ret` -> new_proc_start, u proc_lock ni
-     * qo'yib yuborib (scheduler uni ushlab turgan edi!), R13 ga - ya'ni
-     * interrupt_return ga sakraydi. Freym 16 ga tekis, shuning uchun `ret`
-     * dan keyin RSP ham tekis - call uchun ABI talabi bajariladi. */
+/* Yangi jarayonning yadro stekini tayyorlash: tepada f (user freymi), ostida
+ * context_switch freymi. Birinchi o'tishda: new_proc_start -> proc_lock ni
+ * qo'yib yuborish -> interrupt_return -> iretq -> ring 3. */
+static struct interrupt_frame *prepare_kstack(struct process *p)
+{
+    uint64_t top = p->kstack_base + KSTACK_PAGES * PAGE_SIZE;
+    struct interrupt_frame *f = (struct interrupt_frame *)(top - sizeof(*f));
     uint64_t *sp = (uint64_t *)f;
     *--sp = (uint64_t)new_proc_start;
     *--sp = 0;                          /* RBX */
@@ -151,13 +144,86 @@ int proc_spawn(const char *path, int argc, char *const argv[])
     *--sp = 0;                          /* R14 */
     *--sp = 0;                          /* R15 */
     p->kernel_rsp = (uint64_t)sp;
+    return f;
+}
 
-    /* 7. Standart fayllar. */
-    p->files[0] = file_console();       /* stdin */
-    p->files[1] = file_console();       /* stdout */
-    p->files[2] = file_console();       /* stderr */
+static const char *basename(const char *path)
+{
+    const char *name = path;
+    for (const char *s = path; *s; s++)
+        if (*s == '/')
+            name = s + 1;
+    return name;
+}
 
+int proc_spawn(const char *path, int argc, char *const argv[])
+{
+    struct image img;
+    int err = load_image(path, argc, argv, &img);
+    if (err < 0)
+        return err;
+    struct process *p = proc_alloc(basename(path));
+    if (!p) {
+        mm_destroy(img.mm);
+        return -6;
+    }
+    p->is_user = true;
+    p->mm = img.mm;
+    p->pml4 = img.mm->pml4;
+    init_user_frame(prepare_kstack(p), &img, argc);
+    p->files[0] = file_console();
+    p->files[1] = file_console();
+    p->files[2] = file_console();
     int pid = p->pid;
     proc_make_ready(p);
+    return pid;
+}
+
+int proc_exec(struct interrupt_frame *f, const char *path, int argc, char *const argv[])
+{
+    struct process *p = current;
+    struct image img;
+    /* Yangi tasvirni TO'LIQ yuklab bo'lgunimizcha eskisiga tegmaymiz: xato
+     * bo'lsa, dastur exec() dan -1 bilan qaytadi va ishlashda davom etadi. */
+    int err = load_image(path, argc, argv, &img);
+    if (err < 0)
+        return err;
+
+    spin_lock(&proc_lock);              /* ps jadvallarni yurayotgan bo'lishi mumkin */
+    struct mm *old = p->mm;
+    p->mm = img.mm;
+    p->pml4 = img.mm->pml4;
+    strlcpy(p->name, basename(path), sizeof(p->name));
+    spin_unlock(&proc_lock);
+    vmm_switch(p->pml4);
+    if (old)
+        mm_destroy(old);                /* eski dasturning butun xotirasi */
+
+    init_user_frame(f, &img, argc);     /* syscall'dan "qaytish" yangi dastur boshiga */
+    return 0;
+}
+
+int proc_fork(struct interrupt_frame *f)
+{
+    struct process *parent = current;
+    struct process *child = proc_alloc(parent->name);
+    if (!child)
+        return -1;
+    child->mm = mm_fork(parent->mm);
+    if (!child->mm) {
+        proc_free(child);
+        return -1;
+    }
+    child->is_user = true;
+    child->pml4 = child->mm->pml4;
+    for (int fd = 0; fd < MAX_FDS; fd++)
+        child->files[fd] = file_dup(parent->files[fd]);
+
+    /* Bola ota bilan AYNAN bir xil joyga qaytadi - faqat RAX = 0. */
+    struct interrupt_frame *cf = prepare_kstack(child);
+    *cf = *f;
+    cf->rax = 0;
+    int pid = child->pid;
+    proc_make_ready(child);
     return pid;
 }
