@@ -6,6 +6,10 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 
 **Har bir fayl va deyarli har bir qator o'zbek tilida izohlangan:** kod nima qiladi va **nega** aynan shunday yozilgan.
 
+> **Qayerdan boshlash kerak?** [QOLLANMA.md](QOLLANMA.md) ni o'qing: o'qish tartibi, har bir texnologiya
+> (C'dagi `void`, `volatile`, `static`..., kompilyator bayroqlari, CPU mexanizmlari) nima qiladi, nega kerak va
+> ishlatilmasa nima bo'ladi, haqiqiy xatolar tarixi hamda o'z yadroingizni noldan yozish rejasi.
+
 ```
 MyOS'ga xush kelibsiz! 'help' - buyruqlar, 'cat /README.txt' - qo'llanma.
 
