@@ -57,6 +57,12 @@ void pic_init(void)
     outb(PIC2_DATA, 0xFF);
 }
 
+void pic_disable(void)
+{
+    outb(PIC1_DATA, 0xFF);
+    outb(PIC2_DATA, 0xFF);
+}
+
 void pic_send_eoi(uint8_t irq)
 {
     if (irq >= 8)                       /* slave'dan kelgan bo'lsa - ikkalasiga ham EOI */

@@ -13,5 +13,7 @@ void pic_init(void);
 void pic_send_eoi(uint8_t irq);
 void pic_unmask(uint8_t irq);
 void pic_mask(uint8_t irq);
+/* APIC ishlatilganda: PIC ning barcha IRQ larini niqoblash. */
+void pic_disable(void);
 /* IRQ 7 yoki 15 "soxta" (spurious) uzilishmi? */
 bool pic_is_spurious(uint8_t irq);

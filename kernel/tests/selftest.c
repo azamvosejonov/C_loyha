@@ -15,6 +15,7 @@
 #include "tests/selftest.h"
 
 #include "arch/cpu.h"
+#include "arch/percpu.h"
 #include "drivers/pit.h"
 #include "lib/kprintf.h"
 #include "lib/string.h"
@@ -22,6 +23,7 @@
 #include "mm/slab.h"
 #include "mm/vmalloc.h"
 #include "mm/vmm.h"
+#include "lib/spinlock.h"
 #include "proc/process.h"
 
 static int tests_run;
@@ -236,11 +238,11 @@ static void test_vmm(void)
     CHECK(phys != 0);
     *(volatile uint32_t *)phys_to_virt(phys) = 0xC0FFEE;
 
-    uint64_t flags = irq_save();
+    push_off();                         /* shu orada boshqa jarayonga o'tib ketmaylik (CR3!) */
     vmm_switch(as);
     uint32_t seen = *(volatile uint32_t *)(va + 0x10);  /* user manzil orqali o'qish */
     vmm_switch(vmm_kernel_pml4());
-    irq_restore(flags);
+    pop_off();
     CHECK(seen == 0xC0FFEE);
     CHECK(vmm_translate(vmm_kernel_pml4(), va, NULL) == 0);   /* izolyatsiya */
 
@@ -270,13 +272,33 @@ static int counter_thread(void *arg)
 {
     int n = (int)(intptr_t)arg;
     for (int i = 0; i < n; i++) {
-        uint64_t f = irq_save();        /* ++ atomar emas: o'qish-qo'shish-yozish! */
-        shared_counter++;
-        irq_restore(f);
+        /* `shared_counter++` ATOMAR EMAS: o'qish-qo'shish-yozish. Ikki CPU bir
+         * vaqtda bajarsa, ikkala qo'shish ham bitta bo'lib qoladi. `lock xadd`
+         * instruksiyasi (__atomic_add_fetch) buni bitta bo'linmas amal qiladi. */
+        __atomic_add_fetch(&shared_counter, 1, __ATOMIC_RELAXED);
         if (i % 100 == 0)
             proc_yield();
     }
     return n;
+}
+
+/* Spinlock testi: ODDIY (atomar bo'lmagan) ++ ni qulf bilan himoyalaymiz. Qulf
+ * noto'g'ri ishlasa, ko'p CPU'da ba'zi qo'shishlar "yo'qoladi". */
+static spinlock_t test_lock = SPINLOCK_INIT("selftest");
+static volatile uint64_t locked_counter;
+
+static int lock_thread(void *arg)
+{
+    int n = (int)(intptr_t)arg;
+    for (int i = 0; i < n; i++) {
+        spin_lock(&test_lock);
+        uint64_t v = locked_counter;    /* o'qish */
+        for (volatile int d = 0; d < 20; d++)
+            ;                           /* poyga oynasini ataylab kengaytiramiz */
+        locked_counter = v + 1;         /* yozish */
+        spin_unlock(&test_lock);
+    }
+    return 0;
 }
 
 static int sleeper_thread(void *arg)
@@ -319,6 +341,15 @@ static void test_proc(void)
     CHECK(proc_wait(p2, &code, false) == p2 && code == 1000);
     CHECK(proc_wait(p3, &code, false) == p3 && code == 1000);
     CHECK(shared_counter == 3000);
+
+    locked_counter = 0;
+    int l1 = proc_create_kernel_thread("t-lock1", lock_thread, (void *)20000);
+    int l2 = proc_create_kernel_thread("t-lock2", lock_thread, (void *)20000);
+    int l3 = proc_create_kernel_thread("t-lock3", lock_thread, (void *)20000);
+    proc_wait(l1, &code, false);
+    proc_wait(l2, &code, false);
+    proc_wait(l3, &code, false);
+    CHECK(locked_counter == 60000);
 
     int ps = proc_create_kernel_thread("t-sleep", sleeper_thread, NULL);
     CHECK(proc_wait(ps, &code, false) == ps && code >= 10);

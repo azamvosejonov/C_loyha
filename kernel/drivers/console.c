@@ -1,24 +1,18 @@
 /* =============================================================================
- *  drivers/console.c - konsol qatlami
+ *  drivers/console.c - konsol qatlami (SMP uchun qulflar bilan)
  * =============================================================================
  *
- *  CHIQISH YO'LI:  kprintf -> console_putc -> (1) klog buferi
- *                                           (2) serial port
- *                                           (3) ekran (agar ulangan bo'lsa)
+ *  CHIQISH YO'LI:  kprintf -> console_write -> (1) klog buferi
+ *                                             (2) serial port
+ *                                             (3) ekran (agar ulangan bo'lsa)
  *
- *  NEGA ALOHIDA QATLAM:
- *    Yadroning qolgan qismi "qayerga chiqarish kerak" deb o'ylamasligi kerak.
- *    kprintf faqat console_putc() ni biladi. Ertaga grafik ekran yoki tarmoq
- *    logi qo'shsak - faqat shu faylni o'zgartiramiz. Bu "abstraktsiya qatlami"
- *    tamoyili: har bir qatlam faqat pastdagi qatlamning INTERFEYSINI biladi.
+ *  QULFLAR:
+ *    console_lock - chiqish. Ikki CPU bir vaqtda yozsa, harflar aralashib
+ *                   ketmasligi uchun BUTUN XABAR bitta qulf ostida yoziladi.
+ *    input_lock   - kiritish buferi. Klaviatura IRQ (odatda CPU0 da) yozadi,
+ *                   o'quvchi jarayon (istalgan CPU da) o'qiydi.
  *
  *  KIRITISH: HALQALI BUFER (ring buffer)
- *    Uzilish handleri (ishlab chiqaruvchi) belgini buferga YOZADI, o'qiyotgan
- *    kod (iste'molchi) esa undan OLADI. Ikkita indeks: head (keyingi yoziladigan
- *    joy) va tail (keyingi o'qiladigan joy). Oxiriga yetganda boshiga qaytamiz -
- *    shuning uchun "halqali". Hajm 2 ning darajasi bo'lsa, "% SIZE" o'rniga
- *    tezkor "& (SIZE-1)" ishlatish mumkin.
- *
  *        [ . . a b c . . . ]
  *              ^     ^
  *            tail   head      bo'sh: head == tail,  to'la: head+1 == tail
@@ -28,19 +22,22 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "arch/cpu.h"
 #include "arch/interrupts.h"
 #include "drivers/serial.h"
 #include "lib/klog.h"
+#include "lib/spinlock.h"
 #include "proc/process.h"
 
 #define INPUT_BUFFER_SIZE 1024          /* 2 ning darajasi bo'lishi SHART */
 
-static char input_buffer[INPUT_BUFFER_SIZE];
-static volatile uint32_t input_head;    /* uzilish handleri o'zgartiradi -> volatile */
-static volatile uint32_t input_tail;
+static spinlock_t console_lock = SPINLOCK_INIT("console");
+static spinlock_t input_lock = SPINLOCK_INIT("console-input");
 
-static const struct screen_ops *screen;  /* NULL - hali ekran yo'q */
+static char input_buffer[INPUT_BUFFER_SIZE];
+static uint32_t input_head;
+static uint32_t input_tail;
+
+static const struct screen_ops *screen; /* NULL - hali ekran yo'q */
 
 void console_init_early(void)
 {
@@ -54,14 +51,15 @@ static void screen_putc(char c)
 
 void console_attach_screen(const struct screen_ops *ops)
 {
-    uint64_t flags = irq_save();
+    spin_lock(&console_lock);
     screen = ops;
     screen->clear();
     klog_replay(screen_putc);           /* ilk boot xabarlarini ham ekranda ko'ramiz */
-    irq_restore(flags);
+    spin_unlock(&console_lock);
 }
 
-void console_putc(char c)
+/* console_lock ushlangan holda. */
+static void putc_locked(char c)
 {
     klog_putc(c);
     serial_putc(c);
@@ -69,33 +67,58 @@ void console_putc(char c)
         screen->putc(c);
 }
 
+void console_putc(char c)
+{
+    spin_lock(&console_lock);
+    putc_locked(c);
+    spin_unlock(&console_lock);
+}
+
 void console_write(const char *s, size_t len)
 {
+    spin_lock(&console_lock);
     for (size_t i = 0; i < len; i++)
-        console_putc(s[i]);
+        putc_locked(s[i]);
+    spin_unlock(&console_lock);
 }
 
 void console_set_color(enum color fg, enum color bg)
 {
+    spin_lock(&console_lock);
     if (screen)
         screen->set_color(fg, bg);
+    spin_unlock(&console_lock);
 }
 
 void console_clear(void)
 {
+    spin_lock(&console_lock);
     if (screen)
         screen->clear();
+    spin_unlock(&console_lock);
 }
 
-/* Uzilish kontekstidan chaqiriladi (IF=0), shuning uchun qulf kerak emas. */
+size_t console_read_log(char *buf, size_t size)
+{
+    spin_lock(&console_lock);
+    size_t n = klog_read(buf, size);
+    spin_unlock(&console_lock);
+    return n;
+}
+
+/* ---- Kiritish ---- */
+
+/* Uzilish kontekstidan chaqiriladi (klaviatura yoki serial IRQ). */
 void console_input_char(char c)
 {
+    spin_lock(&input_lock);
     uint32_t next = (input_head + 1) & (INPUT_BUFFER_SIZE - 1);
-    if (next == input_tail)             /* bufer to'la - belgini tashlab yuboramiz */
-        return;
-    input_buffer[input_head] = c;
-    input_head = next;
-    proc_wakeup((const void *)&input_head);           /* o'qishni kutayotgan jarayonni uyg'otamiz */
+    if (next != input_tail) {           /* bufer to'la bo'lsa - belgi tashlab yuboriladi */
+        input_buffer[input_head] = c;
+        input_head = next;
+        proc_wakeup(&input_head);       /* o'qishni kutayotgan jarayonni uyg'otamiz */
+    }
+    spin_unlock(&input_lock);
 }
 
 /* Serial port IRQ4 handleri: kelgan barcha baytlarni navbatga qo'yamiz. */
@@ -106,7 +129,7 @@ static void serial_irq(struct interrupt_frame *frame)
         char c = serial_read_byte();
         if (c == '\r')                  /* terminallar Enter uchun '\r' yuboradi */
             c = '\n';
-        else if (c == 0x7F)             /* ko'p terminallar Backspace uchun DEL (0x7F) yuboradi */
+        else if (c == 0x7F)             /* ko'p terminallar Backspace uchun DEL yuboradi */
             c = '\b';
         console_input_char(c);
     }
@@ -120,25 +143,24 @@ void console_enable_serial_input(void)
 
 bool console_input_available(void)
 {
-    return input_tail != input_head;
+    return __atomic_load_n(&input_tail, __ATOMIC_RELAXED) !=
+           __atomic_load_n(&input_head, __ATOMIC_RELAXED);
 }
 
 int console_getc(void)
 {
-    uint64_t flags = irq_save();        /* tekshirish va uxlash orasida uzilish "yo'qolmasin" */
+    spin_lock(&input_lock);
     while (input_tail == input_head) {
         if (current->killed) {          /* kill() qilingan - kutishni to'xtatamiz */
-            irq_restore(flags);
+            spin_unlock(&input_lock);
             return -1;
         }
-        /* Bufer bo'sh: jarayonni &input_head "kanali"da uxlatamiz. CPU boshqa
-         * jarayonlarga beriladi. console_input_char() bizni uyg'otadi.
-         * (2-bosqichda bu yerda "sti; hlt" tsikli edi - u butun CPU'ni band
-         * qilardi. Endi kutish hech kimga xalaqit bermaydi.) */
-        proc_sleep_on((const void *)&input_head);
+        /* Bufer bo'sh: uxlaymiz. proc_sleep input_lock ni ATOMAR qo'yib yuboradi
+         * - belgi "tekshirdim" va "uxladim" orasida kelsa ham yo'qolmaydi. */
+        proc_sleep(&input_head, &input_lock);
     }
     char c = input_buffer[input_tail];
     input_tail = (input_tail + 1) & (INPUT_BUFFER_SIZE - 1);
-    irq_restore(flags);
+    spin_unlock(&input_lock);
     return (unsigned char)c;
 }

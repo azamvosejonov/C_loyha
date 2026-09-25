@@ -3,7 +3,10 @@
  * =============================================================================
  *
  *  SYSCALL QANDAY CHAQIRILADI (myos/abi.h ga qarang):
- *    RAX = raqam, RDI/RSI/RDX = argumentlar, `int 0x80`, natija RAX da.
+ *    RAX = raqam, RDI/RSI/RDX/R10/R8 = argumentlar, `syscall`, natija RAX da.
+ *    `syscall` instruksiyasi RCX (qaytish manzili) va R11 (RFLAGS) ni BUZADI -
+ *    shuning uchun ular "clobber" ro'yxatida. (Eski usul `int 0x80` ham
+ *    ishlaydi - yadro ikkalasini qo'llaydi, lekin syscall ancha tez.)
  *
  *  Inline asm cheklovlari:
  *    "a"(n)  - n ni RAX ga        "D"(a1) - RDI ga
@@ -11,36 +14,36 @@
  *    "=a"(r) - natijani RAX dan
  *    "memory" - yadro xotiramizni o'qishi/yozishi mumkin (buf), kompilyator
  *               xotira operatsiyalarini syscall atrofida ko'chirmasin.
- *  Bizning yadro boshqa registrlarni o'zgartirmaydi (isr.asm hammasini
- *  tiklaydi), shuning uchun boshqa "buzilgan" registrlar ro'yxati kerak emas.
+ *  Qolgan registrlarni yadro saqlab qaytaradi.
  * ============================================================================= */
 #include "ulib.h"
 
 static inline long syscall0(long n)
 {
     long r;
-    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n) : "memory");
+    __asm__ volatile("syscall" : "=a"(r) : "a"(n) : "rcx", "r11", "memory");
     return r;
 }
 
 static inline long syscall1(long n, long a1)
 {
     long r;
-    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a1) : "memory");
+    __asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a1) : "rcx", "r11", "memory");
     return r;
 }
 
 static inline long syscall2(long n, long a1, long a2)
 {
     long r;
-    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a1), "S"(a2) : "memory");
+    __asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a1), "S"(a2) : "rcx", "r11", "memory");
     return r;
 }
 
 static inline long syscall3(long n, long a1, long a2, long a3)
 {
     long r;
-    __asm__ volatile("int $0x80" : "=a"(r) : "a"(n), "D"(a1), "S"(a2), "d"(a3) : "memory");
+    __asm__ volatile("syscall" : "=a"(r) : "a"(n), "D"(a1), "S"(a2), "d"(a3)
+                     : "rcx", "r11", "memory");
     return r;
 }
 
@@ -133,6 +136,28 @@ void shutdown(void)
     syscall0(SYS_SHUTDOWN);
     for (;;)
         ;
+}
+
+void reboot(void)
+{
+    syscall0(SYS_REBOOT);
+    for (;;)
+        ;
+}
+
+int pciinfo(int index, struct myos_pci_info *out)
+{
+    return (int)syscall2(SYS_PCIINFO, index, (long)out);
+}
+
+long dmesg(char *buf, size_t size)
+{
+    return syscall2(SYS_DMESG, (long)buf, (long)size);
+}
+
+int sysinfo(struct myos_sysinfo *out)
+{
+    return (int)syscall1(SYS_SYSINFO, (long)out);
 }
 
 /* ---- Satr va xotira funksiyalari -------------------------------------------- */

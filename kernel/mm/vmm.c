@@ -28,6 +28,7 @@
 #include "mm/vmm.h"
 
 #include "arch/cpu.h"
+#include "arch/smp.h"
 #include "boot/bootinfo.h"
 #include "lib/common.h"
 #include "lib/kprintf.h"
@@ -67,7 +68,25 @@ static uint64_t alloc_table(void)
 
 void vmm_flush_page(uint64_t virt)
 {
-    cpu_invlpg(virt);
+    if (is_user_address(virt))
+        cpu_invlpg(virt);               /* user sahifalar faqat shu CPU'da (bitta oqimli jarayon) */
+    else
+        tlb_shootdown(virt, 1);         /* yadro sahifalari - barcha CPU'larda umumiy */
+}
+
+bool vmm_phys_is_direct_mapped(uint64_t phys, uint64_t len)
+{
+    uint64_t end = phys + len;
+    if (end <= 1 * MiB)
+        return true;
+    for (size_t i = 0; i < boot_info.mmap_count; i++) {
+        const struct mem_region *r = &boot_info.mmap[i];
+        if (r->type != MEM_USABLE && r->type != MEM_ACPI_RECLAIM && r->type != MEM_ACPI_NVS)
+            continue;
+        if (phys >= r->base && end <= r->base + r->len)
+            return true;
+    }
+    return false;
 }
 
 /* ---- Jadvallar bo'ylab yurish ---- */

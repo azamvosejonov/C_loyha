@@ -40,7 +40,11 @@
 #define SYS_KILL     14                 /* kill(pid)                        */
 #define SYS_UPTIME   15                 /* uptime() -> millisekund          */
 #define SYS_SHUTDOWN 16                 /* shutdown()                       */
-#define SYS_COUNT    17
+#define SYS_PCIINFO  17                 /* pciinfo(index, &info) -> 0/-1    */
+#define SYS_REBOOT   18                 /* reboot()                         */
+#define SYS_DMESG    19                 /* dmesg(buf, size) -> baytlar      */
+#define SYS_SYSINFO  20                 /* sysinfo(&info)                   */
+#define SYS_COUNT    21
 
 /* wait() bayroqlari */
 #define WAIT_NOHANG  1                  /* bola hali tugamagan bo'lsa kutmasdan 0 qaytar */
@@ -69,6 +73,24 @@ struct myos_meminfo {
 #define MYOS_PROC_RUNNING 3
 #define MYOS_PROC_BLOCKED 4
 #define MYOS_PROC_ZOMBIE  5
+
+struct myos_pci_info {
+    uint8_t bus, dev, func, class_code;
+    uint8_t subclass, prog_if, irq_line, reserved;
+    uint16_t vendor, device;
+    char class_name[40];
+    char driver[24];                    /* "" - drayver yo'q */
+};
+
+struct myos_sysinfo {
+    uint32_t ncpus;
+    uint32_t timer_hz;
+    uint64_t uptime_ms;
+    uint64_t tsc_khz;
+    char cpu_vendor[16];
+    char cpu_brand[52];
+    char bootloader[64];
+};
 
 struct myos_proc_info {
     int32_t pid;

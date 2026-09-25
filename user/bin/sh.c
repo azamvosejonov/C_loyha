@@ -36,6 +36,10 @@ static void print_help(void)
     puts("  memtest         - user malloc stress testi");
     puts("  spin <nom> [n]  - CPU'ni band qiluvchi dastur (multitasking uchun)");
     puts("  crash <tur>     - himoyani sinash: null | kernel | cli | div0 | stack");
+    puts("  lspci           - PCI qurilmalari");
+    puts("  dmesg           - yadro logi");
+    puts("  uname           - tizim haqida");
+    puts("  reboot          - qayta yuklash");
     puts("Oxirida '&' - fonda ishga tushirish:  spin a 20 &");
 }
 

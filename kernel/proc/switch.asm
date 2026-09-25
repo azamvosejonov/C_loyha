@@ -57,22 +57,31 @@ context_switch:
     ret                         ; yangi jarayon to'xtagan joyga qaytish
 
 ; -----------------------------------------------------------------------------
-;  kthread_trampoline - yangi yadro oqimining birinchi instruksiyasi.
+;  new_proc_start - YANGI jarayonning birinchi instruksiyasi.
 ;
-;  proc_create_kernel_thread() yangi stekni shunday tayyorlaydi: go'yo bu oqim
-;  context_switch ichida to'xtab turgan, qaytish manzili esa shu trampolin.
-;  R12 = argument, R13 = funksiya.
+;  Scheduler yangi jarayonga proc_lock ni USHLAB TURGAN holda o'tadi (xv6
+;  modeli). Oddiy jarayon uni schedule() dan qaytgach qo'yib yuboradi; yangi
+;  jarayon esa hech qachon schedule() da bo'lmagan - shuning uchun qulfni shu
+;  yerda qo'yib yuboramiz, keyin R13 dagi davomga sakraymiz:
+;     user jarayon  -> interrupt_return (iretq bilan ring 3 ga)
+;     yadro oqimi   -> kthread_start
 ; -----------------------------------------------------------------------------
+extern proc_first_run
 extern proc_exit
-global kthread_trampoline
-kthread_trampoline:
-    sti                         ; schedule() uzilishlar o'chiq holda ishlaydi - yangi
-                                ; oqim ularni o'zi yoqadi
-    mov rdi, r12                ; fn(arg) - birinchi argument RDI da
-    and rsp, -16                ; ABI: call oldidan RSP 16 ga karrali
-    call r13                    ; oqim funksiyasi
-    mov edi, eax                ; qaytgan qiymat = chiqish kodi
-    call proc_exit              ; oqim tugadi (bu funksiya qaytmaydi)
+global new_proc_start
+new_proc_start:
+    call proc_first_run                 ; proc_lock ni qo'yib yuborish (uzilishlar yoqiladi)
+    jmp r13
+
+; R12 = argument, R14 = funksiya
+global kthread_start
+kthread_start:
+    sti
+    mov rdi, r12                        ; fn(arg)
+    and rsp, -16                        ; ABI: call oldidan RSP 16 ga karrali
+    call r14
+    mov edi, eax                        ; qaytgan qiymat = chiqish kodi
+    call proc_exit                      ; qaytmaydi
 .hang:
     hlt
     jmp .hang

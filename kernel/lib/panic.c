@@ -25,6 +25,8 @@
 #include "arch/cpu.h"
 #include "drivers/console.h"
 #include "lib/kprintf.h"
+#include "lib/spinlock.h"
+#include "arch/smp.h"
 
 static void print_backtrace(void)
 {
@@ -48,6 +50,10 @@ static void print_backtrace(void)
 void panic(const char *fmt, ...)
 {
     cpu_cli();                          /* Boshqa hech narsa ishlamasin - uzilishlar ham */
+    /* Qulflarni "buzamiz": panic konsol qulfi ushlangan paytda sodir bo'lgan
+     * bo'lishi mumkin - aks holda xabarni chiqara olmay qotib qolardik. */
+    spinlocks_busted = true;
+    smp_stop_others();                  /* boshqa CPU'lar ham to'xtasin */
 
     console_set_color(COLOR_WHITE, COLOR_RED);
     kprintf("\n*** KERNEL PANIC ***\n");

@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 
-#include "arch/cpu.h"
 
 #define KLOG_SIZE (64 * 1024)           /* 2 ning darajasi */
 
@@ -33,15 +32,14 @@ void klog_replay(void (*fn)(char c))
         fn(klog_buf[i & (KLOG_SIZE - 1)]);
 }
 
+/* Chaqiruvchi console_lock ni ushlab turadi (console_read_log). */
 size_t klog_read(char *buf, size_t size)
 {
-    uint64_t flags = irq_save();
     uint64_t start = klog_head > KLOG_SIZE ? klog_head - KLOG_SIZE : 0;
     if (klog_head - start > size)
         start = klog_head - size;       /* eng oxirgi qismini beramiz */
     size_t n = 0;
     for (uint64_t i = start; i < klog_head; i++)
         buf[n++] = klog_buf[i & (KLOG_SIZE - 1)];
-    irq_restore(flags);
     return n;
 }

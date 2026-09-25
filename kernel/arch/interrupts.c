@@ -16,7 +16,9 @@
 #include "arch/interrupts.h"
 
 #include "arch/cpu.h"
+#include "arch/apic.h"
 #include "arch/gdt.h"
+#include "arch/percpu.h"
 #include "arch/idt.h"
 #include "drivers/pic.h"
 #include "lib/kprintf.h"
@@ -119,7 +121,13 @@ void interrupt_dispatch(struct interrupt_frame *frame)
         return;
     }
 
-    if (v >= PIC_IRQ_BASE && v < PIC_IRQ_BASE + 16) {
+    /* EOI ("tayyor") ni handlerdan OLDIN yuboramiz - izoh pastda. */
+    if (apic_active) {
+        if (v == VECTOR_SPURIOUS)
+            return;                     /* soxta uzilishga EOI yuborilmaydi */
+        if (v != VECTOR_SYSCALL)
+            lapic_eoi();
+    } else if (v >= PIC_IRQ_BASE && v < PIC_IRQ_BASE + 16) {
         uint8_t irq = (uint8_t)(v - PIC_IRQ_BASE);
         if (pic_is_spurious(irq))
             return;
@@ -141,7 +149,7 @@ void interrupt_dispatch(struct interrupt_frame *frame)
 
     /* User rejimiga qaytish arafasi - kill() belgisini tekshirish uchun
      * xavfsiz nuqta: jarayon yadroda hech qanday resurs ushlab turmaydi. */
-    if (frame_from_user(frame) && current && current->killed)
+    if (frame_from_user(frame) && current->killed)
         proc_exit(-1);
 }
 
@@ -153,12 +161,22 @@ void interrupt_register(uint8_t vector, interrupt_handler_t handler)
 void irq_register(uint8_t irq, interrupt_handler_t handler)
 {
     handlers[PIC_IRQ_BASE + irq] = handler;
-    pic_unmask(irq);
+    if (apic_active)
+        ioapic_route_isa(irq, PIC_IRQ_BASE + irq, cpus[0]->apic_id);   /* hammasi BSP ga */
+    else
+        pic_unmask(irq);
+}
+
+static void lapic_error_irq(struct interrupt_frame *frame)
+{
+    (void)frame;
+    kprintf("[apic] CPU%d: Local APIC xatosi\n", cpu_id());
 }
 
 void interrupts_init(void)
 {
-    gdt_init();                         /* to'liq GDT + TSS */
+    gdt_init_cpu(this_cpu());           /* BSP ning GDT va TSS i */
     idt_init();                         /* 256 ta darvoza */
     pic_init();                         /* IRQ'larni 32..47 ga ko'chirish, hammasini niqoblash */
+    interrupt_register(VECTOR_LAPIC_ERROR, lapic_error_irq);
 }

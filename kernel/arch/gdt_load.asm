@@ -16,11 +16,12 @@ gdt_load:
     lgdt [rdi]                  ; GDTR registriga yangi jadval manzili va hajmi
 
     mov ax, dx                  ; data selektori (0x10)
-    mov ds, ax                  ; barcha ma'lumot segment registrlarini yangilaymiz
+    mov ds, ax                  ; ma'lumot segment registrlarini yangilaymiz
     mov es, ax
-    mov fs, ax
-    mov gs, ax
     mov ss, ax
+    ; DIQQAT: FS va GS ga TEGMAYMIZ! 64-bitli rejimda GS ga selektor yuklash
+    ; uning BAZASINI nolga tushiradi - per-CPU ko'rsatkich (arch/percpu.h)
+    ; yo'qolardi va birinchi this_cpu() chaqiruvi NULL ni o'qirdi.
 
     ; CS ni yangilash hiylasi: stekka (CS, RIP) juftligini qo'yib, "far return"
     ; (retfq) qilamiz. retfq stekdan avval RIP ni, keyin CS ni oladi.

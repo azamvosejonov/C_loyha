@@ -75,8 +75,11 @@ void idt_init(void)
     /* 0x80 - syscall: user rejimidan chaqirish mumkin. */
     idt_set_gate(0x80, isr_stub_table[0x80], 0, IDT_USER_GATE);
 
-    static struct idt_pointer ptr;
-    ptr.limit = sizeof(idt) - 1;
-    ptr.base = (uint64_t)idt;
+    idt_load();
+}
+
+void idt_load(void)
+{
+    struct idt_pointer ptr = { .limit = sizeof(idt) - 1, .base = (uint64_t)idt };
     __asm__ volatile("lidt %0" : : "m"(ptr) : "memory");   /* IDTR registriga yuklash */
 }

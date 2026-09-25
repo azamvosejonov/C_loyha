@@ -75,7 +75,7 @@ Hajmi: yadro ~5000 qator C va ~500 qator assembly; user dasturlari ~1300 qator; 
    git checkout -                    # qaytish
    ```
 4. Har bir hujjat oxiridagi **"Sinab ko'ring"** bo'limini bajaring: kodni ataylab buzing va natijani kuzating.
-5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md) — hozirgi yadro: GRUB/UEFI, higher-half,
+5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md), [docs/10-smp.md](docs/10-smp.md) — hozirgi yadro: GRUB/UEFI, higher-half,
    buddy, slab, vmalloc, framebuffer. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
    shuning uchun avval o'shalarni o'qing.
 6. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**

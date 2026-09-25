@@ -14,17 +14,25 @@
  *    buddy (pmm)            <- asosiy fizik allocator
  *    slab, vmalloc          <- kmalloc, himoyalangan yadro steklari, ioremap
  *    ekran                  <- framebuffer yoki VGA matn; log tarixi qayta chiqadi
+ *    ACPI, TSC, Local APIC, IO APIC
  *    jarayonlar, fayllar, syscall, taymer, klaviatura
- *    sti -> init (pid 1) -> user shell
+ *    SMP: qolgan CPU yadrolari uyg'otiladi
+ *    init (pid 1) -> user shell; har bir CPU o'z scheduler tsiklida
  * ============================================================================= */
 #include <stdint.h>
 
+#include "acpi/acpi.h"
+#include "arch/apic.h"
 #include "arch/cpu.h"
 #include "arch/interrupts.h"
+#include "arch/percpu.h"
+#include "arch/smp.h"
+#include "arch/tsc.h"
 #include "boot/bootinfo.h"
 #include "drivers/console.h"
 #include "drivers/fbcon.h"
 #include "drivers/keyboard.h"
+#include "drivers/pci.h"
 #include "drivers/pit.h"
 #include "drivers/vga.h"
 #include "fs/tarfs.h"
@@ -103,6 +111,7 @@ void kmain(uint32_t magic, uint32_t mbi_phys);
 
 void kmain(uint32_t magic, uint32_t mbi_phys)
 {
+    percpu_init_bsp();                  /* gs:0 - spinlock'lar (push_off) buni ishlatadi */
     console_init_early();
     kprintf("\nMyOS - C tilida noldan yozilgan 64-bitli yadro\n");
 
@@ -123,18 +132,29 @@ void kmain(uint32_t magic, uint32_t mbi_phys)
     /* ---- Ekran ---- */
     screen_init();
 
+    /* ---- Apparat: ACPI, vaqt, APIC ---- */
+    acpi_init();
+    tsc_calibrate();
+    lapic_init_bsp();
+    ioapic_init();
+
     /* ---- Jarayonlar va fayllar ---- */
     proc_init();
     tarfs_init(&boot_info);
     syscall_init();
 
     /* ---- Qurilmalar ---- */
-    pit_init();
+    timer_init();
     keyboard_init();
     console_enable_serial_input();
-    proc_create_kernel_thread("init", init_thread, NULL);
-    kprintf("[int]  Uzilishlar yoqilmoqda (taymer %d Hz)\n", TIMER_HZ);
-    cpu_sti();
 
-    proc_idle_loop();                   /* kmain idle jarayoniga (pid 0) aylanadi */
+    /* ---- PCI qurilmalari ---- */
+    pci_init();
+
+    /* ---- Boshqa CPU yadrolari ---- */
+    smp_init();
+
+    proc_create_kernel_thread("init", init_thread, NULL);
+    kprintf("[int]  Uzilishlar yoqilmoqda (taymer %d Hz, %d CPU)\n", TIMER_HZ, ncpus);
+    scheduler_loop();                   /* kmain BSP ning scheduler tsikliga aylanadi */
 }

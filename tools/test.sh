@@ -47,6 +47,8 @@ COMMANDS=(
     "spin fon 3 &"
     "ps"
     "free"
+    "lspci"
+    "uname"
     "shutdown"
 )
 
@@ -86,6 +88,9 @@ EXPECT=(
     "\[fon\] pid [0-9]+ ishga tushdi|fon rejimi"
     "HOLAT|ps ishladi"
     "Fizik xotira \(PMM\)|free ishladi"
+    "idle/1|ikkinchi CPU yadrosi (SMP) ishlayapti"
+    "Host ko'prik|lspci (PCI skaneri)"
+    "2 yadro|uname (sysinfo)"
     "Tizim o'chirilmoqda|shutdown"
 )
 # Bo'lmasligi kerak bo'lgan satrlar:

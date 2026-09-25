@@ -68,6 +68,14 @@ isr_stub_%1:
 
 ; ---- Umumiy qism ----
 isr_common:
+    ; SWAPGS: agar uzilish USER rejimida sodir bo'lgan bo'lsa, GS hozir user'ning
+    ; GS bazasiga ko'rsatadi. Yadro per-CPU ma'lumotlari (gs:0) uchun uni
+    ; almashtiramiz. Stekda: [rsp]=vektor [rsp+8]=xato [rsp+16]=RIP [rsp+24]=CS.
+    ; CS ning pastki 2 biti = uzilgan kodning imtiyoz darajasi.
+    test qword [rsp + 24], 3
+    jz .from_kernel
+    swapgs
+.from_kernel:
     ; Barcha umumiy registrlarni saqlaymiz. C kodi ularni buzadi, lekin uzilgan
     ; kod qaytganda hech narsa sezmasligi kerak - go'yo uzilish bo'lmagandek.
     push rax
@@ -113,6 +121,12 @@ interrupt_return:
     pop rbx
     pop rax
     add rsp, 16                 ; vektor va xato kodini tashlab yuboramiz
+    ; User rejimiga qaytayotgan bo'lsak - GS ni user'nikiga qaytaramiz.
+    ; Endi [rsp]=RIP, [rsp+8]=CS.
+    test qword [rsp + 8], 3
+    jz .to_kernel
+    swapgs
+.to_kernel:
     iretq                       ; RIP, CS, RFLAGS, RSP, SS ni tiklash - uzilgan joyga qaytish.
                                 ; CS ichidagi daraja 3 bo'lsa, CPU avtomatik ring 3 ga qaytadi!
 

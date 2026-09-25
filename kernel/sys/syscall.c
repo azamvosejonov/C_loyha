@@ -32,8 +32,16 @@
 #include "sys/syscall.h"
 
 #include "arch/interrupts.h"
+#include "acpi/acpi.h"
+#include "arch/cpu.h"
+#include "arch/gdt.h"
 #include "arch/io.h"
 #include "drivers/pit.h"
+#include "arch/percpu.h"
+#include "arch/tsc.h"
+#include "boot/bootinfo.h"
+#include "drivers/console.h"
+#include "drivers/pci.h"
 #include "fs/file.h"
 #include "fs/tarfs.h"
 #include "lib/common.h"
@@ -273,6 +281,7 @@ static int64_t sys_kill(int64_t pid)
 __attribute__((noreturn)) static void sys_shutdown(void)
 {
     kprintf("\n[kernel] Tizim o'chirilmoqda...\n");
+    acpi_poweroff();                    /* haqiqiy kompyuter: ACPI S5 holati */
     outw(0x604, 0x2000);                /* QEMU (yangi versiyalar) ACPI: "quvvatni o'chir" */
     outw(0xB004, 0x2000);               /* Bochs va eski QEMU */
     outb(0xf4, 0x00);                   /* QEMU isa-debug-exit qurilmasi (zaxira usul) */
@@ -280,12 +289,80 @@ __attribute__((noreturn)) static void sys_shutdown(void)
         __asm__ volatile("cli; hlt");
 }
 
+static int64_t sys_pciinfo(uint64_t index, uint64_t uinfo)
+{
+    if (!user_ok(uinfo, sizeof(struct myos_pci_info), true))
+        return -1;
+    struct pci_device *d = pci_get((int)index);
+    if (!d)
+        return -1;
+    struct myos_pci_info *o = (struct myos_pci_info *)uinfo;
+    memset(o, 0, sizeof(*o));
+    o->bus = d->bus, o->dev = d->dev, o->func = d->func;
+    o->vendor = d->vendor, o->device = d->device;
+    o->class_code = d->class_code, o->subclass = d->subclass, o->prog_if = d->prog_if;
+    o->irq_line = d->irq_line;
+    strlcpy(o->class_name, pci_class_name(d->class_code, d->subclass), sizeof(o->class_name));
+    if (d->driver)
+        strlcpy(o->driver, d->driver->name, sizeof(o->driver));
+    return 0;
+}
+
+static int64_t sys_dmesg(uint64_t ubuf, uint64_t size)
+{
+    if (size > 64 * 1024)
+        size = 64 * 1024;
+    if (!user_ok(ubuf, size, true))
+        return -1;
+    char *tmp = kmalloc(size);
+    if (!tmp)
+        return -1;
+    size_t n = console_read_log(tmp, size);
+    memcpy((void *)ubuf, tmp, n);
+    kfree(tmp);
+    return (int64_t)n;
+}
+
+static int64_t sys_sysinfo(uint64_t uinfo)
+{
+    if (!user_ok(uinfo, sizeof(struct myos_sysinfo), true))
+        return -1;
+    struct myos_sysinfo *o = (struct myos_sysinfo *)uinfo;
+    memset(o, 0, sizeof(*o));
+    o->ncpus = (uint32_t)ncpus;
+    o->timer_hz = TIMER_HZ;
+    o->uptime_ms = timer_ticks() * 1000 / TIMER_HZ;
+    o->tsc_khz = tsc_khz;
+    strlcpy(o->cpu_vendor, cpu_features.vendor, sizeof(o->cpu_vendor));
+    const char *brand = cpu_features.brand;
+    while (*brand == ' ')
+        brand++;
+    strlcpy(o->cpu_brand, brand, sizeof(o->cpu_brand));
+    strlcpy(o->bootloader, boot_info.bootloader, sizeof(o->bootloader));
+    return 0;
+}
+
+__attribute__((noreturn)) static void sys_reboot(void)
+{
+    kprintf("\n[kernel] Qayta yuklanmoqda...\n");
+    acpi_reboot();
+    for (;;)
+        __asm__ volatile("cli; hlt");
+}
+
 /* ---- Dispetcher ------------------------------------------------------------- */
 
-static void syscall_handler(struct interrupt_frame *f)
+/* `syscall` instruksiyasi (syscall_entry.asm) va `int 0x80` - ikkalasi shu yerga. */
+void syscall_dispatch(struct interrupt_frame *f);
+void syscall_dispatch(struct interrupt_frame *f)
 {
     uint64_t a1 = f->rdi, a2 = f->rsi, a3 = f->rdx;
     int64_t ret;
+
+    /* Syscall davomida uzilishlar YOQIQ: taymer ishlaydi, boshqa jarayonlar
+     * navbat oladi, TLB tozalash so'rovlari (IPI) javobsiz qolmaydi. Umumiy
+     * ma'lumotlar spinlock'lar bilan himoyalangan. */
+    cpu_sti();
 
     switch (f->rax) {
     case SYS_EXIT:     proc_exit((int)a1);                              /* qaytmaydi */
@@ -305,12 +382,37 @@ static void syscall_handler(struct interrupt_frame *f)
     case SYS_KILL:     ret = sys_kill((int64_t)a1); break;
     case SYS_UPTIME:   ret = (int64_t)(timer_ticks() * 1000 / TIMER_HZ); break;
     case SYS_SHUTDOWN: sys_shutdown();
+    case SYS_PCIINFO:  ret = sys_pciinfo(a1, a2); break;
+    case SYS_REBOOT:   sys_reboot();
+    case SYS_DMESG:    ret = sys_dmesg(a1, a2); break;
+    case SYS_SYSINFO:  ret = sys_sysinfo(a1); break;
     default:           ret = -1; break;         /* noma'lum syscall */
     }
     f->rax = (uint64_t)ret;             /* natija user'ning RAX registriga qaytadi */
+
+    /* User rejimiga qaytish arafasi - kill() belgisini tekshirish joyi. */
+    if (current->killed)
+        proc_exit(-1);
+}
+
+extern void syscall_entry(void);        /* syscall_entry.asm */
+
+void syscall_init_cpu(void)
+{
+    /* EFER.SCE - syscall/sysret ga ruxsat. */
+    wrmsr(MSR_EFER, rdmsr(MSR_EFER) | EFER_SCE);
+    /* STAR: [47:32] = syscall uchun CS (SS = CS+8):  0x08 yadro kodi, 0x10 ma'lumot.
+     *       [63:48] = sysret uchun baza: CS = baza+16 (0x20|3), SS = baza+8 (0x18|3).
+     * GDT dagi tartib (user ma'lumoti user kodidan OLDIN) aynan shu uchun. */
+    wrmsr(MSR_STAR, ((uint64_t)0x10 << 48) | ((uint64_t)GDT_KERNEL_CODE << 32));
+    wrmsr(MSR_LSTAR, (uint64_t)syscall_entry);
+    /* SFMASK: syscall paytida RFLAGS dan o'chiriladigan bitlar:
+     * IF (uzilishlar - GS almashguncha kelmasin), DF, TF, AC. */
+    wrmsr(MSR_SFMASK, (1u << 9) | (1u << 10) | (1u << 8) | (1u << 18));
 }
 
 void syscall_init(void)
 {
-    interrupt_register(VECTOR_SYSCALL, syscall_handler);
+    interrupt_register(VECTOR_SYSCALL, syscall_dispatch);   /* int 0x80 ham ishlaydi */
+    syscall_init_cpu();
 }

@@ -31,6 +31,8 @@ void console_putc(char c);
 void console_write(const char *s, size_t len);
 void console_set_color(enum color fg, enum color bg);
 void console_clear(void);
+/* Yadro logining (dmesg) oxirgi qismini nusxalash. */
+size_t console_read_log(char *buf, size_t size);
 
 /* ---- Kiritish (input) ---- */
 void console_input_char(char c);

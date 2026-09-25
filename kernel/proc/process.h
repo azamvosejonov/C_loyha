@@ -7,6 +7,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "arch/percpu.h"
+#include "lib/spinlock.h"
 #include "myos/abi.h"
 
 #define MAX_PROCS       64
@@ -35,6 +37,7 @@ enum proc_state {
     PROC_RUNNING,                       /* hozir CPU'da (bitta protsessorda faqat bittasi) */
     PROC_BLOCKED,                       /* nimanidir kutyapti (klaviatura, taymer, bola) */
     PROC_ZOMBIE,                        /* tugagan, lekin ota-ona natijani hali olmagan */
+    PROC_DEAD,                          /* resurslari tozalanmoqda (keyin UNUSED) */
 };
 
 struct file;                            /* fs/file.h da */
@@ -49,6 +52,8 @@ struct process {
     uint64_t kstack_base;               /* yadro steki boshi (past manzil) */
     uint64_t pml4;                      /* manzil maydoni (CR3 qiymati) */
     bool is_user;                       /* ring 3 dasturmi yoki yadro oqimi (kernel thread) */
+    bool is_idle;                       /* CPU'ning idle "jarayoni" (scheduler tsikli) */
+    int last_cpu;                       /* oxirgi marta qaysi CPU'da ishlagan */
 
     /* --- Oila --- */
     struct process *parent;
@@ -71,12 +76,14 @@ struct process {
     int quantum_left;
 };
 
-/* Joriy (hozir ishlayotgan) jarayon. */
-extern struct process *current;
+/* Jarayonlar jadvali qulfi. Holat (state), kanal, ota-ona munosabatlari
+ * faqat shu qulf ostida o'zgaradi. */
+extern spinlock_t proc_lock;
 
-/* Jarayonlar tizimini ishga tushirish: kmain() ning o'zi 0-jarayon ("idle")
- * bo'ladi. Taymerga scheduler'ni ulaydi. */
+/* Jarayonlar tizimini ishga tushirish (BSP da). */
 void proc_init(void);
+/* Har bir CPU uchun idle jarayon strukturasini tayyorlash. */
+void proc_init_cpu(struct cpu *c);
 
 /* Yadro oqimi (kernel thread) yaratish: fn(arg) alohida stekda ishlaydi.
  * Qaytaradi: pid yoki -1. */
@@ -90,17 +97,18 @@ void proc_free(struct process *p);
 void proc_make_ready(struct process *p);
 
 /* ---- Scheduler ---- */
-/* Keyingi jarayonga o'tish. FAQAT uzilishlar o'chiq holda chaqiriladi. */
-void schedule(void);
 /* Ixtiyoriy ravishda CPU'ni boshqalarga berish. */
 void proc_yield(void);
-/* Idle tsikli - kmain oxirida chaqiriladi, qaytmaydi. */
-__attribute__((noreturn)) void proc_idle_loop(void);
+/* Har bir CPU'ning scheduler tsikli - qaytmaydi. */
+__attribute__((noreturn)) void scheduler_loop(void);
+/* Taymer uzilishidan (har bir CPU'da) chaqiriladi. */
+void sched_tick(void);
 
 /* ---- Kutish va uyg'otish ----
- * sleep_on: uzilishlar O'CHIQ holda chaqirilishi SHART (shartni tekshirish va
- * uxlash orasida uyg'otish yo'qolmasligi uchun). Qaytganda ham o'chiq bo'ladi. */
-void proc_sleep_on(const void *channel);
+ * proc_sleep: `lock` ushlangan holda chaqiriladi. Qulf ATOMAR ravishda qo'yib
+ * yuboriladi va jarayon uxlaydi; uyg'onganda qulf qayta olinadi. Shu tufayli
+ * "shartni tekshirdim -> uxlamoqchiman" orasida uyg'otish yo'qolmaydi. */
+void proc_sleep(const void *channel, spinlock_t *lock);
 void proc_wakeup(const void *channel);
 void proc_sleep_ms(uint64_t ms);
 

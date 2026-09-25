@@ -25,6 +25,8 @@
  * ============================================================================= */
 #include "mm/vmalloc.h"
 
+#include "arch/cpu.h"
+
 #include <stdbool.h>
 
 #include "lib/common.h"
@@ -180,6 +182,13 @@ void *ioremap(uint64_t phys, size_t size)
 void *ioremap_wc(uint64_t phys, size_t size)
 {
     return ioremap_flags(phys, size, cpu_features.pat ? PTE_CACHE_WC : PTE_CACHE_UC);
+}
+
+void *memremap(uint64_t phys, size_t size)
+{
+    if (vmm_phys_is_direct_mapped(phys, size))
+        return phys_to_virt(phys);
+    return ioremap_flags(phys, size, 0);        /* WB */
 }
 
 void iounmap(void *addr)

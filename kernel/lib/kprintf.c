@@ -11,6 +11,7 @@
  *    l, ll  - long / long long (64-bit)   z   - size_t
  *    -      - chapga tekislash            0   - bo'sh joyni nol bilan to'ldirish
  *    raqam  - minimal kenglik (masalan %08x -> 0000beef)
+ *    .N     - %s uchun maksimal uzunlik (masalan %.4s - ACPI imzolari uchun)
  *
  *  ARXITEKTURA:
  *    Bitta "dvigatel" (format_core) bor, u har bir tayyor belgini "chiqarish
@@ -96,6 +97,15 @@ static int format_core(emit_fn emit, void *ctx, const char *fmt, va_list ap)
         while (*fmt >= '0' && *fmt <= '9')
             width = width * 10 + (*fmt++ - '0');
 
+        /* --- Aniqlik (faqat %s uchun: "%.4s" - ko'pi bilan 4 belgi) --- */
+        int precision = -1;
+        if (*fmt == '.') {
+            fmt++;
+            precision = 0;
+            while (*fmt >= '0' && *fmt <= '9')
+                precision = precision * 10 + (*fmt++ - '0');
+        }
+
         /* --- Uzunlik modifikatori --- */
         int longness = 0;               /* 0 = int, 1 = long, 2 = long long */
         bool is_size = false;
@@ -148,7 +158,7 @@ static int format_core(emit_fn emit, void *ctx, const char *fmt, va_list ap)
             if (!s)
                 s = "(null)";           /* NULL ko'rsatkichdan himoya */
             int len = 0;
-            while (s[len])
+            while (s[len] && (precision < 0 || len < precision))  /* '\0' bo'lmasligi mumkin! */
                 len++;
             int pad = width > len ? width - len : 0;
             if (!left)
@@ -182,15 +192,32 @@ static int format_core(emit_fn emit, void *ctx, const char *fmt, va_list ap)
 
 /* ---- kprintf: konsolga ------------------------------------------------------- */
 
-static void emit_console(char c, void *ctx)
+/* kprintf avval xabarni STEKDAGI buferga formatlaydi, keyin bitta
+ * console_write() bilan (bitta qulf ostida) chiqaradi. Aks holda ikki CPU'ning
+ * xabarlari harfma-harf aralashib ketardi: "[cpu0] sa[cpu1] xlomayr...". */
+struct line_buf {
+    char data[256];
+    size_t len;
+};
+
+static void emit_line(char c, void *ctx)
 {
-    (void)ctx;                          /* ishlatilmaydi - ogohlantirishni o'chiramiz */
-    console_putc(c);
+    struct line_buf *b = ctx;
+    b->data[b->len++] = c;
+    if (b->len == sizeof(b->data)) {    /* uzun xabar - bo'lak-bo'lak */
+        console_write(b->data, b->len);
+        b->len = 0;
+    }
 }
 
 int kvprintf(const char *fmt, va_list ap)
 {
-    return format_core(emit_console, NULL, fmt, ap);
+    struct line_buf b;
+    b.len = 0;
+    int n = format_core(emit_line, &b, fmt, ap);
+    if (b.len)
+        console_write(b.data, b.len);
+    return n;
 }
 
 int kprintf(const char *fmt, ...)

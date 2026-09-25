@@ -41,6 +41,7 @@
 #include "sys/elf.h"
 
 extern void interrupt_return(void);    /* isr.asm */
+extern void new_proc_start(void);      /* switch.asm */
 
 #define MAX_ARG_BYTES 2048              /* argv satrlari uchun jami chegara */
 
@@ -137,11 +138,18 @@ int proc_spawn(const char *path, int argc, char *const argv[])
     f->rdi = (uint64_t)argc;            /* main(argc, argv) */
     f->rsi = argv_va;
 
-    /* context_switch uchun freym: 6 ta registr + qaytish manzili. */
+    /* context_switch uchun freym: `ret` -> new_proc_start, u proc_lock ni
+     * qo'yib yuborib (scheduler uni ushlab turgan edi!), R13 ga - ya'ni
+     * interrupt_return ga sakraydi. Freym 16 ga tekis, shuning uchun `ret`
+     * dan keyin RSP ham tekis - call uchun ABI talabi bajariladi. */
     uint64_t *sp = (uint64_t *)f;
-    *--sp = (uint64_t)interrupt_return; /* context_switch `ret` -> interrupt_return */
-    for (int i = 0; i < 6; i++)
-        *--sp = 0;                      /* RBX, RBP, R12..R15 */
+    *--sp = (uint64_t)new_proc_start;
+    *--sp = 0;                          /* RBX */
+    *--sp = 0;                          /* RBP */
+    *--sp = 0;                          /* R12 */
+    *--sp = (uint64_t)interrupt_return; /* R13 - davom */
+    *--sp = 0;                          /* R14 */
+    *--sp = 0;                          /* R15 */
     p->kernel_rsp = (uint64_t)sp;
 
     /* 7. Standart fayllar. */

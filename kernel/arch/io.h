@@ -53,6 +53,20 @@ static inline uint16_t inw(uint16_t port)
     return value;
 }
 
+/* Portga 4 bayt yozish (PCI konfiguratsiya maydoni uchun). */
+static inline void outl(uint16_t port, uint32_t value)
+{
+    __asm__ volatile("outl %0, %1" : : "a"(value), "Nd"(port) : "memory");
+}
+
+/* Portdan 4 bayt o'qish. */
+static inline uint32_t inl(uint16_t port)
+{
+    uint32_t value;
+    __asm__ volatile("inl %1, %0" : "=a"(value) : "Nd"(port) : "memory");
+    return value;
+}
+
 /* Juda qisqa kutish. Eski qurilmalar (masalan, PIC) buyruqlar orasida biroz vaqt
  * talab qiladi. 0x80 porti - BIOS POST kodlari uchun, unga yozish zararsiz va
  * taxminan 1 mikrosekund oladi. */

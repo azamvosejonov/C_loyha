@@ -40,6 +40,10 @@ int ps(struct myos_proc_info *buf, int max);
 int kill(int pid);
 uint64_t uptime_ms(void);
 __attribute__((noreturn)) void shutdown(void);
+__attribute__((noreturn)) void reboot(void);
+int pciinfo(int index, struct myos_pci_info *out);
+long dmesg(char *buf, size_t size);
+int sysinfo(struct myos_sysinfo *out);
 
 /* ---- Satrlar va xotira ---- */
 size_t strlen(const char *s);
