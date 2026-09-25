@@ -3,12 +3,13 @@
 #  tools/psf2c.py - PSF2 (Linux konsol shrifti) faylini C massivga aylantirish
 #
 #  Ishlatish:  python3 tools/psf2c.py spleen-8x16.psfu.gz > kernel/drivers/font8x16.c
+#  (Ubuntu: apt install fonts-spleen yoki console-setup; /usr/share/consolefonts/)
 #
 #  PSF1 formati: 4 baytlik sarlavha (magic 0x36 0x04, rejim, glif hajmi), keyin
 #  256 yoki 512 glif, keyin (ixtiyoriy) UCS-2 Unicode jadvali (0xFFFF bilan tugaydi).
 #  PSF2 formati: 32 baytlik sarlavha (magic 0x864ab572, glif soni, glif hajmi,
 #  balandlik, kenglik), keyin glif bitmaplari, keyin (ixtiyoriy) UTF-8 jadvali.
-#  Biz glif tartibini ASCII ga moslaymiz: font[c] = 'c' belgisining rasmi.
+#  Biz BARCHA glif'larni va Unicode -> glif jadvalini (saralangan) chiqaramiz.
 # =============================================================================
 import gzip, struct, sys
 
@@ -48,6 +49,14 @@ else:                                               # ---- PSF2 ----
 assert width == 8 and height == 16, "faqat 8x16 qo'llab-quvvatlanadi"
 
 fallback = mapping.get(ord('?'), 0)
+# Spleen'da yo'q, lekin matnlarda ko'p uchraydigan belgilar - o'xshash glifga:
+#   ʻ ʼ (o'zbek lotin alifbosidagi oʻ, gʻ tutuq belgilari) -> ‘ ’,  — -> –
+aliases = {0x02BB: 0x2018, 0x02BC: 0x2019, 0x2014: 0x2013, 0x25BA: 0x25B6, 0x25C4: 0x25C0}
+for src, dst in aliases.items():
+    if src not in mapping and dst in mapping:
+        mapping[src] = mapping[dst]
+entries = sorted((cp, g) for cp, g in mapping.items() if cp >= 128)
+
 print("""/* =============================================================================
  *  drivers/font8x16.c - 8x16 bitmap shrift (AVTOMATIK GENERATSIYA QILINGAN)
  *  Generator: tools/psf2c.py  |  Manba: Spleen 8x16 (github.com/fcambus/spleen)
@@ -63,14 +72,31 @@ print("""/* ====================================================================
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  *  AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED. (to'liq matn: docs/LICENSES.md)
  *
- *  Tuzilishi: font8x16[c][y] - 'c' belgisining y-qatori, 8 bit = 8 piksel
- *  (eng katta bit = eng chap piksel).
+ *  Tuzilishi:
+ *    font8x16_glyphs[g][y] - g-glifning y-qatori, 8 bit = 8 piksel (katta bit - chap)
+ *    font8x16_ascii[c]     - ASCII belgi -> glif raqami
+ *    font8x16_map[]        - Unicode kod nuqtasi -> glif (kod bo'yicha SARALANGAN:
+ *                            ikkilik qidiruv, drivers/vt.c: font_glyph)
  * ============================================================================= */
-#include <stdint.h>
-
-const uint8_t font8x16[128][16] = {""")
+#include "drivers/font.h"
+""")
+print(f"const unsigned font8x16_count = {len(glyphs)};")
+print(f"const unsigned font8x16_map_len = {len(entries)};")
+print(f"const uint16_t font8x16_fallback = {fallback};\n")
+print(f"const uint8_t font8x16_glyphs[{len(glyphs)}][16] = {{")
+for i, g in enumerate(glyphs):
+    print("    { " + ", ".join(f"0x{b:02x}" for b in g) + f" }}, /* {i} */")
+print("};\n")
+print("const uint16_t font8x16_ascii[128] = {")
+row = []
 for c in range(128):
-    g = glyphs[mapping.get(c, fallback)] if 32 <= c < 127 else bytes(16)
-    label = repr(chr(c)) if 32 <= c < 127 else f"0x{c:02x}"
-    print("    { " + ", ".join(f"0x{b:02x}" for b in g) + " }, /* " + label.replace('*/', '* /') + " */")
+    row.append(str(mapping.get(c, fallback) if 32 <= c < 127 else fallback))
+for i in range(0, 128, 16):
+    print("    " + ", ".join(row[i:i + 16]) + ",")
+print("};\n")
+print("const struct font_map font8x16_map[] = {")
+for cp, g in entries:
+    ch = chr(cp)
+    label = ch if ch.isprintable() and cp not in (0x2A, 0x2F) else ''
+    print(f"    {{ 0x{cp:04X}, {g} }}, /* {label} */")
 print("};")

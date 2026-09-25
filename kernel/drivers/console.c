@@ -25,6 +25,7 @@
 #include "arch/interrupts.h"
 #include "drivers/serial.h"
 #include "drivers/tty.h"
+#include "drivers/vt.h"
 #include "lib/klog.h"
 #include "lib/spinlock.h"
 #include "proc/process.h"
@@ -48,15 +49,16 @@ void console_init_early(void)
 
 static void screen_putc(char c)
 {
-    screen->putc(c);
+    vt_putc(c);
 }
 
 void console_attach_screen(const struct screen_ops *ops)
 {
     spin_lock(&console_lock);
-    screen = ops;
-    screen->clear();
-    klog_replay(screen_putc);           /* ilk boot xabarlarini ham ekranda ko'ramiz */
+    if (vt_attach(ops)) {
+        screen = ops;
+        klog_replay(screen_putc);       /* ilk boot xabarlarini ham ekranda ko'ramiz */
+    }
     spin_unlock(&console_lock);
 }
 
@@ -70,18 +72,32 @@ void console_get_size(unsigned *cols, unsigned *rows)
 }
 
 /* console_lock ushlangan holda. */
-static void putc_locked(char c)
+static void putc_locked(char c, bool log)
 {
-    klog_putc(c);
+    if (log)
+        klog_putc(c);
     serial_putc(c);
     if (screen)
-        screen->putc(c);
+        vt_putc(c);
+}
+
+/* Terminal so'rovlariga javob (ESC[6n -> ESC[qator;ustunR) - dastur uni
+ * klaviaturadan kelgandek o'qiydi. Qulfdan TASHQARIDA (input_lock boshqa qulf). */
+static void flush_vt_response(void)
+{
+    char buf[32];
+    size_t n;
+    spin_lock(&console_lock);
+    n = vt_take_response(buf, sizeof(buf));
+    spin_unlock(&console_lock);
+    for (size_t i = 0; i < n; i++)
+        console_input_char(buf[i]);
 }
 
 void console_putc(char c)
 {
     spin_lock(&console_lock);
-    putc_locked(c);
+    putc_locked(c, true);
     spin_unlock(&console_lock);
 }
 
@@ -89,23 +105,30 @@ void console_write(const char *s, size_t len)
 {
     spin_lock(&console_lock);
     for (size_t i = 0; i < len; i++)
-        putc_locked(s[i]);
+        putc_locked(s[i], true);
     spin_unlock(&console_lock);
+}
+
+void console_write_tty(const char *s, size_t len)
+{
+    spin_lock(&console_lock);
+    for (size_t i = 0; i < len; i++)
+        putc_locked(s[i], false);
+    spin_unlock(&console_lock);
+    flush_vt_response();
 }
 
 void console_set_color(enum color fg, enum color bg)
 {
     spin_lock(&console_lock);
-    if (screen)
-        screen->set_color(fg, bg);
+    vt_set_color((uint8_t)fg, (uint8_t)bg);
     spin_unlock(&console_lock);
 }
 
 void console_clear(void)
 {
     spin_lock(&console_lock);
-    if (screen)
-        screen->clear();
+    vt_clear();
     spin_unlock(&console_lock);
 }
 
@@ -120,9 +143,17 @@ size_t console_read_log(char *buf, size_t size)
 /* ---- Kiritish ---- */
 
 /* Uzilish kontekstidan chaqiriladi (klaviatura yoki serial IRQ). */
+void console_input_flush(void)
+{
+    spin_lock(&input_lock);
+    input_tail = input_head;            /* hali o'qilmagan hamma narsa tashlanadi */
+    spin_unlock(&input_lock);
+}
+
 void console_input_char(char c)
 {
-    tty_input_signal(c);                /* Ctrl-C -> SIGINT (uzilish kontekstida, darhol) */
+    if (tty_input_signal(c))            /* Ctrl-C -> SIGINT (uzilish kontekstida, darhol) */
+        return;
     spin_lock(&input_lock);
     uint32_t next = (input_head + 1) & (INPUT_BUFFER_SIZE - 1);
     if (next != input_tail) {           /* bufer to'la bo'lsa - belgi tashlab yuboriladi */

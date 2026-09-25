@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* CGA/VGA 16 rangli palitra - ikkala ekran turi ham shu raqamlarni tushunadi. */
 enum color {
@@ -14,12 +15,15 @@ enum color {
 };
 
 /* Ekran drayveri interfeysi ("backend"). Har bir ekran turi shu funksiyalarni beradi.
- * Bu C tilida "polimorfizm": funksiya ko'rsatkichlari jadvali (C++ dagi vtable). */
+ * Bu C tilida "polimorfizm": funksiya ko'rsatkichlari jadvali (C++ dagi vtable).
+ * Terminal mantig'i (kursor, escape ketma-ketliklari, aylantirish) - drivers/vt.c da;
+ * drayver faqat katakchani chizishni biladi. */
 struct screen_ops {
     const char *name;
-    void (*putc)(char c);
-    void (*set_color)(enum color fg, enum color bg);
-    void (*clear)(void);
+    /* (x, y) katakka Unicode belgini attr ranglarida chizish (past 4 bit - harf, yuqori - fon). */
+    void (*draw)(unsigned x, unsigned y, uint16_t cp, uint8_t attr);
+    /* Apparat kursori (VGA). NULL - vt kursorni o'zi chizadi (teskari rangli katak). */
+    void (*cursor)(unsigned x, unsigned y, bool visible);
     void (*get_size)(unsigned *cols, unsigned *rows);  /* belgilarda */
 };
 
@@ -30,6 +34,9 @@ void console_attach_screen(const struct screen_ops *ops);
 
 void console_putc(char c);
 void console_write(const char *s, size_t len);
+/* Terminal (tty) chiqishi: ekran + serial, lekin yadro logiga (dmesg) YOZILMAYDI -
+ * dmesg faqat yadro xabarlari uchun (Linux kabi). */
+void console_write_tty(const char *s, size_t len);
 void console_set_color(enum color fg, enum color bg);
 void console_clear(void);
 /* Yadro logining (dmesg) oxirgi qismini nusxalash. */
@@ -39,6 +46,8 @@ void console_get_size(unsigned *cols, unsigned *rows);
 
 /* ---- Kiritish (input) ---- */
 void console_input_char(char c);
+/* Kiritish navbatini tozalash (Ctrl-C: oldindan terilganlar bekor qilinadi). */
+void console_input_flush(void);
 void console_enable_serial_input(void);
 int console_getc(void);
 bool console_input_available(void);

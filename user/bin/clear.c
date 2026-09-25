@@ -1,6 +1,6 @@
-/* user/bin/clear.c - ekranni tozalash. ANSI ketma-ketligi: ESC[2J (tozalash) + ESC[H
- * (kursor boshiga). Konsolimiz ANSI'ni hali tushunmaydi - terminal emulyatori
- * qo'shilganda ishlaydi; serial terminalda (QEMU -nographic) hozir ham ishlaydi. */
+/* user/bin/clear.c - ekranni tozalash. ANSI ketma-ketliklari: ESC[2J (butun ekranni
+ * tozalash) + ESC[H (kursor chap yuqori burchakka). Terminal emulyatori
+ * (kernel/drivers/vt.c) va istalgan Linux terminali tushunadi. */
 #include <unistd.h>
 
 int main(void)

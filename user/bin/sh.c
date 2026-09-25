@@ -52,6 +52,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "myos.h"
@@ -584,11 +585,13 @@ static void print_help(void)
     puts("Job control:     jobs, fg [%n], bg [%n]   (Ctrl-C - to'xtatish, Ctrl-Z - pauza)");
     puts("Dasturlar /bin ichida ('ls /bin'):");
     puts("  fayllar:   ls [-la], cat, cp, mv, rm [-rf], mkdir [-p], rmdir, touch, stat");
+    puts("  muharrir:  edit <fayl>  (Ctrl-S saqlash, Ctrl-Q chiqish, Ctrl-F qidirish)");
     puts("  matn:      echo, wc [-lwc], head, tail, grep [-ivnc], tee, seq");
     puts("  tizim:     ps, kill, free, dmesg, uname, lspci, date, sleep, mount, umount, sync");
     puts("  testlar:   hello, forktest, fstest, memtest, spin, crash");
     puts("  quvvat:    poweroff, reboot");
     puts("Sintaksis:   a | b   a > f   a >> f   a < f   a 2>&1   a ; b   a && b   a || b   a &");
+    puts("Tahrir:      strelkalar, yuqori/pastga - tarix, Tab - to'ldirish, Ctrl-A/E/U/K/W/L");
     puts("             'matn'  \"$O'ZGARUVCHI\"  $?  NOM=qiymat  *.txt");
 }
 
@@ -1080,6 +1083,286 @@ static int read_line(char *buf, size_t size)
     return (int)len;
 }
 
+/* ============================================================================
+ *  4. QATOR MUHARRIRI (interaktiv rejim) - GNU readline'ning kichik varianti
+ * ============================================================================
+ *  Terminal kanonik rejimda bo'lsa, qatorni YADRO tahrirlaydi (faqat
+ *  backspace). Strelkalar, tarix, Tab uchun esa shell terminalni XOM rejimga
+ *  o'tkazadi (ICANON va ECHO o'chiq) va har bir tugmani o'zi qayta ishlaydi,
+ *  ekranni ham o'zi yangilaydi (ANSI escape ketma-ketliklari bilan).
+ *  Buyruqni ishga tushirishdan OLDIN asl (kanonik) rejim tiklanadi: `cat`
+ *  kabi dasturlar odatdagi terminalni kutadi. */
+
+#define HISTORY_MAX 64
+
+static char *history[HISTORY_MAX];
+static int history_len;
+static struct termios orig_tio;
+static bool have_tio;
+
+static void raw_mode(bool on)
+{
+    if (!have_tio)
+        return;
+    struct termios t = orig_tio;
+    if (on)
+        t.c_lflag &= ~(uint32_t)(ICANON | ECHO);    /* ISIG qoladi: Ctrl-C/Ctrl-Z ishlaydi */
+    tcsetattr(STDIN_FILENO, TCSANOW, &t);
+}
+
+static void history_add(const char *line)
+{
+    if (!*line || (history_len && strcmp(history[history_len - 1], line) == 0))
+        return;                         /* bo'sh va takroriy qatorlar saqlanmaydi */
+    if (history_len == HISTORY_MAX) {   /* eng eskisini chiqarib tashlaymiz */
+        free(history[0]);
+        memmove(history, history + 1, (HISTORY_MAX - 1) * sizeof(char *));
+        history_len--;
+    }
+    history[history_len++] = strdup(line);
+}
+
+static void out(const char *s)
+{
+    write(STDOUT_FILENO, s, strlen(s));
+}
+
+/* Qatorni qayta chizish: qator boshi (\r), so'rov, matn, qolganini o'chirish
+ * (ESC[K), keyin kursorni kerakli joyga qaytarish (ESC[nD - n ta chapga). */
+static void refresh(const char *prompt, const char *buf, size_t len, size_t pos)
+{
+    char seq[32];
+    out("\r");
+    out(prompt);
+    write(STDOUT_FILENO, buf, len);
+    out("\033[K");
+    if (len > pos) {
+        snprintf(seq, sizeof(seq), "\033[%luD", len - pos);
+        out(seq);
+    }
+}
+
+/* ---- Tab bilan to'ldirish ---- */
+
+#define COMPL_MAX 128
+
+static int add_candidate(char **list, int n, const char *name)
+{
+    for (int i = 0; i < n; i++)
+        if (strcmp(list[i], name) == 0)
+            return n;                   /* takror (builtin va /bin da bir xil nom) */
+    if (n < COMPL_MAX)
+        list[n++] = strdup(name);
+    return n;
+}
+
+/* buf[0..pos) dagi oxirgi so'zni to'ldirish. Qaytaradi: yangi pos.
+ * Birinchi so'z - buyruq (/bin va ichki buyruqlar), qolganlari - fayl nomlari. */
+static size_t complete(const char *prompt, char *buf, size_t *len, size_t pos, size_t size,
+                       bool show_all)
+{
+    size_t start = pos;
+    while (start > 0 && !strchr(" |;&<>", buf[start - 1]))
+        start--;
+    size_t ws = start;
+    while (ws > 0 && buf[ws - 1] == ' ')
+        ws--;
+    bool first_word = ws == 0 || strchr("|;&", buf[ws - 1]);
+
+    char word[PATH_MAX];
+    size_t wlen = pos - start;
+    if (wlen >= sizeof(word))
+        return pos;
+    memcpy(word, buf + start, wlen);
+    word[wlen] = '\0';
+
+    /* "papka/qism" -> papkada "qism" bilan boshlanadigan nomlar */
+    char dir[PATH_MAX];
+    const char *slash = strrchr(word, '/');
+    const char *part = slash ? slash + 1 : word;
+    if (slash)
+        snprintf(dir, sizeof(dir), "%.*s", (int)(slash == word ? 1 : slash - word), word);
+    else
+        strcpy(dir, first_word ? "/bin" : ".");
+    size_t plen = strlen(part);
+
+    char *list[COMPL_MAX];
+    int n = 0;
+    if (first_word && !slash) {
+        static const char *const builtins[] = { "cd", "pwd", "exit", "help", "jobs", "fg",
+                                                "bg", "wait", "set", "source", NULL };
+        for (int i = 0; builtins[i]; i++)
+            if (strncmp(builtins[i], part, plen) == 0)
+                n = add_candidate(list, n, builtins[i]);
+    }
+    DIR *d = opendir(dir);
+    struct dirent *de;
+    while (d && (de = readdir(d)) != NULL) {
+        if (de->d_name[0] == '.' && part[0] != '.')
+            continue;                   /* yashirin fayllar faqat "." yozilganda */
+        if (strncmp(de->d_name, part, plen) != 0)
+            continue;
+        char name[NAME_MAX + 2];
+        snprintf(name, sizeof(name), "%s%s", de->d_name, S_ISDIR(de->d_type) ? "/" : "");
+        n = add_candidate(list, n, name);
+    }
+    if (d)
+        closedir(d);
+    if (n == 0)
+        return pos;
+
+    /* Barcha variantlarning umumiy boshlanishi - shuncha qismni yozib beramiz. */
+    size_t common = strlen(list[0]);
+    for (int i = 1; i < n; i++) {
+        size_t k = 0;
+        while (k < common && list[i][k] == list[0][k])
+            k++;
+        common = k;
+    }
+    if (n > 1 && common == plen && show_all) {  /* ikkinchi Tab: variantlar ro'yxati */
+        out("\n");
+        for (int i = 0; i < n; i++) {
+            out(list[i]);
+            out(i + 1 < n ? "  " : "\n");
+        }
+    }
+    char add[NAME_MAX + 2];
+    size_t alen = common - plen;
+    memcpy(add, list[0] + plen, alen);
+    if (n == 1 && (alen == 0 || add[alen - 1] != '/'))
+        add[alen++] = ' ';              /* yagona fayl - keyingi argument uchun bo'shliq */
+    if (*len + alen < size) {
+        memmove(buf + pos + alen, buf + pos, *len - pos);
+        memcpy(buf + pos, add, alen);
+        *len += alen;
+        pos += alen;
+    }
+    for (int i = 0; i < n; i++)
+        free(list[i]);
+    refresh(prompt, buf, *len, pos);
+    return pos;
+}
+
+static void delete_at(char *buf, size_t *len, size_t at)
+{
+    memmove(buf + at, buf + at + 1, *len - at - 1);
+    (*len)--;
+}
+
+/* Qatorni tahrirlab o'qish. Qaytaradi: uzunlik, -1 (EOF), -2 (Ctrl-C). */
+static int edit_line(const char *prompt, char *buf, size_t size)
+{
+    size_t len = 0, pos = 0;
+    int hist = history_len;             /* tarixdagi joriy o'rin (history_len = yangi qator) */
+    char saved[LINE_MAX] = "";          /* tarixga chiqishdan oldin yozilayotgan qator */
+    bool last_tab = false;
+    int result;
+    got_sigint = 0;
+    raw_mode(true);
+    out(prompt);
+    for (;;) {
+        char c;
+        ssize_t n = read(STDIN_FILENO, &c, 1);
+        /* Ctrl-C: SIGINT handler'imiz read'ni uzdi (EINTR) YOKI signal read
+         * qaytgandan keyin keldi (bayroq) - ikkala holatda ham qator bekor. */
+        if ((n < 0 && errno == EINTR) || got_sigint) {
+            out("^C\n");
+            result = -2;
+            break;
+        }
+        if (n <= 0) {
+            result = -1;
+            break;
+        }
+        bool tab = false;
+        if (c == '\n' || c == '\r') {
+            out("\n");
+            result = (int)len;
+            break;
+        } else if (c == 4) {            /* Ctrl-D: bo'sh qatorda - chiqish, aks holda Delete */
+            if (len == 0) {
+                result = -1;
+                break;
+            }
+            if (pos < len)
+                delete_at(buf, &len, pos);
+        } else if (c == 0x7F || c == '\b') {
+            if (pos > 0)
+                delete_at(buf, &len, --pos);
+        } else if (c == 1) {            /* Ctrl-A: qator boshi */
+            pos = 0;
+        } else if (c == 5) {            /* Ctrl-E: qator oxiri */
+            pos = len;
+        } else if (c == 21) {           /* Ctrl-U: kursorgacha o'chirish */
+            memmove(buf, buf + pos, len - pos);
+            len -= pos;
+            pos = 0;
+        } else if (c == 11) {           /* Ctrl-K: kursordan keyin o'chirish */
+            len = pos;
+        } else if (c == 23) {           /* Ctrl-W: oldingi so'zni o'chirish */
+            size_t p = pos;
+            while (p > 0 && buf[p - 1] == ' ')
+                p--;
+            while (p > 0 && buf[p - 1] != ' ')
+                p--;
+            memmove(buf + p, buf + pos, len - pos);
+            len -= pos - p;
+            pos = p;
+        } else if (c == 12) {           /* Ctrl-L: ekranni tozalash */
+            out("\033[2J\033[H");
+        } else if (c == '\t') {
+            tab = true;
+            pos = complete(prompt, buf, &len, pos, size - 1, last_tab);
+        } else if (c == 0x1B) {         /* escape ketma-ketligi: ESC [ harf  yoki  ESC [ raqam ~ */
+            char s1, s2;
+            if (read(STDIN_FILENO, &s1, 1) <= 0 || read(STDIN_FILENO, &s2, 1) <= 0)
+                continue;
+            if (s1 != '[' && s1 != 'O')
+                continue;
+            if (s2 >= '0' && s2 <= '9') {
+                char t;
+                if (read(STDIN_FILENO, &t, 1) <= 0)
+                    continue;
+                if (s2 == '3' && pos < len)
+                    delete_at(buf, &len, pos);      /* Delete */
+                else if (s2 == '1' || s2 == '7')
+                    pos = 0;                        /* Home (boshqa terminallar varianti) */
+                else if (s2 == '4' || s2 == '8')
+                    pos = len;                      /* End */
+            } else if (s2 == 'C' && pos < len) {
+                pos++;
+            } else if (s2 == 'D' && pos > 0) {
+                pos--;
+            } else if (s2 == 'H') {
+                pos = 0;
+            } else if (s2 == 'F') {
+                pos = len;
+            } else if ((s2 == 'A' && hist > 0) || (s2 == 'B' && hist < history_len)) {
+                if (hist == history_len) {  /* yangi qatorni eslab qolamiz */
+                    buf[len] = '\0';
+                    strcpy(saved, buf);
+                }
+                hist += s2 == 'A' ? -1 : 1;
+                const char *h = hist == history_len ? saved : history[hist];
+                len = pos = strnlen(h, size - 1);
+                memcpy(buf, h, len);
+            }
+        } else if ((unsigned char)c >= 32 && len < size - 1) {
+            memmove(buf + pos + 1, buf + pos, len - pos);
+            buf[pos++] = c;
+            len++;
+        }
+        last_tab = tab;
+        if (!tab)
+            refresh(prompt, buf, len, pos);
+    }
+    raw_mode(false);                    /* buyruqlar odatdagi terminalni ko'rsin */
+    buf[len] = '\0';
+    if (result >= 0)
+        history_add(buf);
+    return result;
+}
+
 static void on_sigint(int sig)
 {
     (void)sig;
@@ -1136,16 +1419,27 @@ int main(int argc, char **argv)
         }
     }
     char line[LINE_MAX];
+    if (interactive)
+        have_tio = tcgetattr(STDIN_FILENO, &orig_tio) == 0;
     for (;;) {
         reap_background();
+        int n;
         if (interactive) {
-            char cwd[PATH_MAX];
+            char cwd[PATH_MAX], prompt[PATH_MAX + 48];
             if (!getcwd(cwd, sizeof(cwd)))
                 strcpy(cwd, "?");
-            printf("myos:%s$ ", cwd);
+            /* Yashil "myos", ko'k papka: ANSI SGR ranglari (1 - qalin, 32 - yashil, 34 - ko'k). */
+            snprintf(prompt, sizeof(prompt), "\033[1;32mmyos\033[0m:\033[1;34m%s\033[0m$ ", cwd);
             fflush(stdout);
+            if (have_tio) {
+                n = edit_line(prompt, line, sizeof(line));
+            } else {
+                out(prompt);
+                n = read_line(line, sizeof(line));
+            }
+        } else {
+            n = read_line(line, sizeof(line));
         }
-        int n = read_line(line, sizeof(line));
         if (n == -2)
             continue;
         if (n < 0)

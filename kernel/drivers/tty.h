@@ -11,6 +11,6 @@
 extern const struct file_ops tty_fops;
 
 /* Klaviatura uzilishidan (console_input_char): Ctrl-C/Ctrl-\\/Ctrl-Z bo'lsa -
- * oldingi plan guruhiga signal. Belgi baribir buferga qo'yiladi (qator bekor
- * qilinishi uchun). */
+ * oldingi plan guruhiga signal. Qaytaradi: true - belgini buferga qo'ymaslik
+ * (xom rejim); kanonik rejimda belgi qatorni bekor qilish uchun buferga tushadi. */
 bool tty_input_signal(char c);

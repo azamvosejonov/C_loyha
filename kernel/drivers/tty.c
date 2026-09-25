@@ -59,6 +59,7 @@ static struct {
     size_t rpos;                        /* tayyor qismning qanchasi allaqachon o'qildi */
     bool eof;                           /* Ctrl-D bo'sh qatorda: keyingi read() = 0 */
     int fg_pgrp;                        /* oldingi plan guruhi (0 - job control yo'q) */
+    int esc_state;                      /* kanonik rejimda strelka ketma-ketligini yutish */
 } tty = {
     .lock = MUTEX_INIT("tty"),
     .tio = {
@@ -79,7 +80,7 @@ static struct {
 static void echo(const char *s, size_t n)
 {
     if (tty.tio.c_lflag & ECHO)
-        console_write(s, n);
+        console_write_tty(s, n);
 }
 
 /* Qatordan oxirgi belgini o'chirish (ekrandan ham). */
@@ -96,6 +97,21 @@ static void erase_one(void)
 static void canon_input(char c)
 {
     const uint8_t *cc = tty.tio.c_cc;
+    /* Strelkalar va h.k. (ESC [ ... harf) qatorga TUSHMASIN: kanonik rejimda
+     * ular hech narsa qilmaydi (qator tahririni dastur o'zi qiladi - xom rejimda). */
+    if (tty.esc_state == 1) {
+        tty.esc_state = (c == '[' || c == 'O') ? 2 : 0;
+        return;
+    }
+    if (tty.esc_state == 2) {
+        if (c >= 0x40 && c <= 0x7E)     /* yakuniy harf (A, B, ~ ...) */
+            tty.esc_state = 0;
+        return;
+    }
+    if (c == 0x1B) {
+        tty.esc_state = 1;
+        return;
+    }
     if (c == '\r' && (tty.tio.c_iflag & ICRNL))
         c = '\n';
 
@@ -127,6 +143,7 @@ static void canon_input(char c)
     /* Boshqa boshqaruv belgilari (masalan, strelkalar ESC ketma-ketligi) - tashlanadi. */
 }
 
+/* Qaytaradi: true - belgi "yutildi" (kiritish buferiga qo'yilmasin). */
 bool tty_input_signal(char c)
 {
     uint32_t lflag = tty.tio.c_lflag;   /* qulfsiz o'qish - uzilish kontekstida mutex yo'q */
@@ -144,11 +161,17 @@ bool tty_input_signal(char c)
     else
         return false;
     if (lflag & ECHO)
-        console_write(shown, strlen(shown));
+        console_write_tty(shown, strlen(shown));
+    /* POSIX (NOFLSH o'rnatilmagan bo'lsa): signal tugmasi kiritish navbatini
+     * TOZALAYDI - oldindan terilgan, lekin hali o'qilmagan buyruqlar bajarilmaydi. */
+    console_input_flush();
     int pg = __atomic_load_n(&tty.fg_pgrp, __ATOMIC_RELAXED);
     if (pg > 0)
         signal_send_pgrp(pg, sig);
-    return true;
+    /* Kanonik rejimda belgi buferga baribir tushadi - u yarim terilgan qatorni
+     * bekor qiladi (canon_input). Xom rejimda esa signalga aylangan belgi
+     * dasturga BERILMAYDI (Linux ham shunday). */
+    return !(lflag & ICANON);
 }
 
 /* Fon guruhidagi jarayon o'qimoqchi: SIGTTIN (standart amal - to'xtash). */
@@ -224,7 +247,7 @@ out:
 static int64_t tty_write(struct file *f, const void *buf, size_t len, uint64_t off)
 {
     (void)f, (void)off;
-    console_write(buf, len);
+    console_write_tty(buf, len);
     return (int64_t)len;
 }
 

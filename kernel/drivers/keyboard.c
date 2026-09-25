@@ -15,6 +15,13 @@
  *
  *  Tayyor belgi console_input_char() ga uzatiladi - konsol uni navbatga qo'yadi
  *  va o'qishni kutayotgan jarayonni uyg'otadi.
+ *
+ *  MAXSUS TUGMALAR (strelkalar, Home, Delete ...) ASCII'da yo'q. Ular xuddi
+ *  haqiqiy terminaldagi kabi ESCAPE KETMA-KETLIKLARIGA aylanadi:
+ *      yuqori = ESC [ A    pastga = ESC [ B    o'ng = ESC [ C    chap = ESC [ D
+ *      Home = ESC [ H      End = ESC [ F       Delete = ESC [ 3 ~
+ *  Shunda dastur (shell, muharrir) klaviatura PS/2 mi, USB mi yoki serial
+ *  port orqali ulangan Linux terminalimi - farqini bilmaydi.
  * ============================================================================= */
 #include "drivers/keyboard.h"
 
@@ -64,10 +71,31 @@ static void keyboard_irq(struct interrupt_frame *frame)
     bool released = sc & 0x80;         /* 7-bit = tugma qo'yib yuborildi */
     uint8_t code = sc & 0x7F;
 
-    if (extended) {                     /* strelkalar va h.k. - hozircha e'tiborsiz */
+    if (extended) {                     /* strelkalar va h.k. */
         extended = false;
-        if (code == SC_CTRL)            /* o'ng Ctrl */
+        if (code == SC_CTRL) {          /* o'ng Ctrl */
             ctrl_down = !released;
+            return;
+        }
+        if (code == 0x2A || code == 0x36 || released)
+            return;                     /* "soxta Shift" (NumLock bilan) va qo'yib yuborish */
+        const char *seq = NULL;
+        switch (code) {
+        case 0x48: seq = "\033[A"; break;   /* yuqori */
+        case 0x50: seq = "\033[B"; break;   /* pastga */
+        case 0x4D: seq = "\033[C"; break;   /* o'ngga */
+        case 0x4B: seq = "\033[D"; break;   /* chapga */
+        case 0x47: seq = "\033[H"; break;   /* Home */
+        case 0x4F: seq = "\033[F"; break;   /* End */
+        case 0x52: seq = "\033[2~"; break;  /* Insert */
+        case 0x53: seq = "\033[3~"; break;  /* Delete */
+        case 0x49: seq = "\033[5~"; break;  /* Page Up */
+        case 0x51: seq = "\033[6~"; break;  /* Page Down */
+        case 0x1C: seq = "\n"; break;       /* raqamli klaviaturadagi Enter */
+        case 0x35: seq = "/"; break;         /* raqamli klaviaturadagi / */
+        }
+        for (; seq && *seq; seq++)
+            console_input_char(*seq);
         return;
     }
 
