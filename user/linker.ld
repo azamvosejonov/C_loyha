@@ -2,7 +2,7 @@
  *  user/linker.ld - user dasturlari uchun linker skripti
  * =============================================================================
  *
- *  Har bir user dastur 0x40000000 (1 GB) manzilga link qilinadi - bu yadro
+ *  Har bir user dastur 0x400000 (4 MB) manzilga link qilinadi - bu yadro
  *  belgilagan USER_SPACE_START (kernel/mm/vmm.h). Virtual xotira tufayli
  *  BARCHA dasturlar bir xil manzilda "yashaydi", lekin har biri o'z fizik
  *  freymlariga ega.
@@ -15,7 +15,7 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x40000000;
+    . = 0x400000;
 
     .text : ALIGN(4K)
     {

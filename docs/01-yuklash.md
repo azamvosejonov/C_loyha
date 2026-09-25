@@ -1,5 +1,12 @@
 # 01 — Yuklash: tokdan `kmain()` gacha
 
+> **Eslatma (v0.2):** bu bo'lim loyihaning birinchi, **kichik** versiyasini tasvirlaydi
+> (`git checkout e5906bb`). O'sha versiyada yadro 1 MB da, identity paging bilan ishlagan.
+> Hozirgi yadro **higher-half**, **buddy + slab** allocatorlar va GRUB/Multiboot2 bilan ishlaydi:
+> [09-yangi-arxitektura.md](09-yangi-arxitektura.md) ga qarang. G'oyalarni tushunish uchun avval
+> shu bo'limni, keyin 09-bo'limni o'qing: oddiydan murakkabga.
+
+
 **Kod:** `kernel/boot/boot.asm`, `kernel/linker.ld`, `kernel/main.c`, `kernel/drivers/{vga,serial,console}.c`,
 `kernel/lib/{kprintf,string,panic}.c`, `Makefile`
 

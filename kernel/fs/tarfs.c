@@ -22,7 +22,7 @@
  *    │ 512 B   │ 512 ga yaxlitl.  │ 512 B   │  ...   │ blok=oxiri│
  *    └─────────┴──────────────────┴─────────┴────────┴───────────┘
  *
- *  Yuklovchi initrd.tar ni xotiraga "modul" sifatida yuklagan (Multiboot).
+ *  Yuklovchi initrd.tar ni xotiraga "modul" sifatida yuklagan (Multiboot2).
  *  Biz uni NUSXALAMAYMIZ - fayllar ma'lumotiga to'g'ridan-to'g'ri o'sha
  *  xotiradan murojaat qilamiz (pmm.c bu hududni band deb belgilagan).
  * ============================================================================= */
@@ -30,6 +30,7 @@
 
 #include "lib/kprintf.h"
 #include "lib/string.h"
+#include "mm/layout.h"
 
 #define TAR_BLOCK   512
 #define MAX_FILES   64
@@ -80,15 +81,15 @@ static void parse_archive(const uint8_t *base, size_t size)
     }
 }
 
-void tarfs_init(const struct multiboot_info *mbi)
+void tarfs_init(const struct boot_info *bi)
 {
-    if (!(mbi->flags & MB_INFO_MODS) || mbi->mods_count == 0) {
-        kprintf("[tarfs] initrd moduli yo'q! (QEMU -initrd build/initrd.tar)\n");
+    if (bi->module_count == 0) {
+        kprintf("[tarfs] initrd moduli yo'q! (grub.cfg: module2 /boot/initrd.tar)\n");
         return;
     }
-    const struct multiboot_module *mod = (const void *)(uintptr_t)mbi->mods_addr;
-    const uint8_t *base = (const uint8_t *)(uintptr_t)mod[0].mod_start;
-    size_t size = mod[0].mod_end - mod[0].mod_start;
+    /* Modul - RAM, direct map orqali o'qiymiz. memblock uni band qilgan. */
+    const uint8_t *base = phys_to_virt(bi->modules[0].phys_start);
+    size_t size = bi->modules[0].phys_end - bi->modules[0].phys_start;
     parse_archive(base, size);
     kprintf("[tarfs] initrd: %p, %zu KB, %zu ta fayl\n", (void *)base, size / 1024, file_count);
 }

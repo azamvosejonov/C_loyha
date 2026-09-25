@@ -1,35 +1,45 @@
 /* =============================================================================
- *  mm/pmm.h - Physical Memory Manager (fizik xotira menejeri)
+ *  mm/pmm.h - fizik xotira menejeri: BUDDY allocator
  * ============================================================================= */
 #pragma once
 
 #include <stddef.h>
 #include <stdint.h>
 
-#include "boot/multiboot.h"
+#include "mm/page.h"
 
-/* Sahifa (page) / freym (frame) hajmi - x86 ning asosiy xotira birligi.
- * "Freym" - fizik xotiradagi 4 KB lik bo'lak, "sahifa" - virtual xotiradagi. */
-#define PAGE_SIZE  4096UL
-#define PAGE_SHIFT 12                   /* 2^12 = 4096 */
+/* gfp ("get free pages") bayroqlari */
+#define GFP_ZERO   (1u << 0)            /* nollangan sahifa */
+#define GFP_DMA32  (1u << 1)            /* 4 GB dan past (32-bitli DMA qurilmalar uchun) */
 
-/* Biz faqat birinchi 1 GB fizik xotirani boshqaramiz, chunki boot.asm faqat
- * shuni identity-map qilgan: yadro istalgan fizik freymga ko'rsatkich orqali
- * to'g'ridan-to'g'ri murojaat qila olishi kerak. */
-#define PMM_MAX_PHYS (1UL << 30)
+#define ZONE_DMA32  0                   /* [1 MB, 4 GB) */
+#define ZONE_NORMAL 1                   /* [4 GB, ...) */
+#define NR_ZONES    2
 
-void pmm_init(const struct multiboot_info *mbi);
+void pmm_init(void);                    /* memblock'dan keyin chaqiriladi */
 
-/* Bitta 4 KB freym ajratish. Qaytaradi: fizik manzil, xotira tugagan bo'lsa 0.
- * (0-freym hech qachon berilmaydi, shuning uchun 0 = "xato" degan ma'noni
- *  bildira oladi.) Freym tarkibi NOLLANMAGAN. */
-uint64_t pmm_alloc_frame(void);
+/* 2^order ta ketma-ket sahifa. Xotira yo'q bo'lsa NULL. refcount = 1. */
+struct page *alloc_pages(unsigned order, unsigned gfp);
+void free_pages(struct page *p, unsigned order);
 
-/* Ketma-ket (fizik jihatdan uzluksiz) count ta freym ajratish. */
-uint64_t pmm_alloc_frames(size_t count);
+/* refcount bilan ishlash (bir sahifani bir necha joy ishlatganda - COW). */
+static inline void get_page(struct page *p)
+{
+    __atomic_add_fetch(&p->refcount, 1, __ATOMIC_RELAXED);
+}
+/* refcount 0 ga tushsa, sahifa qaytariladi. */
+void put_page(struct page *p);
 
-void pmm_free_frame(uint64_t phys);
-void pmm_free_frames(uint64_t phys, size_t count);
+/* ---- Qulay qisqartmalar (fizik manzil bilan) ---- */
+uint64_t pmm_alloc_page(unsigned gfp);          /* 0 = xotira yo'q */
+void pmm_free_page(uint64_t phys);
+/* n ta ketma-ket sahifa (n 2 ning darajasigacha yaxlitlanadi). */
+uint64_t pmm_alloc_pages(size_t n, unsigned gfp);
+void pmm_free_pages(uint64_t phys, size_t n);
 
-size_t pmm_total_frames(void);          /* boshqariladigan RAM freymlari soni */
-size_t pmm_free_frames_count(void);     /* hozir bo'sh freymlar soni */
+/* n sahifa uchun kerakli tartib: 2^order >= n */
+unsigned pages_to_order(size_t n);
+
+size_t pmm_total_pages(void);
+size_t pmm_free_pages_count(void);
+void pmm_dump(void);                    /* har bir tartib bo'yicha bo'sh bloklar */

@@ -69,8 +69,8 @@ struct elf64_phdr {
 #define PT_LOAD       1
 #define PF_W          2
 
-/* Stek va uning ostidagi himoya sahifasi uchun joy qoldiramiz. */
-#define USER_IMAGE_LIMIT (USER_STACK_TOP - (USER_STACK_PAGES + 1) * PAGE_SIZE)
+/* Stekning eng katta hajmi va himoya sahifasi uchun joy qoldiramiz. */
+#define USER_IMAGE_LIMIT (USER_STACK_TOP - USER_STACK_MAX - PAGE_SIZE)
 
 int elf_load(uint64_t pml4, const uint8_t *data, size_t size, uint64_t *entry,
              uint64_t *image_end)

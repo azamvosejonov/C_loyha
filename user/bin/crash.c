@@ -8,7 +8,7 @@
  *  mazmuni shu.
  *
  *    crash null    - NULL ga yozish            -> #PF (sahifa yo'q)
- *    crash kernel  - yadro xotirasini o'qish   -> #PF (U=0 sahifa, ruxsat yo'q)
+ *    crash kernel  - yadro kodini o'qish        -> #PF (U=0 sahifa, ruxsat yo'q)
  *    crash cli     - uzilishlarni o'chirish    -> #GP (imtiyozli instruksiya)
  *    crash div0    - nolga bo'lish             -> #DE
  *    crash stack   - cheksiz rekursiya         -> #PF (stek ostidagi himoya sahifasi)
@@ -32,8 +32,8 @@ int main(int argc, char **argv)
         printf("NULL ga yozyapman...\n");
         *(volatile int *)0 = 1;
     } else if (strcmp(what, "kernel") == 0) {
-        printf("Yadro kodini (0x100000) o'qiyapman...\n");
-        printf("%x\n", *(volatile unsigned *)0x100000);
+        printf("Yadro kodini (0xFFFFFFFF80110000) o'qiyapman...\n");
+        printf("%x\n", *(volatile unsigned *)0xFFFFFFFF80110000UL);
     } else if (strcmp(what, "cli") == 0) {
         printf("'cli' instruksiyasini bajaryapman (faqat ring 0 uchun)...\n");
         __asm__ volatile("cli");

@@ -17,7 +17,7 @@
 
 #include "drivers/console.h"
 #include "lib/string.h"
-#include "mm/heap.h"
+#include "mm/slab.h"
 
 static struct file console_file = { .type = FILE_CONSOLE };
 

@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 #include "arch/cpu.h"
-#include "drivers/vga.h"
+#include "drivers/console.h"
 #include "lib/kprintf.h"
 
 static void print_backtrace(void)
@@ -49,7 +49,7 @@ void panic(const char *fmt, ...)
 {
     cpu_cli();                          /* Boshqa hech narsa ishlamasin - uzilishlar ham */
 
-    vga_set_color(VGA_WHITE, VGA_RED);
+    console_set_color(COLOR_WHITE, COLOR_RED);
     kprintf("\n*** KERNEL PANIC ***\n");
     va_list ap;
     va_start(ap, fmt);

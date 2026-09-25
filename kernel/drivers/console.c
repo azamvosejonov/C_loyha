@@ -2,6 +2,10 @@
  *  drivers/console.c - konsol qatlami
  * =============================================================================
  *
+ *  CHIQISH YO'LI:  kprintf -> console_putc -> (1) klog buferi
+ *                                           (2) serial port
+ *                                           (3) ekran (agar ulangan bo'lsa)
+ *
  *  NEGA ALOHIDA QATLAM:
  *    Yadroning qolgan qismi "qayerga chiqarish kerak" deb o'ylamasligi kerak.
  *    kprintf faqat console_putc() ni biladi. Ertaga grafik ekran yoki tarmoq
@@ -27,7 +31,7 @@
 #include "arch/cpu.h"
 #include "arch/interrupts.h"
 #include "drivers/serial.h"
-#include "drivers/vga.h"
+#include "lib/klog.h"
 #include "proc/process.h"
 
 #define INPUT_BUFFER_SIZE 1024          /* 2 ning darajasi bo'lishi SHART */
@@ -36,22 +40,51 @@ static char input_buffer[INPUT_BUFFER_SIZE];
 static volatile uint32_t input_head;    /* uzilish handleri o'zgartiradi -> volatile */
 static volatile uint32_t input_tail;
 
-void console_init(void)
+static const struct screen_ops *screen;  /* NULL - hali ekran yo'q */
+
+void console_init_early(void)
 {
-    serial_init();                      /* avval serial - xato bo'lsa log qolsin */
-    vga_init();
+    serial_init();
+}
+
+static void screen_putc(char c)
+{
+    screen->putc(c);
+}
+
+void console_attach_screen(const struct screen_ops *ops)
+{
+    uint64_t flags = irq_save();
+    screen = ops;
+    screen->clear();
+    klog_replay(screen_putc);           /* ilk boot xabarlarini ham ekranda ko'ramiz */
+    irq_restore(flags);
 }
 
 void console_putc(char c)
 {
-    vga_putc(c);
+    klog_putc(c);
     serial_putc(c);
+    if (screen)
+        screen->putc(c);
 }
 
 void console_write(const char *s, size_t len)
 {
     for (size_t i = 0; i < len; i++)
         console_putc(s[i]);
+}
+
+void console_set_color(enum color fg, enum color bg)
+{
+    if (screen)
+        screen->set_color(fg, bg);
+}
+
+void console_clear(void)
+{
+    if (screen)
+        screen->clear();
 }
 
 /* Uzilish kontekstidan chaqiriladi (IF=0), shuning uchun qulf kerak emas. */

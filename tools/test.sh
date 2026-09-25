@@ -19,8 +19,18 @@
 set -u
 
 cd "$(dirname "$0")/.."
-LOG=build/test-output.log
 QEMU=${QEMU:-qemu-system-x86_64}
+MODE=${1:-bios}                     # bios | uefi
+LOG=build/test-output-$MODE.log
+OVMF=${OVMF:-/usr/share/OVMF/OVMF_CODE_4M.fd}
+
+# Yadro buyruq qatorida "selftest" bo'lgan ISO ni yig'amiz.
+make -s APPEND=selftest || exit 1
+
+EXTRA=()
+if [ "$MODE" = uefi ]; then
+    EXTRA=(-drive "if=pflash,format=raw,readonly=on,file=$OVMF")
+fi
 
 # Shell'ga yuboriladigan buyruqlar. Har biri alohida qatorda.
 COMMANDS=(
@@ -43,24 +53,24 @@ COMMANDS=(
 # Buyruqlarni pauzalar bilan yuboruvchi funksiya. Yadro bootlanishi va
 # selftest'lar tugashi uchun boshida ko'proq kutamiz.
 feed_commands() {
-    sleep 3
+    sleep 6
     for cmd in "${COMMANDS[@]}"; do
         printf '%s\n' "$cmd"
         sleep 1
     done
 }
 
-echo "==> QEMU ishga tushirilmoqda (log: $LOG)"
-feed_commands | timeout 90 "$QEMU" \
-    -kernel build/kernel32.elf -initrd build/initrd.tar \
-    -m 128M -no-reboot -display none -serial stdio \
-    -append "selftest" > "$LOG" 2>&1
+echo "==> QEMU ($MODE) ishga tushirilmoqda (log: $LOG)"
+feed_commands | timeout 120 "$QEMU" \
+    -cdrom build/myos.iso -m 256M -smp 2 -no-reboot -display none -serial stdio \
+    "${EXTRA[@]}" > "$LOG" 2>&1
 QEMU_STATUS=$?
 
 # ---- Tekshiruvlar -------------------------------------------------------------
 # Har bir element: "kutilgan satr|tavsif"
 EXPECT=(
-    "SELFTEST: .* hammasi PASSED|yadro ichki testlari (pmm, vmm, heap, scheduler)"
+    "SELFTEST: .* hammasi PASSED|yadro ichki testlari (buddy, slab, vmalloc, vmm, scheduler)"
+    "Ekran: framebuffer|framebuffer konsoli"
     "MyOS shell'iga xush kelibsiz|shell user rejimida ishga tushdi"
     "Men user rejimida \(ring 3\)|hello dasturi ishladi"
     "argv\[2\] = \"ikkinchi\"|argv to'g'ri uzatildi"
@@ -71,7 +81,7 @@ EXPECT=(
     "Sabab: sahifa mavjud emas, YOZISH, user rejimida|NULL ga yozish ushlandi"
     "Sabab: ruxsat buzildi \(sahifa bor\), O'QISH, user rejimida|yadro xotirasi himoyalangan"
     "General Protection Fault|imtiyozli instruksiya (cli) ushlandi"
-    "Manzil \(CR2\) = 0x000000007ffe|user stek to'lishi ushlandi"
+    "Manzil \(CR2\) = 0x00007ffffff|user stek to'lishi ushlandi"
     "'mavjud_emas' topilmadi|mavjud bo'lmagan dastur xatosi"
     "\[fon\] pid [0-9]+ ishga tushdi|fon rejimi"
     "HOLAT|ps ishladi"
@@ -115,7 +125,7 @@ if [ "$QEMU_STATUS" -eq 124 ]; then
     fail=$((fail + 1))
 fi
 
-echo "==> Natija: $pass OK, $fail FAIL"
+echo "==> Natija ($MODE): $pass OK, $fail FAIL"
 if [ "$fail" -ne 0 ]; then
     echo "==> Log oxiri ($LOG):"
     tail -40 "$LOG"

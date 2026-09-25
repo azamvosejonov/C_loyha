@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "boot/multiboot.h"
+#include "boot/bootinfo.h"
 
 struct tar_file {
     char name[100];                     /* fayl nomi ('\0' bilan tugagan) */
@@ -14,7 +14,7 @@ struct tar_file {
     size_t size;                        /* hajmi (baytda) */
 };
 
-void tarfs_init(const struct multiboot_info *mbi);
+void tarfs_init(const struct boot_info *bi);
 const struct tar_file *tarfs_find(const char *name);
 /* index-chi fayl (ls uchun). Yo'q bo'lsa NULL. */
 const struct tar_file *tarfs_get(size_t index);

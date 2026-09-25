@@ -18,15 +18,18 @@
  *    optimizatsiya qilib o'chirib yuborishi mumkin. volatile unga "bu xotiraning
  *    har bir o'qish/yozishi muhim, tegma" deydi. MMIO uchun doim volatile!
  *
- *  Identity mapping tufayli (boot.asm) virtual 0xB8000 = fizik 0xB8000.
+ *  Fizik 0xB8000 ga direct map (phys_to_virt) orqali murojaat qilamiz.
+ *  Zamonaviy UEFI kompyuterlarda bu rejim UMUMAN YO'Q - shuning uchun
+ *  asosiy ekran drayverimiz fbcon.c (framebuffer), bu esa zaxira variant.
  * ============================================================================= */
 #include "drivers/vga.h"
 
 #include "arch/io.h"
+#include "mm/layout.h"
 
 #define VGA_WIDTH  80
 #define VGA_HEIGHT 25
-#define VGA_MEMORY ((volatile uint16_t *)0xB8000)
+#define VGA_MEMORY ((volatile uint16_t *)phys_to_virt(0xB8000))
 
 /* Kursorni boshqarish portlari (CRT Controller). */
 #define VGA_CRTC_INDEX 0x3D4
@@ -53,24 +56,18 @@ static void update_hw_cursor(void)
     outb(VGA_CRTC_DATA, (uint8_t)(pos >> 8));
 }
 
-void vga_set_color(enum vga_color fg, enum vga_color bg)
+static void vga_set_color(enum color fg, enum color bg)
 {
     current_color = (uint8_t)(fg | (bg << 4));
 }
 
-void vga_clear(void)
+static void vga_clear(void)
 {
     for (int i = 0; i < VGA_WIDTH * VGA_HEIGHT; i++)
         VGA_MEMORY[i] = vga_entry(' ', current_color);
     cursor_row = 0;
     cursor_col = 0;
     update_hw_cursor();
-}
-
-void vga_init(void)
-{
-    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
-    vga_clear();
 }
 
 /* Ekranni bir qator yuqoriga surish: 1..24 qatorlarni 0..23 ga ko'chiramiz,
@@ -84,7 +81,7 @@ static void scroll(void)
     cursor_row = VGA_HEIGHT - 1;
 }
 
-void vga_putc(char c)
+static void vga_putc(char c)
 {
     switch (c) {
     case '\n':                          /* yangi qator: keyingi qator boshiga */
@@ -115,4 +112,17 @@ void vga_putc(char c)
         scroll();
 
     update_hw_cursor();
+}
+
+static const struct screen_ops vga_ops = {
+    .name = "VGA matn 80x25",
+    .putc = vga_putc,
+    .set_color = vga_set_color,
+    .clear = vga_clear,
+};
+
+const struct screen_ops *vga_text_init(void)
+{
+    vga_set_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+    return &vga_ops;
 }

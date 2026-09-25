@@ -67,3 +67,8 @@ qiling va unga test yozing.
 - **xv6** (MIT 6.1810 kursi) — o'qish uchun yozilgan Unix. Bizning loyiha bilan solishtirib o'qing.
 - **"Operating Systems: Three Easy Pieces"** — bepul, juda yaxshi nazariy kitob (ostep.org).
 - **"Understanding the Linux Kernel"**, **"Linux Kernel Development"** (Robert Love).
+
+## Litsenziyalar
+
+- `kernel/drivers/font8x16.c` — Spleen 8x16 shrifti, Copyright (c) 2018-2024 Frederic Cambus, BSD-2-Clause.
+  To'liq matn: https://github.com/fcambus/spleen/blob/master/LICENSE

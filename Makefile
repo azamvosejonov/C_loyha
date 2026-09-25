@@ -9,10 +9,14 @@
 #      3) user/ ichidagi har bir dasturni alohida ELF qilib yig'adi
 #      4) dasturlarni bitta tar arxivga (build/initrd.tar) joylaydi - bu bizning
 #         "disk"imiz bo'ladi
+#      5) GRUB bilan yuklanadigan ISO tasvir yaratadi (build/myos.iso). Uni USB
+#         fleshkaga yozib, HAQIQIY kompyuterda yuklash mumkin (docs/real-apparat.md)
 #
 #  ASOSIY BUYRUQLAR:
 #    make              - hammasini yig'ish
-#    make run          - QEMU oynasida ishga tushirish (VGA ekran + serial terminalda)
+#    make              - yadro + dasturlar + yuklanadigan ISO (build/myos.iso)
+#    make run          - QEMU oynasida, BIOS rejimida (ekran + serial terminalda)
+#    make run-uefi     - QEMU oynasida, UEFI rejimida (OVMF firmware)
 #    make run-nographic- faqat terminalda ishga tushirish (oyna yo'q). Chiqish: Ctrl-A, keyin X
 #    make debug        - QEMU'ni GDB kutadigan holatda ishga tushirish
 #    make test         - avtomatik testlar (CI ham shuni ishlatadi)
@@ -33,8 +37,8 @@
 CC      := gcc
 AS      := nasm
 LD      := ld
-OBJCOPY := objcopy
 QEMU    := qemu-system-x86_64
+GRUB_MKRESCUE := grub-mkrescue
 
 # Hamma yig'ilgan narsa shu papkaga tushadi (manba kodni iflos qilmaslik uchun).
 BUILD := build
@@ -64,7 +68,9 @@ endif
 #                           buzadi. Yadroda red zone bo'lishi mumkin emas.
 #   -mgeneral-regs-only   : SSE/AVX registrlarini ishlatmaslik. Aks holda har bir
 #                           uzilishda ularni ham saqlashimiz kerak bo'lardi.
-#   -mcmodel=small        : Kod va ma'lumot 2 GB dan past manzilda. Bizning yadro 1 MB da.
+#   -mcmodel=kernel       : Kod va ma'lumot manzilning ENG YUQORI 2 GB ida
+#                           (0xFFFFFFFF80000000 dan yuqori). Kompilyator manzillarni
+#                           32-bitli ishorali son sifatida kodlaydi - kod ixcham va tez.
 #   -fno-omit-frame-pointer : rbp registrini har doim stack freym uchun saqlash.
 #                           Shunda panic() paytida "backtrace" chiqarib bera olamiz.
 #   -fno-asynchronous-unwind-tables : .eh_frame (C++ exception'lar uchun) kerak emas.
@@ -80,7 +86,7 @@ endif
 #   -MMD -MP              : har bir .c uchun .d fayl (qaysi .h larga bog'liqligi) yaratadi,
 #                           shunda .h o'zgarsa, kerakli .c lar qayta yig'iladi.
 KERNEL_CFLAGS := -std=gnu11 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
-                 -mno-red-zone -mgeneral-regs-only -mcmodel=small \
+                 -mno-red-zone -mgeneral-regs-only -mcmodel=kernel \
                  -fno-omit-frame-pointer -fno-asynchronous-unwind-tables \
                  -fno-tree-loop-distribute-patterns \
                  -O2 -g -Wall -Wextra -Werror -Ikernel -Iinclude -MMD -MP
@@ -129,65 +135,70 @@ USER_PROGS := $(patsubst user/bin/%.c,$(BUILD)/initrd/%,$(wildcard user/bin/*.c)
 INITRD_EXTRA := $(patsubst initrd/%,$(BUILD)/initrd/%,$(wildcard initrd/*))
 
 # ---- QEMU sozlamalari ------------------------------------------------------------
-#   -kernel      : QEMU'ning ichki Multiboot yuklovchisi yadroni to'g'ridan-to'g'ri yuklaydi
-#                  (GRUB kerak emas). U faqat 32-bitli ELF qabul qiladi, shuning uchun
-#                  kernel32.elf ni beramiz (pastga qarang).
-#   -initrd      : Multiboot "modul" sifatida initrd.tar ni xotiraga yuklaydi
-#   -m 128M      : 128 MB RAM
+#   -cdrom       : ISO tasvirdan yuklash - xuddi haqiqiy kompyuterdagi kabi GRUB orqali
+#   -m 256M      : 256 MB RAM
+#   -smp 2       : 2 ta CPU yadrosi (SMP qo'llab-quvvatlash uchun)
 #   -no-reboot   : triple fault bo'lsa qayta yuklanmasdan to'xtash (xatoni ko'rish uchun)
-#   -device isa-debug-exit : 0xf4 portiga yozilsa QEMU chiqib ketadi (testlar va
-#                  `shutdown` buyrug'i uchun)
-QEMU_FLAGS := -kernel $(BUILD)/kernel32.elf -initrd $(BUILD)/initrd.tar \
-              -m 128M -no-reboot \
+#   -device isa-debug-exit : 0xf4 portiga yozilsa QEMU chiqib ketadi (testlar uchun)
+QEMU_MEM  ?= 256M
+QEMU_SMP  ?= 2
+QEMU_FLAGS := -cdrom $(BUILD)/myos.iso -m $(QEMU_MEM) -smp $(QEMU_SMP) -no-reboot \
               -device isa-debug-exit,iobase=0xf4,iosize=0x04
+# UEFI firmware (Ubuntu: `apt install ovmf`)
+OVMF ?= /usr/share/OVMF/OVMF_CODE_4M.fd
+UEFI_FLAGS := -drive if=pflash,format=raw,readonly=on,file=$(OVMF)
 
-# Yadroga beriladigan buyruq qatori (Multiboot cmdline). Masalan: make run APPEND=selftest
+# Yadroga beriladigan buyruq qatori. Masalan: make run APPEND=selftest
 APPEND ?=
 
 # =============================================================================
 #  QOIDALAR
 # =============================================================================
-.PHONY: all run run-nographic debug test clean
+.PHONY: all run run-uefi run-nographic debug test clean FORCE
 
 # Make zanjirdagi "oraliq" fayllarni (user .o lari) avtomatik o'chirib yuboradi.
 # .SECONDARY ularni saqlab qoladi - keyingi `make` hech narsani qayta yig'maydi.
 .SECONDARY:
 
-all: $(BUILD)/kernel32.elf $(BUILD)/initrd.tar
+all: $(BUILD)/myos.iso
 
 # ---- Yadroni bog'lash (link) ----
 $(BUILD)/kernel.elf: $(KERNEL_OBJ) kernel/linker.ld
 	$(call say,LD,$@)
 	$(Q)$(LD) $(KERNEL_LDFLAGS) -o $@ $(KERNEL_OBJ)
 
-# QEMU -kernel faqat 32-bitli ELF'ni tushunadi. objcopy faqat ELF SARLAVHASINI
-# 32-bitga o'zgartiradi, ichidagi baytlar (64-bitli kod) o'zgarmaydi. Bizning
-# boot.asm baribir 32-bitli rejimda boshlanadi, keyin o'zi 64-bitga o'tadi.
-# kernel.elf (64-bit) esa GDB uchun saqlanib qoladi - unda hamma simvollar bor.
-$(BUILD)/kernel32.elf: $(BUILD)/kernel.elf
-	$(call say,OBJCOPY,$@)
-	$(Q)$(OBJCOPY) -O elf32-i386 $< $@
+# ---- Kompilyator bayroqlari o'zgarganini kuzatish ----
+# Make faqat fayl vaqtlariga qaraydi: CFLAGS o'zgarsa, eski .o fayllar qoladi
+# va ular yangi bayroqlarsiz yig'ilgan bo'ladi (masalan, -mcmodel almashtirilganda
+# "relocation truncated" xatosi). Yechim: bayroqlarni faylga yozamiz va har bir
+# .o shu faylga bog'liq. Bayroqlar o'zgarsa - fayl o'zgaradi - hammasi qayta yig'iladi.
+FLAGS_STAMP := $(BUILD)/.flags
+$(FLAGS_STAMP): FORCE
+	@mkdir -p $(BUILD)
+	@echo '$(KERNEL_CFLAGS) | $(USER_CFLAGS) | $(KERNEL_ASFLAGS)' > $@.tmp
+	@cmp -s $@.tmp $@ || mv $@.tmp $@
+	@rm -f $@.tmp
 
 # ---- Yadro C fayllari ----
-$(BUILD)/kernel/%.c.o: kernel/%.c
+$(BUILD)/kernel/%.c.o: kernel/%.c $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(call say,CC,$<)
 	$(Q)$(CC) $(KERNEL_CFLAGS) -c $< -o $@
 
 # ---- Yadro assembly fayllari ----
-$(BUILD)/kernel/%.asm.o: kernel/%.asm
+$(BUILD)/kernel/%.asm.o: kernel/%.asm $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(call say,AS,$<)
 	$(Q)$(AS) $(KERNEL_ASFLAGS) $< -o $@
 
 # ---- User C fayllari ----
-$(BUILD)/user/%.c.o: user/%.c
+$(BUILD)/user/%.c.o: user/%.c $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(call say,CC,$<)
 	$(Q)$(CC) $(USER_CFLAGS) -c $< -o $@
 
 # ---- User assembly fayllari ----
-$(BUILD)/user/%.asm.o: user/%.asm
+$(BUILD)/user/%.asm.o: user/%.asm $(FLAGS_STAMP)
 	@mkdir -p $(dir $@)
 	$(call say,AS,$<)
 	$(Q)$(AS) $(USER_ASFLAGS) $< -o $@
@@ -211,20 +222,53 @@ $(BUILD)/initrd.tar: $(USER_PROGS) $(INITRD_EXTRA)
 	$(call say,TAR,$@)
 	$(Q)tar --format=ustar -cf $@ -C $(BUILD)/initrd $(notdir $(USER_PROGS) $(INITRD_EXTRA))
 
+# ---- GRUB konfiguratsiyasi ----
+# APPEND o'zgarsa, grub.cfg ham o'zgarishi kerak. FORCE + "faqat farq qilsa yozish"
+# hiylasi: fayl mazmuni o'zgarmasa, uning vaqti ham o'zgarmaydi va ISO qayta yig'ilmaydi.
+$(BUILD)/iso/boot/grub/grub.cfg: FORCE
+	@mkdir -p $(dir $@)
+	@printf '%s\n' \
+		'# Avtomatik yaratilgan (Makefile). all_video - UEFI (GOP) va BIOS (VBE)' \
+		'# video drayverlari: ularsiz UEFI kompyuterda framebuffer bo'"'"'lmaydi.' \
+		'insmod all_video' \
+		'set timeout=0' \
+		'set default=0' \
+		'menuentry "MyOS" {' \
+		'    multiboot2 /boot/kernel.elf $(APPEND)' \
+		'    module2 /boot/initrd.tar initrd' \
+		'    boot' \
+		'}' > $@.tmp
+	@cmp -s $@.tmp $@ || mv $@.tmp $@
+	@rm -f $@.tmp
+
+# ---- Yuklanadigan ISO (BIOS + UEFI) ----
+# grub-mkrescue ISO ichiga BIOS uchun (El Torito) va UEFI uchun (EFI tizim
+# bo'limi) yuklovchilarni qo'yadi. Bitta fayl ikkala turdagi kompyuterda ishlaydi.
+$(BUILD)/myos.iso: $(BUILD)/kernel.elf $(BUILD)/initrd.tar $(BUILD)/iso/boot/grub/grub.cfg
+	$(call say,ISO,$@)
+	$(Q)cp $(BUILD)/kernel.elf $(BUILD)/initrd.tar $(BUILD)/iso/boot/
+	$(Q)$(GRUB_MKRESCUE) -o $@ $(BUILD)/iso > $(BUILD)/grub-mkrescue.log 2>&1 || \
+		(cat $(BUILD)/grub-mkrescue.log; false)
+
 # ---- Ishga tushirish ----
 run: all
-	$(QEMU) $(QEMU_FLAGS) -serial stdio -append "$(APPEND)"
+	$(QEMU) $(QEMU_FLAGS) -serial stdio
+
+run-uefi: all
+	$(QEMU) $(QEMU_FLAGS) $(UEFI_FLAGS) -serial stdio
 
 run-nographic: all
-	$(QEMU) $(QEMU_FLAGS) -nographic -append "$(APPEND)"
+	$(QEMU) $(QEMU_FLAGS) -nographic
 
 # -s : GDB serverini :1234 portida ochish, -S : birinchi instruksiyadan oldin to'xtab turish.
-# Boshqa terminalda:  gdb build/kernel.elf -ex "target remote :1234"
+# Boshqa terminalda:  gdb -x tools/gdbinit
 debug: all
-	$(QEMU) $(QEMU_FLAGS) -nographic -s -S -append "$(APPEND)"
+	$(QEMU) $(QEMU_FLAGS) -nographic -s -S
 
-test: all
-	./tools/test.sh
+test:
+	./tools/test.sh bios
+	./tools/test.sh uefi
+	@$(MAKE) -s APPEND=    # oddiy ISO ni tiklash
 
 clean:
 	rm -rf $(BUILD)

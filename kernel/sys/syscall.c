@@ -39,7 +39,7 @@
 #include "lib/common.h"
 #include "lib/kprintf.h"
 #include "lib/string.h"
-#include "mm/heap.h"
+#include "mm/slab.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "myos/abi.h"
@@ -186,7 +186,7 @@ static int64_t sys_sbrk(int64_t increment)
     struct process *p = current;
     uint64_t old_brk = p->brk;
     uint64_t new_brk = old_brk + (uint64_t)increment;
-    uint64_t limit = USER_STACK_TOP - (USER_STACK_PAGES + 1) * PAGE_SIZE;  /* stek + himoya */
+    uint64_t limit = USER_STACK_TOP - USER_STACK_MAX - PAGE_SIZE;  /* stek + himoya */
 
     if (increment > 0 && (new_brk < old_brk || new_brk > limit))
         return -1;                      /* to'lib ketish yoki stekka urilish */
@@ -202,7 +202,7 @@ static int64_t sys_sbrk(int64_t increment)
             for (uint64_t va = old_top; va < new_top; va += PAGE_SIZE) {
                 uint64_t phys = vmm_unmap_page(p->pml4, va);
                 if (phys)
-                    pmm_free_frame(phys);
+                    put_page(phys_to_page(phys));
             }
             return -1;
         }
@@ -210,7 +210,7 @@ static int64_t sys_sbrk(int64_t increment)
         for (uint64_t va = new_top; va < old_top; va += PAGE_SIZE) {
             uint64_t phys = vmm_unmap_page(p->pml4, va);
             if (phys)
-                pmm_free_frame(phys);   /* xotirani tizimga QAYTARAMIZ */
+                put_page(phys_to_page(phys));   /* xotirani tizimga QAYTARAMIZ */
         }
     }
     p->brk = new_brk;
@@ -238,8 +238,8 @@ static int64_t sys_meminfo(uint64_t uinfo)
     heap_get_stats(&hs);
     struct myos_meminfo *mi = (struct myos_meminfo *)(uintptr_t)uinfo;
     mi->page_size = PAGE_SIZE;
-    mi->total_pages = pmm_total_frames();
-    mi->free_pages = pmm_free_frames_count();
+    mi->total_pages = pmm_total_pages();
+    mi->free_pages = pmm_free_pages_count();
     mi->kheap_bytes_in_use = hs.bytes_in_use;
     mi->kheap_allocs = hs.alloc_count;
     mi->kheap_frees = hs.free_count;

@@ -37,6 +37,7 @@
 #include "lib/panic.h"
 #include "lib/string.h"
 #include "mm/pmm.h"
+#include "mm/vmalloc.h"
 #include "mm/vmm.h"
 
 /* ABI (myos/abi.h) dagi holat raqamlari enum bilan mos bo'lishi SHART - ps
@@ -85,7 +86,9 @@ struct process *proc_alloc(const char *name)
     irq_restore(flags);
 
     strlcpy(p->name, name, sizeof(p->name));
-    p->kstack_base = pmm_alloc_frames(KSTACK_PAGES);
+    /* Yadro steki vmalloc'dan: atrofida HIMOYA SAHIFALARI bor. Stek to'lsa -
+     * darhol page fault (keyin double fault), boshqa xotirani jim buzmaydi. */
+    p->kstack_base = (uint64_t)vmalloc(KSTACK_PAGES * PAGE_SIZE);
     if (!p->kstack_base) {
         p->state = PROC_UNUSED;
         return NULL;
@@ -99,7 +102,7 @@ struct process *proc_alloc(const char *name)
 void proc_free(struct process *p)
 {
     if (p->kstack_base)
-        pmm_free_frames(p->kstack_base, KSTACK_PAGES);
+        vfree((void *)p->kstack_base);
     if (p->is_user && p->pml4 && p->pml4 != vmm_kernel_pml4())
         vmm_destroy_address_space(p->pml4);
     p->state = PROC_UNUSED;

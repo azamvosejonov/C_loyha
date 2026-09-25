@@ -17,12 +17,13 @@ jobs:
       - name: Vositalarni o'rnatish
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends nasm qemu-system-x86
+          sudo apt-get install -y --no-install-recommends nasm qemu-system-x86 \
+            grub-pc-bin grub-efi-amd64-bin grub-common xorriso mtools ovmf
 
       - name: Yig'ish (ogohlantirishlar = xato)
         run: make -j"$(nproc)"
 
-      - name: Testlar (yadro selftest + shell orqali integratsion testlar)
+      - name: Testlar - BIOS va UEFI (yadro selftest + shell orqali integratsion testlar)
         run: make test
 
       - name: Test logini saqlash
@@ -30,4 +31,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-output
-          path: build/test-output.log
+          path: build/test-output-*.log

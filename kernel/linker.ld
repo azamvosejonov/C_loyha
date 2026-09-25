@@ -1,77 +1,85 @@
 /* =============================================================================
- *  linker.ld - yadro xotirada QAYERDA va QANDAY tartibda joylashishini belgilaydi
+ *  linker.ld - HIGHER-HALF yadro tasviri
  * =============================================================================
  *
- *  NIMA UCHUN KERAK:
- *    Oddiy dasturda bu ishni Linux va standart linker skripti qiladi. Bizda OS
- *    yo'q - yadro O'ZI OS. Shuning uchun linkerga aniq aytishimiz kerak:
- *      - kod qaysi manzildan boshlanadi (1 MB)
- *      - bo'limlar (.text, .data, .bss ...) qaysi tartibda keladi
- *      - yadro qayerda tugaydi (kernel_end) - fizik xotira menejeri (pmm.c)
- *        shu manzilgacha bo'lgan xotirani "band" deb belgilaydi.
+ *  IKKI XIL MANZIL:
+ *    VMA (Virtual Memory Address) - kod ISHLAGANDA qaysi manzilda turadi
+ *    LMA (Load Memory Address)    - yuklovchi uni FIZIK xotiraning qayeriga qo'yadi
  *
- *  NEGA 1 MB (0x100000):
- *    Birinchi 1 MB da BIOS ma'lumotlari, VGA xotirasi (0xB8000), ROM'lar bor.
- *    Multiboot yuklovchilari ham yadroni odatda 1 MB ga qo'yadi.
+ *  Yadro kodi 0xFFFFFFFF80100000 (VMA) da ishlaydi, lekin fizik jihatdan
+ *  0x100000 (LMA, 1 MB) ga yuklanadi. AT(...) aynan LMA ni belgilaydi.
+ *
+ *  Muammo: GRUB bizni 32-bitli rejimda, paging O'CHIQ holda chaqiradi - bu
+ *  paytda 0xFFFFFFFF80... manzili umuman mavjud emas! Shuning uchun boot.asm
+ *  ning birinchi qismi (.boot.*) PAST manzilga (VMA = LMA = 1 MB) link qilinadi.
+ *  U sahifa jadvallarini quradi, 64-bitga o'tadi va yuqori yarimga sakraydi.
+ *
+ *    fizik:   1 MB                                            kernel_end
+ *             ├── .boot (past, VMA=LMA) ──┼── .text .rodata .data .bss ──┤
+ *    virtual: 0x100000                    0xFFFFFFFF801xxxxx
  * ============================================================================= */
 
-/* Yadroning kirish nuqtasi - boot.asm dagi _start belgisi. */
 ENTRY(_start)
+
+KERNEL_VMA = 0xFFFFFFFF80000000;
 
 SECTIONS
 {
-    /* "." - joriy manzil hisoblagichi. Yadro 1 MB dan boshlanadi. */
     . = 1M;
+    __kernel_phys_start = .;
 
-    /* C kodidan &kernel_start orqali yadro boshini bilib olamiz. */
-    kernel_start = .;
-
-    /* Multiboot sarlavhasi fayl boshidan 8 KB ichida bo'lishi SHART, aks holda
-     * yuklovchi uni topa olmaydi. Shuning uchun uni eng birinchi qo'yamiz.
-     * KEEP() - linker "ishlatilmayapti" deb o'chirib yubormasligi uchun. */
-    .multiboot : ALIGN(8)
+    /* ---- Past manzildagi boot qismi ---- */
+    .boot : ALIGN(8)
     {
-        KEEP(*(.multiboot))
+        KEEP(*(.multiboot2))            /* Multiboot2 sarlavhasi fayl boshida (32 KB ichida) bo'lishi shart */
+        *(.boot.text)
+        *(.boot.rodata)
+        *(.boot.data)
+    }
+    .boot.bss (NOLOAD) : ALIGN(4K)
+    {
+        *(.boot.bss)                    /* boot sahifa jadvallari, kichik 32-bitli stek */
     }
 
-    /* .text - bajariladigan kod. ALIGN(4K) - har bir bo'lim yangi sahifadan
-     * boshlanadi, keyinchalik sahifalarga turli ruxsat (faqat o'qish va h.k.)
-     * berish mumkin bo'lishi uchun. */
-    .text : ALIGN(4K)
+    /* ---- Yuqori yarimga o'tamiz: VMA = LMA + KERNEL_VMA ---- */
+    . = ALIGN(4K);
+    . += KERNEL_VMA;
+    __kernel_start = .;
+
+    /* Har bir bo'lim alohida sahifadan boshlanadi: vmm.c ularga turli ruxsat
+     * beradi (kod: bajarish mumkin, yozish mumkin emas; ma'lumot: aksincha).
+     * Bu W^X (write XOR execute) tamoyili - zamonaviy himoyaning asosi. */
+    .text : AT(ADDR(.text) - KERNEL_VMA) ALIGN(4K)
     {
+        __text_start = .;
         *(.text .text.*)
+        __text_end = .;
     }
 
-    /* .rodata - o'zgarmas ma'lumotlar: satr literallari, const massivlar. */
-    .rodata : ALIGN(4K)
+    .rodata : AT(ADDR(.rodata) - KERNEL_VMA) ALIGN(4K)
     {
+        __rodata_start = .;
         *(.rodata .rodata.*)
+        __rodata_end = .;
     }
 
-    /* .data - boshlang'ich qiymatli global o'zgaruvchilar (int x = 5;). */
-    .data : ALIGN(4K)
+    .data : AT(ADDR(.data) - KERNEL_VMA) ALIGN(4K)
     {
+        __data_start = .;
         *(.data .data.*)
     }
 
-    /* .bss - nol bilan boshlanadigan global o'zgaruvchilar (int y;).
-     * Faylda joy egallamaydi - yuklovchi bu joyni nollar bilan to'ldiradi.
-     * COMMON - eski uslubdagi "umumiy" o'zgaruvchilar. */
-    .bss : ALIGN(4K)
+    .bss : AT(ADDR(.bss) - KERNEL_VMA) ALIGN(4K)
     {
         *(COMMON)
         *(.bss .bss.*)
+        __data_end = .;
     }
 
-    /* Yadro oxiri, sahifa chegarasiga tekislangan. Bundan keyingi xotira bo'sh. */
     . = ALIGN(4K);
-    kernel_end = .;
+    __kernel_end = .;
+    __kernel_phys_end = . - KERNEL_VMA;
 
-    /* Keraksiz bo'limlarni tashlab yuboramiz:
-     *   .comment  - kompilyator versiyasi haqida matn
-     *   .eh_frame - C++ exception'lar uchun jadval
-     *   .note*    - GNU qo'shimcha eslatmalari (ular alohida segment yaratib,
-     *               multiboot sarlavhasini fayl boshidan uzoqlashtirishi mumkin) */
     /DISCARD/ :
     {
         *(.comment)

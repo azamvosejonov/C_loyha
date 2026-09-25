@@ -2,21 +2,28 @@
  *  main.c - yadroning C tilidagi kirish nuqtasi
  * =============================================================================
  *
- *  boot.asm 64-bitli rejimga o'tib, shu kmain() funksiyasini chaqiradi.
- *  Bu yerda tizimning har bir qismi to'g'ri TARTIBDA ishga tushiriladi.
- *  Tartib muhim: masalan, xotira menejerisiz heap ishlamaydi, heap'siz
- *  jarayon yarata olmaymiz.
+ *  boot.asm yuqori yarimga o'tib, kmain(magic, mbi_phys) ni chaqiradi.
+ *  ISHGA TUSHIRISH TARTIBI - har bir qadam oldingisiga tayanadi:
  *
- *     console -> interrupts -> pmm -> vmm -> (heap) -> proc -> tarfs/syscall
- *        -> qurilmalar -> sti -> "init" yadro oqimi (pid 1) -> user shell
- *        kmain o'zi esa "idle" (pid 0) ga aylanadi
+ *    serial konsol          <- xatolarni ko'rish uchun eng birinchi
+ *    bootinfo               <- GRUB ma'lumotini nusxalash (keyin uning joyi band emas)
+ *    CPU imkoniyatlari      <- NX, 1 GB sahifa, PAT ...
+ *    GDT/IDT                <- exception bo'lsa, tushunarli xabar chiqsin
+ *    memblock               <- ilk allocator
+ *    vmm                    <- yadroning doimiy sahifa jadvallari (identity yo'qoladi)
+ *    buddy (pmm)            <- asosiy fizik allocator
+ *    slab, vmalloc          <- kmalloc, himoyalangan yadro steklari, ioremap
+ *    ekran                  <- framebuffer yoki VGA matn; log tarixi qayta chiqadi
+ *    jarayonlar, fayllar, syscall, taymer, klaviatura
+ *    sti -> init (pid 1) -> user shell
  * ============================================================================= */
 #include <stdint.h>
 
 #include "arch/cpu.h"
 #include "arch/interrupts.h"
-#include "boot/multiboot.h"
+#include "boot/bootinfo.h"
 #include "drivers/console.h"
+#include "drivers/fbcon.h"
 #include "drivers/keyboard.h"
 #include "drivers/pit.h"
 #include "drivers/vga.h"
@@ -24,39 +31,24 @@
 #include "lib/kprintf.h"
 #include "lib/panic.h"
 #include "lib/string.h"
-#include "mm/heap.h"
+#include "mm/memblock.h"
 #include "mm/pmm.h"
+#include "mm/slab.h"
+#include "mm/vmalloc.h"
 #include "mm/vmm.h"
 #include "proc/process.h"
 #include "sys/syscall.h"
 #include "tests/crashdemo.h"
 #include "tests/selftest.h"
 
-/* Yadroga berilgan buyruq qatori (masalan "selftest"). */
-static const char *kernel_cmdline = "";
-
-/* Buyruq qatorida shu so'z bormi? (juda sodda tekshiruv) */
-static int cmdline_has(const char *word)
-{
-    return strstr(kernel_cmdline, word) != NULL;
-}
-
-/* "demo=uaf" kabi parametr bo'lsa - xato namoyishini ishga tushiramiz. */
 static void maybe_run_crashdemo(void)
 {
-    const char *demo = strstr(kernel_cmdline, "demo=");
-    if (!demo)
-        return;
     char name[32];
-    size_t n = 0;
-    for (demo += 5; demo[n] && demo[n] != ' ' && n < sizeof(name) - 1; n++)
-        name[n] = demo[n];
-    name[n] = '\0';
-    crashdemo_run(name);
+    if (cmdline_get("demo", name, sizeof(name)))
+        crashdemo_run(name);
 }
 
-/* ---- 6-bosqich namoyishi: bir vaqtda ishlaydigan yadro oqimlari ----
- * make run APPEND=threads */
+/* ---- Namoyish: bir vaqtda ishlaydigan yadro oqimlari (APPEND=threads) ---- */
 static int ticker_thread(void *arg)
 {
     const char *label = arg;
@@ -67,10 +59,8 @@ static int ticker_thread(void *arg)
     return 0;
 }
 
-/* pid 1: "init" yadro oqimi. Uzilishlar yoqilgan, scheduler ishlab turgan
- * muhitda kerakli ishlarni bajaradi, keyin birinchi USER dasturni - shell'ni
- * ishga tushiradi va u tugasa, qayta ishga tushiradi (Unix'dagi init/getty
- * kabi). */
+/* pid 1: "init" yadro oqimi. Kerakli ishlarni bajaradi, keyin birinchi USER
+ * dasturni - shell'ni ishga tushiradi va u tugasa qayta ishga tushiradi. */
 static int init_thread(void *arg)
 {
     (void)arg;
@@ -96,56 +86,55 @@ static int init_thread(void *arg)
     }
 }
 
-void kmain(uint32_t magic, uint32_t multiboot_info_phys);
-
-void kmain(uint32_t magic, uint32_t multiboot_info_phys)
+static void screen_init(void)
 {
-    /* 1-qadam: chiqarish. Birinchi navbatda - aks holda xatolarni ko'ra olmaymiz. */
-    console_init();
+    const struct screen_ops *ops = fbcon_init(&boot_info.fb);
+    if (!ops && boot_info.fb.present && boot_info.fb.text_mode)
+        ops = vga_text_init();
+    if (!ops) {
+        kprintf("[con]  Ekran yo'q - faqat serial port\n");
+        return;
+    }
+    console_attach_screen(ops);         /* shu paytgacha yozilgan log ekranda paydo bo'ladi */
+    kprintf("[con]  Ekran: %s\n", ops->name);
+}
 
-    vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
-    kprintf("MyOS - C tilida noldan yozilgan 64-bitli yadro\n");
-    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+void kmain(uint32_t magic, uint32_t mbi_phys);
 
-    if (magic != MULTIBOOT_BOOTLOADER_MAGIC)
-        panic("Multiboot magic noto'g'ri: %x", magic);
+void kmain(uint32_t magic, uint32_t mbi_phys)
+{
+    console_init_early();
+    kprintf("\nMyOS - C tilida noldan yozilgan 64-bitli yadro\n");
 
-    /* Identity mapping tufayli fizik manzilni to'g'ridan-to'g'ri ko'rsatkich
-     * sifatida ishlatish mumkin (birinchi 1 GB da). */
-    struct multiboot_info *mbi = (struct multiboot_info *)(uintptr_t)multiboot_info_phys;
-    if (mbi->flags & MB_INFO_CMDLINE)
-        kernel_cmdline = (const char *)(uintptr_t)mbi->cmdline;
-    kprintf("[boot] 64-bitli Long Mode faol. Buyruq qatori: \"%s\"\n", kernel_cmdline);
+    bootinfo_parse(magic, mbi_phys);
+    cpu_detect();
+    interrupts_init();                  /* GDT, TSS, IDT, PIC (uzilishlar hali o'chiq) */
+    cpu_enable_features();
+    bootinfo_dump();
 
-    /* 2-qadam: uzilishlar. GDT (TSS bilan), IDT, PIC. Hali IF=0. */
-    interrupts_init();
-    kprintf("[int]  GDT, TSS, IDT va PIC sozlandi\n");
-
-    /* 3-qadam: fizik xotira. Endi bo'sh RAM freymlarini bera olamiz. */
-    pmm_init(mbi);
-
-    /* 4-qadam: virtual xotira. NULL himoyasi, jarayon manzil maydonlari. */
+    /* ---- Xotira ---- */
+    memblock_init(&boot_info);
     vmm_init();
+    pmm_init();
+    vmm_late_init();
+    slab_init();
+    vmalloc_init();
 
-    /* 5-qadam: heap (kmalloc) - alohida ishga tushirish shart emas: birinchi
-     * kmalloc() chaqiruvida slab'lar o'zi yaratiladi. */
-    kprintf("[heap] Slab allocator tayyor (16..1024 bayt sinflar + katta ajratmalar)\n");
+    /* ---- Ekran ---- */
+    screen_init();
 
-    /* 6-qadam: jarayonlar. kmain shu lahzadan 0-jarayon ("idle"). */
+    /* ---- Jarayonlar va fayllar ---- */
     proc_init();
-
-    /* 7-qadam: user rejimi uchun: fayl tizimi (initrd) va syscall'lar. */
-    tarfs_init(mbi);
+    tarfs_init(&boot_info);
     syscall_init();
 
-    /* 8-qadam: qurilmalar va uzilishlarni yoqish. */
+    /* ---- Qurilmalar ---- */
     pit_init();
     keyboard_init();
     console_enable_serial_input();
     proc_create_kernel_thread("init", init_thread, NULL);
     kprintf("[int]  Uzilishlar yoqilmoqda (taymer %d Hz)\n", TIMER_HZ);
-    cpu_sti();                          /* Endi taymer "yuradi" va scheduler ishlaydi */
+    cpu_sti();
 
-    /* kmain hech qachon qaytmaydi: u idle jarayoniga aylanadi. */
-    proc_idle_loop();
+    proc_idle_loop();                   /* kmain idle jarayoniga (pid 0) aylanadi */
 }

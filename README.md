@@ -29,10 +29,14 @@ myos$ ps
 ## Tez boshlash
 
 ```bash
-sudo apt install build-essential nasm qemu-system-x86 gdb   # Ubuntu / Debian / WSL
-make run-nographic      # terminalda ishga tushirish (chiqish: Ctrl-A, keyin X)
-make run                # QEMU oynasida (VGA ekran)
-make test               # avtomatik testlar: yadro selftest + shell orqali 20 ta tekshiruv
+# Ubuntu / Debian / WSL:
+sudo apt install build-essential nasm qemu-system-x86 gdb \
+                 grub-pc-bin grub-efi-amd64-bin grub-common xorriso mtools ovmf
+make                    # build/myos.iso - BIOS va UEFI kompyuterlarda yuklanadi
+make run                # QEMU, BIOS rejimi
+make run-uefi           # QEMU, UEFI rejimi
+make run-nographic      # faqat terminal (chiqish: Ctrl-A, keyin X)
+make test               # avtomatik testlar (BIOS + UEFI)
 make debug              # GDB bilan (docs/08-test-debug.md)
 ```
 
@@ -71,7 +75,10 @@ Hajmi: yadro ~5000 qator C va ~500 qator assembly; user dasturlari ~1300 qator; 
    git checkout -                    # qaytish
    ```
 4. Har bir hujjat oxiridagi **"Sinab ko'ring"** bo'limini bajaring: kodni ataylab buzing va natijani kuzating.
-5. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**
+5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md) — hozirgi yadro: GRUB/UEFI, higher-half,
+   buddy, slab, vmalloc, framebuffer. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
+   shuning uchun avval o'shalarni o'qing.
+6. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**
 
 ## Tuzilma
 
