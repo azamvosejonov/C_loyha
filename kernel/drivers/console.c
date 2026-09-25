@@ -58,6 +58,15 @@ void console_attach_screen(const struct screen_ops *ops)
     spin_unlock(&console_lock);
 }
 
+void console_get_size(unsigned *cols, unsigned *rows)
+{
+    *cols = 80;
+    *rows = 25;
+    const struct screen_ops *s = __atomic_load_n(&screen, __ATOMIC_ACQUIRE);
+    if (s && s->get_size)
+        s->get_size(cols, rows);
+}
+
 /* console_lock ushlangan holda. */
 static void putc_locked(char c)
 {

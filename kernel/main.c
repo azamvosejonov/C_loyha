@@ -35,7 +35,12 @@
 #include "drivers/pci.h"
 #include "drivers/pit.h"
 #include "drivers/vga.h"
-#include "fs/tarfs.h"
+#include "fs/block.h"
+#include "fs/devfs.h"
+#include "fs/initrd.h"
+#include "fs/tmpfs.h"
+#include "fs/vfs.h"
+#include "drivers/rtc.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
 #include "lib/string.h"
@@ -85,7 +90,7 @@ static int init_thread(void *arg)
     for (;;) {
         static char sh_name[] = "sh";
         char *argv[] = { sh_name };
-        int pid = proc_spawn("sh", 1, argv);
+        int pid = proc_spawn("/bin/sh", 1, argv);
         if (pid < 0)
             panic("init: /sh ni ishga tushirib bo'lmadi (xato %d)", pid);
         int code;
@@ -138,9 +143,13 @@ void kmain(uint32_t magic, uint32_t mbi_phys)
     lapic_init_bsp();
     ioapic_init();
 
-    /* ---- Jarayonlar va fayllar ---- */
+    /* ---- Fayl tizimlari: tmpfs ildiz, /dev, initrd ---- */
+    tmpfs_init();
+    vfs_mount_root(tmpfs_create_sb());
+    bcache_init();
+
+    /* ---- Jarayonlar ---- */
     proc_init();
-    tarfs_init(&boot_info);
     syscall_init();
 
     /* ---- Qurilmalar ---- */
@@ -148,8 +157,11 @@ void kmain(uint32_t magic, uint32_t mbi_phys)
     keyboard_init();
     console_enable_serial_input();
 
-    /* ---- PCI qurilmalari ---- */
+    /* ---- Vaqt, PCI qurilmalari (disk drayverlari shu yerda topiladi) ---- */
+    rtc_init();
     pci_init();
+    devfs_init();
+    initrd_unpack(&boot_info);
 
     /* ---- Boshqa CPU yadrolari ---- */
     smp_init();

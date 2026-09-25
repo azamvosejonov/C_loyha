@@ -1,7 +1,8 @@
 /* =============================================================================
  *  user/bin/ps.c - jarayonlar ro'yxati
  * ============================================================================= */
-#include "ulib.h"
+#include <stdio.h>
+#include "myos.h"
 
 static const char *state_name(int s)
 {

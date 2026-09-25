@@ -114,11 +114,18 @@ static void vga_putc(char c)
     update_hw_cursor();
 }
 
+static void vga_get_size(unsigned *c, unsigned *r)
+{
+    *c = VGA_WIDTH;
+    *r = VGA_HEIGHT;
+}
+
 static const struct screen_ops vga_ops = {
     .name = "VGA matn 80x25",
     .putc = vga_putc,
     .set_color = vga_set_color,
     .clear = vga_clear,
+    .get_size = vga_get_size,
 };
 
 const struct screen_ops *vga_text_init(void)

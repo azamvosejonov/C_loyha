@@ -31,8 +31,8 @@
 
 #include "arch/gdt.h"
 #include "arch/interrupts.h"
-#include "fs/file.h"
-#include "fs/tarfs.h"
+#include "fs/vfs.h"
+#include "mm/vmalloc.h"
 #include "lib/common.h"
 #include "lib/string.h"
 #include "mm/mm.h"
@@ -77,25 +77,32 @@ static uint64_t setup_user_stack(struct mm *mm, int argc, char *const argv[], ui
 static int load_image(const char *path, int argc, char *const argv[], struct image *out)
 {
     if (argc < 0 || argc > MAX_ARGS)
-        return -1;
+        return -E2BIG;
     size_t total = 0;
     for (int i = 0; i < argc; i++)
         total += strlen(argv[i]) + 1;
     if (total > MAX_ARG_BYTES)
-        return -1;
+        return -E2BIG;
 
-    const struct tar_file *tf = tarfs_find(path);
-    if (!tf)
-        return -2;                      /* fayl topilmadi */
+    /* Faylni VFS orqali to'liq o'qiymiz (istalgan fayl tizimidan: tmpfs, ext2...). */
+    void *data;
+    size_t size;
+    struct inode *cwd = current->is_idle ? NULL : current->cwd;
+    int err = vfs_read_whole(path, cwd, &data, &size);
+    if (err)
+        return err;
 
     struct mm *mm = mm_create();
-    if (!mm)
-        return -3;
+    if (!mm) {
+        vfree(data);
+        return -ENOMEM;
+    }
     uint64_t entry, image_end;
-    int err = elf_load(mm, tf->data, tf->size, &entry, &image_end);
+    err = elf_load(mm, data, size, &entry, &image_end);
+    vfree(data);
     if (err < 0) {
         mm_destroy(mm);
-        return -4;
+        return -ENOEXEC;                /* ELF emas yoki buzilgan */
     }
     /* Heap: ELF dan keyingi sahifadan (1 sahifalik VMA, sbrk bilan o'sadi). */
     mm->brk_start = mm->brk = ALIGN_UP(image_end, PAGE_SIZE);
@@ -106,7 +113,7 @@ static int load_image(const char *path, int argc, char *const argv[], struct ima
         !mm_populate(mm, USER_STACK_TOP - PAGE_SIZE * 2, PAGE_SIZE * 2) ||
         !setup_user_stack(mm, argc, argv, &argv_va)) {
         mm_destroy(mm);
-        return -5;
+        return -ENOMEM;
     }
     out->mm = mm;
     out->entry = entry;
@@ -165,15 +172,23 @@ int proc_spawn(const char *path, int argc, char *const argv[])
     struct process *p = proc_alloc(basename(path));
     if (!p) {
         mm_destroy(img.mm);
-        return -6;
+        return -ENOMEM;
     }
     p->is_user = true;
     p->mm = img.mm;
     p->pml4 = img.mm->pml4;
     init_user_frame(prepare_kstack(p), &img, argc);
-    p->files[0] = file_console();
-    p->files[1] = file_console();
-    p->files[2] = file_console();
+    /* stdin, stdout, stderr: agar chaqiruvchida bo'lsa - meros, aks holda konsol. */
+    struct process *par = current;
+    for (int fd = 0; fd < 3; fd++) {
+        if (!par->is_idle && par->files[fd]) {
+            p->files[fd] = file_dup(par->files[fd]);
+        } else {
+            struct file *con;
+            if (vfs_open("/dev/console", NULL, O_RDWR, 0, &con) == 0)
+                p->files[fd] = con;
+        }
+    }
     int pid = p->pid;
     proc_make_ready(p);
     return pid;
@@ -208,11 +223,11 @@ int proc_fork(struct interrupt_frame *f)
     struct process *parent = current;
     struct process *child = proc_alloc(parent->name);
     if (!child)
-        return -1;
+        return -EAGAIN;
     child->mm = mm_fork(parent->mm);
     if (!child->mm) {
         proc_free(child);
-        return -1;
+        return -ENOMEM;
     }
     child->is_user = true;
     child->pml4 = child->mm->pml4;

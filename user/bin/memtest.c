@@ -9,7 +9,12 @@
  *     yadroga qaytarilishi (trim) kerak.
  *  5) Katta blok (1 MB) - sbrk orqali heap o'sishi.
  * ============================================================================= */
-#include "ulib.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "myos.h"
 
 #define N 300
 

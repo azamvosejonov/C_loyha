@@ -20,6 +20,7 @@ struct screen_ops {
     void (*putc)(char c);
     void (*set_color)(enum color fg, enum color bg);
     void (*clear)(void);
+    void (*get_size)(unsigned *cols, unsigned *rows);  /* belgilarda */
 };
 
 /* Faqat serial port bilan (xotira menejeri hali yo'q paytda). */
@@ -33,6 +34,8 @@ void console_set_color(enum color fg, enum color bg);
 void console_clear(void);
 /* Yadro logining (dmesg) oxirgi qismini nusxalash. */
 size_t console_read_log(char *buf, size_t size);
+/* Ekran o'lchami (belgilarda). Ekran yo'q bo'lsa - 80x25 (serial terminal). */
+void console_get_size(unsigned *cols, unsigned *rows);
 
 /* ---- Kiritish (input) ---- */
 void console_input_char(char c);

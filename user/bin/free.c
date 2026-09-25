@@ -1,7 +1,8 @@
 /* =============================================================================
  *  user/bin/free.c - xotira statistikasi (Linux'dagi `free` kabi)
  * ============================================================================= */
-#include "ulib.h"
+#include <stdio.h>
+#include "myos.h"
 
 int main(void)
 {

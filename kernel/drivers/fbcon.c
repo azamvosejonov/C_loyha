@@ -162,11 +162,18 @@ static void fbcon_clear(void)
     redraw_all();
 }
 
+static void fbcon_get_size(unsigned *c, unsigned *r)
+{
+    *c = cols;
+    *r = rows;
+}
+
 static const struct screen_ops fbcon_ops = {
     .name = "framebuffer",
     .putc = fbcon_putc,
     .set_color = fbcon_set_color,
     .clear = fbcon_clear,
+    .get_size = fbcon_get_size,
 };
 
 const struct screen_ops *fbcon_init(const struct boot_framebuffer *f)

@@ -6,14 +6,14 @@
 #    `make` buyrug'i shu fayldagi qoidalar bo'yicha:
 #      1) kernel/ ichidagi har bir .c va .asm faylni obyekt (.o) faylga aylantiradi
 #      2) ularni linker.ld bo'yicha bitta yadro fayliga (build/kernel.elf) bog'laydi
-#      3) user/ ichidagi har bir dasturni alohida ELF qilib yig'adi
-#      4) dasturlarni bitta tar arxivga (build/initrd.tar) joylaydi - bu bizning
-#         "disk"imiz bo'ladi
+#      3) user/libc dan statik kutubxona (libc.a) va user/bin dagi har bir
+#         dasturni alohida ELF qilib yig'adi
+#      4) root fayl tizimini (build/rootfs: /bin, /etc ...) tar arxivga
+#         (build/initrd.tar) joylaydi - yadro uni boot paytida tmpfs ga ochadi
 #      5) GRUB bilan yuklanadigan ISO tasvir yaratadi (build/myos.iso). Uni USB
 #         fleshkaga yozib, HAQIQIY kompyuterda yuklash mumkin (docs/real-apparat.md)
 #
 #  ASOSIY BUYRUQLAR:
-#    make              - hammasini yig'ish
 #    make              - yadro + dasturlar + yuklanadigan ISO (build/myos.iso)
 #    make run          - QEMU oynasida, BIOS rejimida (ekran + serial terminalda)
 #    make run-uefi     - QEMU oynasida, UEFI rejimida (OVMF firmware)
@@ -107,11 +107,17 @@ KERNEL_LDFLAGS := -T kernel/linker.ld -nostdlib -z max-page-size=0x1000 -z noexe
 # Yadro bayroqlariga o'xshash, lekin:
 #   * red zone MUMKIN - user dasturda uzilish kelsa, CPU avtomatik ravishda yadro
 #     stekiga o'tadi (TSS.rsp0), shuning uchun user stekiga tegilmaydi.
-#   * -Iuser/lib : user kutubxonamiz sarlavhalari
+#   * -nostdinc : kompyuterdagi glibc sarlavhalari (/usr/include) ISHLATILMASIN -
+#     aks holda <stdio.h> bizniki emas, Linux'niki bo'lib qoladi va dastur
+#     noto'g'ri tuzilmalar bilan yig'iladi. Faqat GCC'ning o'z "freestanding"
+#     sarlavhalari (stdint.h, stddef.h, stdarg.h, stdbool.h) qoladi (-isystem).
+#   * -Iuser/include : bizning libc sarlavhalarimiz (stdio.h, unistd.h ...)
+GCC_INCLUDE := $(shell $(CC) -print-file-name=include)
 USER_CFLAGS := -std=gnu11 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
                -mgeneral-regs-only -fno-asynchronous-unwind-tables \
                -fno-tree-loop-distribute-patterns \
-               -O2 -g -Wall -Wextra -Werror -Iuser/lib -Iinclude -MMD -MP
+               -nostdinc -isystem $(GCC_INCLUDE) -Iuser/include -Iinclude \
+               -O2 -g -Wall -Wextra -Werror -MMD -MP
 USER_ASFLAGS := -f elf64 -g -F dwarf
 USER_LDFLAGS := -T user/linker.ld -nostdlib -z max-page-size=0x1000 -z noexecstack
 
@@ -123,16 +129,20 @@ KERNEL_ASM := $(shell find kernel -name '*.asm')
 # kernel/drivers/vga.c -> build/kernel/drivers/vga.c.o
 KERNEL_OBJ := $(patsubst %,$(BUILD)/%.o,$(KERNEL_C) $(KERNEL_ASM))
 
-# User kutubxonasi (har bir dasturga ulanadi): crt0.asm + boshqa .c fayllar.
-ULIB_C   := $(wildcard user/lib/*.c)
-ULIB_ASM := $(wildcard user/lib/*.asm)
-ULIB_OBJ := $(patsubst %,$(BUILD)/%.o,$(ULIB_C) $(ULIB_ASM))
+# Bizning libc: crt0.o (dastur boshlanishi) + libc.a (STATIK KUTUBXONA - .o
+# fayllar arxivi). Linker arxivdan faqat KERAKLI .o fayllarni oladi: `true`
+# dasturiga printf kodi qo'shilmaydi. glibc'ning libc.a si ham shunday ishlaydi.
+LIBC_OBJ := $(patsubst %,$(BUILD)/%.o,$(wildcard user/libc/*.c))
+CRT0     := $(BUILD)/user/libc/crt0.asm.o
+LIBC_A   := $(BUILD)/user/libc.a
 
-# Har bir user/bin/X.c -> build/initrd/X (alohida bajariladigan fayl).
-USER_PROGS := $(patsubst user/bin/%.c,$(BUILD)/initrd/%,$(wildcard user/bin/*.c))
-
-# initrd/ papkasidagi oddiy fayllar (masalan, README.txt) ham diskka qo'shiladi.
-INITRD_EXTRA := $(patsubst initrd/%,$(BUILD)/initrd/%,$(wildcard initrd/*))
+# ROOT FAYL TIZIMI build/rootfs/ da yig'iladi va initrd.tar ga aylanadi:
+#   user/bin/X.c      -> /bin/X       (dasturlar)
+#   rootfs/etc/motd   -> /etc/motd    (rootfs/ dagi oddiy fayllar - o'z joyida)
+USER_PROGS := $(patsubst user/bin/%.c,$(BUILD)/rootfs/bin/%,$(wildcard user/bin/*.c))
+ROOTFS_FILES := $(patsubst rootfs/%,$(BUILD)/rootfs/%,$(shell find rootfs -type f))
+# Bo'sh papkalar (git ularni saqlamaydi).
+ROOTFS_DIRS := bin etc home mnt tmp
 
 # ---- QEMU sozlamalari ------------------------------------------------------------
 #   -cdrom       : ISO tasvirdan yuklash - xuddi haqiqiy kompyuterdagi kabi GRUB orqali
@@ -156,9 +166,10 @@ APPEND ?=
 # =============================================================================
 .PHONY: all run run-uefi run-nographic debug test clean FORCE
 
-# Make zanjirdagi "oraliq" fayllarni (user .o lari) avtomatik o'chirib yuboradi.
-# .SECONDARY ularni saqlab qoladi - keyingi `make` hech narsani qayta yig'maydi.
-.SECONDARY:
+# Make pattern zanjiridagi "oraliq" fayllarni (user .o va .elf lari) yig'ishdan keyin
+# o'chirib yuboradi. .PRECIOUS ularni saqlab qoladi (gdb uchun .elf kerak), lekin
+# .SECONDARY dan farqli ravishda o'chirilgan fayl QAYTA yig'iladi.
+.PRECIOUS: $(BUILD)/user/%.o $(BUILD)/user/bin/%.elf
 
 all: $(BUILD)/myos.iso
 
@@ -203,24 +214,41 @@ $(BUILD)/user/%.asm.o: user/%.asm $(FLAGS_STAMP)
 	$(call say,AS,$<)
 	$(Q)$(AS) $(USER_ASFLAGS) $< -o $@
 
-# ---- Har bir user dasturi: o'z .o fayli + user kutubxonasi ----
-$(BUILD)/initrd/%: $(BUILD)/user/bin/%.c.o $(ULIB_OBJ) user/linker.ld
-	@mkdir -p $(dir $@)
-	$(call say,LD,$@)
-	$(Q)$(LD) $(USER_LDFLAGS) -o $@ $< $(ULIB_OBJ)
+# ---- libc.a: ar (archiver) - .o fayllarni bitta arxivga yig'adi ----
+#   r - qo'shish/almashtirish, c - arxivni yaratish, s - belgilar indeksi (linker tez topsin)
+$(LIBC_A): $(LIBC_OBJ)
+	$(call say,AR,$@)
+	$(Q)rm -f $@ && ar rcs $@ $^
 
-# ---- initrd/ dagi oddiy fayllarni nusxalash ----
-$(BUILD)/initrd/%: initrd/%
+# ---- Har bir user dasturi: crt0.o + o'z .o fayli + libc.a ----
+# To'liq ELF (debug ma'lumoti bilan, gdb uchun) build/user/bin/X.elf da qoladi.
+# Diskka esa --strip-debug qilingan nusxa ketadi: ~4 barobar kichik.
+# TARTIB MUHIM: libc.a eng oxirida - linker arxivdan faqat OLDINGI fayllarda
+# yetishmayotgan belgilarni qidiradi.
+$(BUILD)/user/bin/%.elf: $(BUILD)/user/bin/%.c.o $(CRT0) $(LIBC_A) user/linker.ld
+	$(call say,LD,$@)
+	$(Q)$(LD) $(USER_LDFLAGS) -o $@ $(CRT0) $< $(LIBC_A)
+
+$(BUILD)/rootfs/bin/%: $(BUILD)/user/bin/%.elf
+	@mkdir -p $(dir $@)
+	$(Q)objcopy --strip-debug $< $@
+
+# ---- rootfs/ dagi oddiy fayllarni nusxalash ----
+$(BUILD)/rootfs/%: rootfs/%
 	@mkdir -p $(dir $@)
 	$(Q)cp $< $@
 
-# ---- Disk tasviri: oddiy tar arxiv (USTAR formati) ----
-# --format=ustar : eng oddiy, yaxshi hujjatlashtirilgan tar formati. fs/tarfs.c uni o'qiydi.
-# -C dir         : fayl nomlari "./" siz saqlanishi uchun papka ichidan arxivlaymiz.
-$(BUILD)/initrd.tar: $(USER_PROGS) $(INITRD_EXTRA)
-	@mkdir -p $(BUILD)/initrd
+# ---- Boshlang'ich root fayl tizimi: tar arxiv (USTAR formati) ----
+# Yadro (fs/initrd.c) uni boot paytida tmpfs ildiziga ochadi.
+# --format=ustar   : eng oddiy, yaxshi hujjatlashtirilgan tar formati
+# --owner/--group  : fayl egasi - root (0), kompyuterdagi foydalanuvchimiz emas
+# --sort=name      : arxiv har safar bir xil bo'lsin (takrorlanuvchan yig'ish)
+# -C dir + ro'yxat : nomlar "./" siz saqlansin ("bin/sh", "./bin/sh" emas)
+$(BUILD)/initrd.tar: $(USER_PROGS) $(ROOTFS_FILES)
+	@mkdir -p $(addprefix $(BUILD)/rootfs/,$(ROOTFS_DIRS))
 	$(call say,TAR,$@)
-	$(Q)tar --format=ustar -cf $@ -C $(BUILD)/initrd $(notdir $(USER_PROGS) $(INITRD_EXTRA))
+	$(Q)tar --format=ustar --owner=0 --group=0 --sort=name -cf $@ \
+		-C $(BUILD)/rootfs $$(ls $(BUILD)/rootfs)
 
 # ---- GRUB konfiguratsiyasi ----
 # APPEND o'zgarsa, grub.cfg ham o'zgarishi kerak. FORCE + "faqat farq qilsa yozish"

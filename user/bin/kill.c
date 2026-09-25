@@ -1,16 +1,28 @@
-/* user/bin/kill.c - jarayonni to'xtatish: kill <pid> */
-#include "ulib.h"
+/* user/bin/kill.c - jarayonni to'xtatish: kill [-SIGNAL] <pid>... */
+#include <errno.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
-        printf("ishlatish: kill <pid>\n");
+    int sig = SIGTERM, i = 1;
+    if (argc > 1 && argv[1][0] == '-') {
+        sig = atoi(argv[1] + 1);
+        i++;
+    }
+    if (i >= argc) {
+        fprintf(stderr, "ishlatish: kill [-SIGNAL] <pid>...\n");
         return 1;
     }
-    int pid = atoi(argv[1]);
-    if (kill(pid) < 0) {
-        printf("kill: pid %d topilmadi yoki uni o'ldirib bo'lmaydi\n", pid);
-        return 1;
+    int status = 0;
+    for (; i < argc; i++) {
+        int pid = atoi(argv[i]);
+        if (kill(pid, sig) < 0) {
+            fprintf(stderr, "kill: (%d): %s\n", pid, strerror(errno));
+            status = 1;
+        }
     }
-    return 0;
+    return status;
 }

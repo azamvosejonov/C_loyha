@@ -12,7 +12,7 @@
 #include "myos/abi.h"
 
 #define MAX_PROCS       64
-#define MAX_FDS         16              /* har bir jarayonda ochiq fayllar soni */
+#define MAX_FDS         64              /* har bir jarayonda ochiq fayllar soni */
 #define MAX_ARGS        16              /* spawn: argv elementlari soni chegarasi */
 #define PROC_NAME_LEN   32
 #define KSTACK_PAGES    4               /* har bir jarayonning yadro steki: 16 KB */
@@ -40,7 +40,8 @@ enum proc_state {
     PROC_DEAD,                          /* resurslari tozalanmoqda (keyin UNUSED) */
 };
 
-struct file;                            /* fs/file.h da */
+struct file;                            /* fs/vfs.h da */
+struct inode;
 struct mm;                              /* mm/mm.h da */
 struct interrupt_frame;
 
@@ -71,6 +72,8 @@ struct process {
 
     /* --- Fayllar --- */
     struct file *files[MAX_FDS];
+    struct inode *cwd;                  /* joriy papka (NULL = ildiz) */
+    char cwd_path[256];                 /* joriy papka yo'li (getcwd uchun) */
 
     /* --- Statistika --- */
     uint64_t cpu_ticks;                 /* shu jarayon ishlagan tiklar soni */

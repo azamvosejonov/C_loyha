@@ -7,23 +7,25 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 **Har bir fayl va deyarli har bir qator o'zbek tilida izohlangan:** kod nima qiladi va **nega** aynan shunday yozilgan.
 
 ```
-MyOS shell'iga xush kelibsiz! (pid 2). 'help' - yordam.
-myos$ hello salom
-Salom, dunyo! Men user rejimida (ring 3) ishlayapman.
-myos$ crash kernel
-Yadro kodini (0x100000) o'qiyapman...
-[kernel] 'crash' (pid 4) o'ldirildi: Page Fault (sahifa xatosi), RIP=0x400000b8
-  Manzil (CR2) = 0x0000000000100000
+MyOS'ga xush kelibsiz! 'help' - buyruqlar, 'cat /README.txt' - qo'llanma.
+
+myos:/$ ls /bin | grep s | head -3
+crash
+dmesg
+false
+myos:/$ echo salom > /home/a.txt ; cat /home/a.txt
+salom
+myos:/$ cd /home && mkdir -p loyiha/src && ls -l
+-rw-r--r--  1          6 2026-09-25 10:08 a.txt
+drwxr-xr-x  3          0 2026-09-25 10:08 loyiha/
+jami 1 KB
+myos:/home$ crash kernel
+Yadro kodini (0xFFFFFFFF80110000) o'qiyapman...
+[kernel] 'crash' (pid 10) o'ldirildi: Page Fault (sahifa xatosi), RIP=0x00000000004000ca
+  Manzil (CR2) = 0xffffffff80110000
   Sabab: ruxsat buzildi (sahifa bor), O'QISH, user rejimida
-myos$ memtest
-  ...
-memtest: PASSED
-myos$ ps
-  PID  PPID  TUR     HOLAT         CPU(tik)  XOTIRA  NOMI
-    0    -1  yadro   ishlayapti           0     0 KB  idle
-    1     0  yadro   kutyapti             0     0 KB  init
-    2     1  user    kutyapti             3    80 KB  sh
-    5     2  user    ishlayapti           0    84 KB  ps
+myos:/home$ fstest
+fstest: PASSED (53 tekshiruv)
 ```
 
 ## Tez boshlash
@@ -51,18 +53,23 @@ make run-nographic APPEND=threads         # yadro oqimlari parallel ishlaydi
 
 ## Nima qurilgan
 
-| Qatlam | Fayllar | Asosiy g'oyalar |
-|---|---|---|
-| **1. Yuklash** | `kernel/boot/boot.asm`, `linker.ld` | Multiboot, CPUID, 32→64 bit, identity paging, GDT |
-| **2. Uzilishlar** | `kernel/arch/*` , `drivers/pic.c`, `pit.c`, `keyboard.c` | GDT/TSS/IST, IDT, 256 ISR stub, PIC, 100 Hz taymer |
-| **3. Fizik xotira** | `kernel/mm/pmm.c` | E820 xarita, bitmap, `ctz`, next-fit, double-free aniqlash |
-| **4. Virtual xotira** | `kernel/mm/vmm.c` | 4 darajali jadvallar, manzil maydonlari, NULL/guard sahifalar, TLB |
-| **5. Heap** | `kernel/mm/heap.c` | slab allocator, use-after-free/double-free aniqlash (zahar) |
-| **6. Jarayonlar** | `kernel/proc/process.c`, `switch.asm` | context switch, round-robin, preemption, sleep/wakeup, zombie/wait |
-| **7. User rejimi** | `kernel/sys/*`, `kernel/fs/*`, `proc/exec.c`, `user/*` | ring 3, `int 0x80`, ELF, tarfs, fd'lar, libc, malloc, shell |
-| **8. Sifat** | `kernel/tests/*`, `tools/test.sh`, `.github/workflows/ci.yml` | unit + integratsion testlar, CI, GDB |
+Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qish oson yadro (01–08 hujjatlar).
+**Hozirgi versiya** — haqiqiy kompyuterda ishlaydigan, ko'p yadroli tizim (09+ hujjatlar):
 
-Hajmi: yadro ~5000 qator C va ~500 qator assembly; user dasturlari ~1300 qator; hujjatlar ~1100 qator.
+| Qatlam | Fayllar | Asosiy g'oyalar | Hujjat |
+|---|---|---|---|
+| Yuklash | `kernel/boot/*`, `linker.ld` | GRUB, Multiboot2, BIOS + UEFI, higher-half | 09 |
+| Xotira | `kernel/mm/*` | memblock, buddy + `struct page`, slab, vmalloc, ioremap, W^X/NX | 09 |
+| Ekran | `drivers/fbcon.c`, `console.c` | framebuffer, shrift, dmesg ring buffer | 09 |
+| Apparat | `kernel/acpi/*`, `arch/apic.c`, `drivers/pci.c` | ACPI (MADT, FADT, S5), LAPIC/IOAPIC, PCI | 10 |
+| SMP | `arch/smp.c`, `trampoline.asm`, `lib/spinlock.c` | INIT-SIPI, per-CPU (GS), TLB shootdown, qulflar | 10 |
+| Jarayonlar | `kernel/proc/*`, `arch/syscall_entry.asm` | SMP scheduler, `syscall/sysret`, preemption | 10 |
+| Virtual xotira | `kernel/mm/mm.c` | VMA, demand paging, **fork + COW**, exec, mmap | 11 |
+| Fayllar | `kernel/fs/*`, `sys/sys_fs.c` | **VFS**, tmpfs, `/dev`, pipe, mount, errno | 12 |
+| Terminal | `drivers/tty.c` | line discipline: echo, backspace, Ctrl-D, termios | 12 |
+| libc | `user/libc/*`, `user/include/*` | `stdio.h`, `unistd.h`, `FILE*` buferlash, `libc.a` | 12 |
+| Shell va utilitalar | `user/bin/*` | `|` `>` `<` `&&` `$?` glob; 40 ta dastur | 12 |
+| Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 31 ta integratsion test (BIOS + UEFI) | 08 |
 
 ## Qanday o'rganish kerak
 
@@ -75,8 +82,9 @@ Hajmi: yadro ~5000 qator C va ~500 qator assembly; user dasturlari ~1300 qator; 
    git checkout -                    # qaytish
    ```
 4. Har bir hujjat oxiridagi **"Sinab ko'ring"** bo'limini bajaring: kodni ataylab buzing va natijani kuzating.
-5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md), [docs/10-smp.md](docs/10-smp.md), [docs/11-fork-cow.md](docs/11-fork-cow.md) — hozirgi yadro: GRUB/UEFI, higher-half,
-   buddy, slab, vmalloc, framebuffer. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
+5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md), [docs/10-smp.md](docs/10-smp.md), [docs/11-fork-cow.md](docs/11-fork-cow.md),
+   [docs/12-vfs.md](docs/12-vfs.md) — hozirgi yadro: GRUB/UEFI, higher-half, buddy, slab, SMP, fork/COW,
+   VFS, pipe, terminal, libc va shell. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
    shuning uchun avval o'shalarni o'qing.
 6. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**
 
@@ -84,31 +92,37 @@ Hajmi: yadro ~5000 qator C va ~500 qator assembly; user dasturlari ~1300 qator; 
 
 ```
 kernel/
-  boot/     boot.asm (32→64 bit), multiboot.h
-  arch/     GDT, TSS, IDT, ISR stub'lari, uzilishlar dispetcheri, port I/O
-  drivers/  VGA, serial, klaviatura, PIT, PIC, konsol
-  lib/      kprintf, string, panic + backtrace
-  mm/       pmm (fizik), vmm (virtual), heap (slab)
-  proc/     jarayonlar, scheduler, context switch, exec
-  fs/       tarfs, fayl obyektlari
-  sys/      syscall'lar, ELF yuklovchi
-  tests/    selftest, crashdemo
-include/myos/abi.h   yadro <-> user shartnomasi (syscall raqamlari, strukturalar)
+  boot/      boot.asm (32→64 bit, higher-half), bootinfo.c (Multiboot2)
+  arch/      GDT/TSS, IDT, ISR, APIC, SMP, syscall kirish nuqtasi, per-CPU
+  acpi/      ACPI jadvallari: MADT (CPU'lar), FADT (o'chirish), DSDT (_S5)
+  mm/        memblock, buddy (pmm), slab, vmalloc, vmm (sahifa jadvallari), mm (VMA, COW)
+  proc/      jarayonlar, SMP scheduler, context switch, exec, fork
+  fs/        vfs, tmpfs, devfs, pipe, initrd, block (disklar, bo'limlar)
+  drivers/   console, fbcon, tty, keyboard, serial, pci, pit, rtc
+  sys/       syscall'lar, sys_fs (fayl syscall'lari), uaccess, ELF
+  lib/       kprintf, spinlock, mutex, klog, panic
+  tests/     selftest (100 ta tekshiruv), crashdemo
+include/myos/abi.h   yadro <-> user shartnomasi (syscall raqamlari, errno, strukturalar)
 user/
-  lib/      crt0, syscall o'ramlari, printf, malloc
-  bin/      sh, hello, echo, ls, cat, ps, free, kill, spin, crash, memtest
-docs/       har bir qatlam bo'yicha batafsil tushuntirish
-tools/      test.sh, gdbinit
+  include/   libc sarlavhalari: stdio.h, unistd.h, fcntl.h, dirent.h, sys/stat.h ...
+  libc/      crt0, syscall o'ramlari, stdio, printf, malloc, string, dirent, time
+  bin/       sh va utilitalar -> diskdagi /bin
+rootfs/      /etc/motd, /README.txt -> initrd.tar ga qo'shiladi
+docs/        har bir qatlam bo'yicha batafsil tushuntirish
+tools/       test.sh, gdbinit, psf2c.py (shrift), screenshot.sh
 ```
 
 ## Xotira xaritasi (bir qarashda)
 
 ```
-virtual manzil               nima                                  ruxsat
-0x0000000000000000           NULL sahifa - xaritalanmagan          —
-0x0000000000001000-1 GB      yadro (identity): kod, heap, RAM      faqat ring 0
-0x0000000040000000           user dastur (ELF), keyin heap (sbrk)  ring 3
-0x000000007FFF0000-80000000  user steki (64 KB), ostida guard      ring 3
+virtual manzil                  nima                                   ruxsat
+0x0000000000000000              NULL sahifa - xaritalanmagan           —
+0x0000000000400000              user dastur (ELF), keyin heap (sbrk)   ring 3
+...0x00007000_00000000 pastga   mmap hududlari                         ring 3
+...0x00007FFF_FFFFF000 pastga   user steki (8 MB gacha o'sadi)         ring 3
+0xFFFF800000000000              butun fizik RAM (direct map, HHDM)     ring 0, NX
+0xFFFFC00000000000              vmalloc: yadro steklari, ioremap       ring 0
+0xFFFFFFFF80000000              yadro: .text (r-x) .rodata (r--) .data (rw-)
 ```
 
 ## Litsenziya va hissa

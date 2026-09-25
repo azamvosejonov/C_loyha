@@ -4,6 +4,11 @@
 `kernel/arch/interrupts.c` (user exception'lari), `include/myos/abi.h`
 **User kodi:** `user/lib/{crt0.asm,ulib.c,printf.c,malloc.c}`, `user/bin/*.c`, `user/linker.ld`
 
+> **Eslatma:** bu bo'lim kichik versiyani tasvirlaydi (`git checkout e5906bb`). Hozirgi yadroda tarfs
+> o'rnida VFS + tmpfs, `user/lib` o'rnida esa to'liqroq libc (`user/libc`, `user/include`) ishlatiladi.
+> [12-vfs.md](12-vfs.md) ga qarang. Syscall'lar endi `int 0x80` emas, `syscall` instruksiyasi orqali
+> chaqiriladi ([10-smp.md](10-smp.md)).
+
 Shu bosqichda tizim haqiqiy **operatsion tizim**ga aylanadi. Dasturlar himoyalangan muhitda ishlaydi,
 yadrodan faqat syscall orqali xizmat so'raydi, xato qilsa esa faqat o'zi o'ladi.
 

@@ -10,7 +10,14 @@
  *  4. Demand paging: 32 MB mmap - bo'sh xotira deyarli O'ZGARMAYDI. Faqat
  *     tegilgan sahifalar ajratiladi.
  * ============================================================================= */
-#include "ulib.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "myos.h"
 
 static int global_value = 100;
 static int failures;
@@ -43,7 +50,7 @@ int main(void)
         exit(global_value == 999 && *heap == 888 && getppid() > 0 ? 0 : 1);
     }
     int st = -1;
-    wait(pid, &st, 0);
+    waitpid(pid, &st, 0);
     check(st == 0, "bola o'z nusxasini o'zgartirdi");
     check(global_value == 100 && *heap == 7, "ota eski qiymatlarni ko'radi (COW)");
 
@@ -55,7 +62,7 @@ int main(void)
             exit(i + 1);                /* har bir bola o'z kodi bilan */
     }
     for (int i = 0; i < 20; i++) {
-        wait(pids[i], &st, 0);
+        waitpid(pids[i], &st, 0);
         sum += st;
     }
     check(sum == 210, "20 ta bola, chiqish kodlari yig'indisi 210");
@@ -64,17 +71,17 @@ int main(void)
     pid = fork();
     if (pid == 0) {
         char *argv[] = { "echo", "  exec: bola echo ga aylandi", NULL };
-        exec("echo", argv);
+        execv("/bin/echo", argv);
         exit(99);                       /* bu yerga kelmasligi kerak */
     }
-    wait(pid, &st, 0);
+    waitpid(pid, &st, 0);
     check(st == 0, "exec ishladi");
-    check(exec("mavjud_emas", NULL) < 0, "mavjud bo'lmagan dastur uchun exec -1 qaytaradi");
+    check(execv("/bin/mavjud_emas", NULL) < 0, "mavjud bo'lmagan dastur uchun exec -1 qaytaradi");
 
     /* --- 4. Demand paging --- */
     uint64_t before = free_kb();
     size_t len = 32 * 1024 * 1024;
-    char *big = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS);
+    char *big = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     check(big != MAP_FAILED, "32 MB mmap");
     uint64_t after_map = free_kb();
     printf("  mmap dan keyin: %lu KB ishlatildi (sahifalar hali yo'q)\n", before - after_map);

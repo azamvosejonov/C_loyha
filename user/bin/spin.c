@@ -7,7 +7,9 @@
  *      spin b 10
  *  Sababi - taymer har 50 ms da majburan scheduler'ni chaqiradi.
  * ============================================================================= */
-#include "ulib.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "myos.h"
 
 int main(int argc, char **argv)
 {

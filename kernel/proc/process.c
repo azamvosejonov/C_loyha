@@ -38,7 +38,7 @@
 #include "arch/cpu.h"
 #include "arch/gdt.h"
 #include "drivers/pit.h"
-#include "fs/file.h"
+#include "fs/vfs.h"
 #include "lib/common.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
@@ -106,6 +106,15 @@ struct process *proc_alloc(const char *name)
     p->pml4 = vmm_kernel_pml4();
     p->quantum_left = SCHED_QUANTUM;
     p->last_cpu = -1;
+    /* Joriy papka otadan meros (yadro oqimlari uchun - ildiz). */
+    struct process *par = p->parent;
+    if (par && !par->is_idle && par->cwd) {
+        p->cwd = iget(par->cwd);
+        strlcpy(p->cwd_path, par->cwd_path, sizeof(p->cwd_path));
+    } else {
+        p->cwd = iget(vfs_root());
+        strlcpy(p->cwd_path, "/", sizeof(p->cwd_path));
+    }
     return p;
 }
 
@@ -113,6 +122,16 @@ struct process *proc_alloc(const char *name)
  * vfree boshqa CPU'larga TLB tozalash so'rovini yuborib, javob kutishi mumkin. */
 static void proc_release_resources(struct process *p)
 {
+    for (int fd = 0; fd < MAX_FDS; fd++) {    /* (xato yo'lida - hali ochiq bo'lishi mumkin) */
+        if (p->files[fd]) {
+            file_close(p->files[fd]);
+            p->files[fd] = NULL;
+        }
+    }
+    if (p->cwd) {
+        iput(p->cwd);
+        p->cwd = NULL;
+    }
     if (p->kstack_base) {
         vfree((void *)p->kstack_base);
         p->kstack_base = 0;
@@ -238,7 +257,16 @@ void scheduler_loop(void)
             tss_set_kernel_stack(kstack_top(p));    /* ring3 -> ring0 va syscall steki */
             vmm_switch(p->pml4);
             context_switch(&c->scheduler_rsp, p->kernel_rsp);
-            /* p CPU'ni qaytarib berdi (sched() orqali), proc_lock ushlangan. */
+            /* p CPU'ni qaytarib berdi (sched() orqali), proc_lock ushlangan.
+             *
+             * DARHOL yadroning o'z sahifa jadvaliga o'tamiz. Aks holda bu CPU
+             * p ning CR3'i bilan qoladi, p esa boshqa CPU'da ishlab exit/exec
+             * qilishi va o'sha jadvallarni BO'SHATISHI mumkin. Keyin bu yerga
+             * kelgan birinchi uzilishdagi TLB miss bo'shatilgan (qayta
+             * ishlatilgan) xotirani sahifa jadvali deb o'qiydi -> triple fault.
+             * (Haqiqatan shunday xato bo'lgan - docs/12-vfs.md ga qarang.)
+             * Linux buni "lazy TLB" + mm hisoblagichi (mm_count) bilan hal qiladi. */
+            vmm_switch(vmm_kernel_pml4());
             c->cur_proc = c->idle;
         }
         spin_unlock(&proc_lock);
@@ -378,6 +406,8 @@ void proc_exit(int code)
         panic("proc_exit: idle tugay olmaydi");
     cpu_sti();                          /* resurslarni bo'shatish qulfsiz, IF=1 da */
     proc_close_all_files(me);
+    iput(me->cwd);
+    me->cwd = NULL;
 
     /* User xotirasini DARHOL qaytaramiz (ko'p bo'lishi mumkin). Avval yadro
      * maydoniga o'tamiz: joriy CR3 ni yo'q qilib bo'lmaydi. */

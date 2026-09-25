@@ -9,7 +9,7 @@
 #    2. Serial port orqali shell'ga buyruqlarni "yozadi" (xuddi odam
 #       klaviaturada yozgandek) - har bir buyruq orasida pauza bilan.
 #    3. Butun chiqishni faylga yozadi va unda kutilgan satrlarni qidiradi.
-#    4. Oxirida `shutdown` bilan QEMU ni yopadi.
+#    4. Oxirida `poweroff` bilan QEMU ni yopadi.
 #
 #  NEGA BU MUHIM:
 #    Har bir o'zgarishdan keyin "hamma narsa hali ham ishlaydimi?" savoliga
@@ -35,9 +35,14 @@ fi
 # Shell'ga yuboriladigan buyruqlar. Har biri alohida qatorda.
 COMMANDS=(
     "hello birinchi ikkinchi"
-    "ls"
-    "cat README.txt"
+    "ls /"
+    "cat /README.txt"
     "echo salom dunyo"
+    "fstest"
+    "ls /bin | wc -l > /tmp/n ; cat /tmp/n"
+    "seq 20000 | grep 7 | tail -2"
+    "X=MyOS ; false || echo \"yiqildi: \$? \$X\""
+    "mkdir -p /home/a/b && cd /home/a/b && pwd && cd /"
     "memtest"
     "forktest"
     "crash null"
@@ -50,7 +55,8 @@ COMMANDS=(
     "free"
     "lspci"
     "uname"
-    "shutdown"
+    "date"
+    "poweroff"
 )
 
 # Buyruqlarni pauzalar bilan yuboruvchi funksiya. Yadro bootlanishi va
@@ -68,32 +74,40 @@ feed_commands | timeout 120 "$QEMU" \
     -cdrom build/myos.iso -m 256M -smp 2 -no-reboot -display none -serial stdio \
     "${EXTRA[@]}" > "$LOG" 2>&1
 QEMU_STATUS=$?
+# Serial port qatorlarni "\r\n" bilan tugatadi - '$' bilan tekshirish uchun \r ni olib tashlaymiz.
+tr -d '\r' < "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 
 # ---- Tekshiruvlar -------------------------------------------------------------
 # Har bir element: "kutilgan satr|tavsif"
 EXPECT=(
     "SELFTEST: .* hammasi PASSED|yadro ichki testlari (buddy, slab, vmalloc, vmm, scheduler)"
     "Ekran: framebuffer|framebuffer konsoli"
-    "MyOS shell'iga xush kelibsiz|shell user rejimida ishga tushdi"
+    "MyOS'ga xush kelibsiz|shell user rejimida ishga tushdi (/etc/motd)"
     "Men user rejimida \(ring 3\)|hello dasturi ishladi"
     "argv\[2\] = \"ikkinchi\"|argv to'g'ri uzatildi"
-    "README.txt|ls initrd ni o'qidi"
-    "MyOS diskiga xush kelibsiz|cat faylni o'qidi"
+    "^home/|ls ildiz papkani o'qidi"
+    "noldan yozilgan x86-64 yadrosi|cat faylni o'qidi"
     "^salom dunyo|echo ishladi"
+    "fstest: PASSED|VFS: fayllar, papkalar, unlink, xatolar, pipe, dup2, /dev"
+    "^ +4[0-9]$|pipe + yo'naltirish: ls /bin | wc -l > fayl"
+    "^19997$|3 bosqichli pipe (seq | grep | tail) - 100 KB dan ortiq ma'lumot"
+    "yiqildi: 1 MyOS|shell: || , \$? va o'zgaruvchilar"
+    "^/home/a/b$|mkdir -p, cd, pwd, &&"
     "memtest: PASSED|user malloc/free stress testi"
     "forktest: PASSED|fork + copy-on-write + exec + demand paging"
     "Sabab: sahifa mavjud emas, YOZISH, user rejimida|NULL ga yozish ushlandi"
     "Sabab: ruxsat buzildi \(sahifa bor\), O'QISH, user rejimida|yadro xotirasi himoyalangan"
     "General Protection Fault|imtiyozli instruksiya (cli) ushlandi"
     "Manzil \(CR2\) = 0x00007fffff7|user stek 8 MB gacha o'sib, keyin to'lishi ushlandi"
-    "'mavjud_emas' topilmadi|mavjud bo'lmagan dastur xatosi"
-    "\[fon\] pid [0-9]+ ishga tushdi|fon rejimi"
+    "mavjud_emas: buyruq topilmadi|mavjud bo'lmagan dastur xatosi"
+    "^\[[0-9]+\]|fon rejimi (&)"
     "HOLAT|ps ishladi"
     "Fizik xotira \(PMM\)|free ishladi"
     "idle/1|ikkinchi CPU yadrosi (SMP) ishlayapti"
     "Host ko'prik|lspci (PCI skaneri)"
     "2 yadro|uname (sysinfo)"
-    "Tizim o'chirilmoqda|shutdown"
+    "UTC\+0|date (RTC soati)"
+    "Tizim o'chirilmoqda|poweroff"
 )
 # Bo'lmasligi kerak bo'lgan satrlar:
 FORBID=(

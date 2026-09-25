@@ -13,7 +13,8 @@
  *    crash div0    - nolga bo'lish             -> #DE
  *    crash stack   - cheksiz rekursiya         -> #PF (stek ostidagi himoya sahifasi)
  * ============================================================================= */
-#include "ulib.h"
+#include <stdio.h>
+#include <string.h>
 
 __attribute__((noinline)) static int deep(volatile int n)
 {
@@ -27,6 +28,8 @@ __attribute__((noinline)) static int deep(volatile int n)
 int main(int argc, char **argv)
 {
     const char *what = argc > 1 ? argv[1] : "";
+    /* Dastur qulashidan OLDIN xabar chiqsin: buferlashni o'chiramiz (exit() chaqirilmaydi!). */
+    setvbuf(stdout, NULL, _IONBF, 0);
 
     if (strcmp(what, "null") == 0) {
         printf("NULL ga yozyapman...\n");

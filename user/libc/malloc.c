@@ -34,7 +34,13 @@
  *  ko'rsatkich malloc'dan kelmagan yoki blok allaqachon bo'shatilgan.
  *  glibc ham "free(): double free detected" xabarini shunday beradi.
  * ============================================================================= */
-#include "ulib.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "myos.h"
 
 struct block {
     size_t size;                        /* foydali yuk hajmi (sarlavhasiz), 16 ga karrali */
@@ -55,8 +61,8 @@ static size_t used_blocks;
 
 __attribute__((noreturn)) static void malloc_abort(const char *msg, void *p)
 {
-    printf("\n*** malloc xatosi: %s (%p) ***\n", msg, p);
-    exit(134);                          /* 134 = 128 + SIGABRT (Unix an'anasi) */
+    fprintf(stderr, "\n*** malloc xatosi: %s (%p) ***\n", msg, p);
+    abort();                          /* 134 = 128 + SIGABRT (Unix an'anasi) */
 }
 
 /* Heap tepasidagi bo'sh blokni kichraytirib, xotirani yadroga qaytarish. */

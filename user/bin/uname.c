@@ -1,5 +1,6 @@
 /* user/bin/uname.c - tizim haqida ma'lumot. */
-#include "ulib.h"
+#include <stdio.h>
+#include "myos.h"
 
 int main(void)
 {

@@ -3,10 +3,11 @@
  * =============================================================================
  *
  *  Bu kod CPU'ning 3-halqasida (ring 3) ishlaydi: apparatga ham, yadro
- *  xotirasiga ham tega olmaydi. printf -> write() syscall -> int 0x80 ->
- *  yadro -> console_write -> VGA + serial. Har bir harf shu yo'lni bosib o'tadi!
+ *  xotirasiga ham tega olmaydi. printf -> stdio bufer -> write() syscall ->
+ *  yadro -> VFS -> /dev/console (tty.c) -> ekran + serial. Har bir harf shu yo'lni bosib o'tadi!
  * ============================================================================= */
-#include "ulib.h"
+#include <stdio.h>
+#include <unistd.h>
 
 int main(int argc, char **argv)
 {
