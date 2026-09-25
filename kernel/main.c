@@ -19,8 +19,10 @@
 #include "lib/kprintf.h"
 #include "lib/panic.h"
 #include "lib/string.h"
+#include "mm/heap.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
+#include "tests/crashdemo.h"
 #include "tests/selftest.h"
 
 /* Yadroga berilgan buyruq qatori (masalan "selftest"). */
@@ -68,10 +70,24 @@ void kmain(uint32_t magic, uint32_t multiboot_info_phys)
     /* 4-qadam: virtual xotira. NULL himoyasi, jarayon manzil maydonlari. */
     vmm_init();
 
+    /* 5-qadam: heap (kmalloc). Bu ham selftest ichida sinovdan o'tadi. */
+    kprintf("[heap] Slab allocator tayyor (16..1024 bayt sinflar + katta ajratmalar)\n");
+
     if (cmdline_has("selftest"))
         selftest_run();
 
-    /* 5-qadam: qurilmalar. */
+    /* "demo=uaf" kabi parametr bo'lsa - xato namoyishini ishga tushiramiz. */
+    const char *demo = strstr(kernel_cmdline, "demo=");
+    if (demo) {
+        char name[32];
+        size_t n = 0;
+        for (demo += 5; demo[n] && demo[n] != ' ' && n < sizeof(name) - 1; n++)
+            name[n] = demo[n];
+        name[n] = '\0';
+        crashdemo_run(name);
+    }
+
+    /* 6-qadam: qurilmalar. */
     pit_init();
     keyboard_init();
     console_enable_serial_input();

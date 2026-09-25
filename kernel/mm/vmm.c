@@ -53,6 +53,7 @@
 /* boot.asm dagi jadvallar. .bss da, demak virtual = fizik. */
 extern uint64_t boot_pml4[512];
 extern uint64_t boot_pd[512];
+extern char boot_stack_guard[];
 
 /* Birinchi 2 MB uchun 4 KB lik sahifalar jadvali (NULL himoyasi uchun). */
 static uint64_t low_pt[512] __attribute__((aligned(4096)));
@@ -77,6 +78,14 @@ void vmm_init(void)
     for (int i = 1; i < 512; i++)
         low_pt[i] = (uint64_t)i * PAGE_SIZE | PTE_PRESENT | PTE_WRITABLE;
     low_pt[0] = 0;                      /* 0x0000..0x0FFF - mavjud emas */
+
+    /* Yadro stekining himoya sahifasi (boot.asm dagi boot_stack_guard). Yadro
+     * birinchi 2 MB ichida, shuning uchun uni ham shu jadvalda o'chira olamiz.
+     * Stek to'lsa: #PF -> CPU xato freymini shu to'lgan stekka yoza olmaydi ->
+     * #DF (double fault) -> IST1 dagi toza stekda handler ishlaydi. */
+    uint64_t guard = (uint64_t)boot_stack_guard;
+    ASSERT(guard < 2 * MiB && IS_ALIGNED(guard, PAGE_SIZE));
+    low_pt[guard / PAGE_SIZE] = 0;
     boot_pd[0] = (uint64_t)low_pt | PTE_PRESENT | PTE_WRITABLE;   /* huge bayrog'i yo'q -> PT */
 
     /* CR3 ni qayta yuklash butun TLB ni tozalaydi (global bo'lmagan sahifalar uchun). */

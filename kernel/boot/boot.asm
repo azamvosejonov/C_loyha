@@ -58,8 +58,13 @@ boot_pml4:  resb 4096                   ; 4-daraja: Page Map Level 4 (512 ta yoz
 boot_pdpt:  resb 4096                   ; 3-daraja: Page Directory Pointer Table
 boot_pd:    resb 4096                   ; 2-daraja: Page Directory (bizda 2 MB lik sahifalar)
 
-align 16                                ; x86-64 ABI: stek 16 baytga tekislangan bo'lishi kerak
-boot_stack_bottom:
+align 4096
+global boot_stack_guard
+boot_stack_guard:                       ; HIMOYA SAHIFASI (guard page). vmm.c uni xaritadan
+    resb 4096                           ; olib tashlaydi: stek to'lib ketsa, bu yerga yozish
+                                        ; darhol page fault beradi (aks holda stek jimgina
+                                        ; yuqoridagi sahifa jadvallarini buzardi!)
+boot_stack_bottom:                      ; (4096 ga tekis, demak 16 ga ham - ABI talabi)
     resb 16384                          ; 16 KB stek. Stek PASTGA o'sadi (top -> bottom)
 global boot_stack_top
 boot_stack_top:

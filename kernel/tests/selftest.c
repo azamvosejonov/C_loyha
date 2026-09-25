@@ -17,6 +17,7 @@
 #include "arch/cpu.h"
 #include "lib/kprintf.h"
 #include "lib/string.h"
+#include "mm/heap.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 
@@ -144,6 +145,88 @@ static void test_vmm(void)
     CHECK(pmm_free_frames_count() == free_before);
 }
 
+/* ---- Heap testlari ---------------------------------------------------------- */
+
+/* Oddiy psevdo-tasodifiy sonlar generatori (LCG - Linear Congruential Generator).
+ * Testlar TAKRORLANADIGAN bo'lishi uchun doim bir xil urug'dan (seed) boshlaymiz. */
+static uint64_t rng_state = 12345;
+static uint32_t rng_next(void)
+{
+    rng_state = rng_state * 6364136223846793005ULL + 1442695040888963407ULL;
+    return (uint32_t)(rng_state >> 33);
+}
+
+static void test_heap(void)
+{
+    kprintf("[test] heap...\n");
+    struct heap_stats before, after;
+    heap_get_stats(&before);
+
+    /* Tekislash: har bir ko'rsatkich 16 ga karrali. */
+    void *a = kmalloc(1);
+    void *b = kmalloc(17);
+    void *c = kmalloc(1000);
+    void *d = kmalloc(5000);            /* katta ajratma (bir necha sahifa) */
+    CHECK(a && b && c && d);
+    CHECK(((uintptr_t)a & 15) == 0 && ((uintptr_t)b & 15) == 0);
+    CHECK(((uintptr_t)c & 15) == 0 && ((uintptr_t)d & 15) == 0);
+    memset(d, 0xAB, 5000);              /* butun hajmga yozish mumkin */
+    kfree(a);
+    kfree(b);
+    kfree(c);
+    kfree(d);
+
+    /* kzalloc nollaydi (hatto ilgari zaharlangan obyektni ham). */
+    uint8_t *z = kzalloc(64);
+    int all_zero = 1;
+    for (int i = 0; i < 64; i++)
+        all_zero &= (z[i] == 0);
+    CHECK(all_zero);
+    kfree(z);
+
+    /* STRESS TEST: 500 ta tasodifiy o'lchamdagi blok, har biriga o'z naqshini
+     * yozamiz, keyin hammasini tekshiramiz. Agar ikki blok bir-birining ustiga
+     * tushsa (allocator xatosi), naqsh buziladi. */
+    enum { N = 500 };
+    static uint8_t *ptrs[N];
+    static uint16_t sizes[N];
+    for (int i = 0; i < N; i++) {
+        sizes[i] = (uint16_t)(1 + rng_next() % 3000);
+        ptrs[i] = kmalloc(sizes[i]);
+        if (ptrs[i])
+            memset(ptrs[i], (uint8_t)i, sizes[i]);
+    }
+    int ok = 1;
+    for (int i = 0; i < N && ok; i++) {
+        if (!ptrs[i]) {
+            ok = 0;
+            break;
+        }
+        for (int j = 0; j < sizes[i]; j++)
+            if (ptrs[i][j] != (uint8_t)i) {
+                ok = 0;
+                break;
+            }
+    }
+    CHECK(ok);
+
+    /* Tasodifiy tartibda bo'shatish (Fisher-Yates aralashtirish). */
+    for (int i = N - 1; i > 0; i--) {
+        int j = rng_next() % (i + 1);
+        uint8_t *tp = ptrs[i];
+        ptrs[i] = ptrs[j];
+        ptrs[j] = tp;
+    }
+    for (int i = 0; i < N; i++)
+        kfree(ptrs[i]);
+
+    /* Hamma narsa qaytdimi? */
+    heap_get_stats(&after);
+    CHECK(after.bytes_in_use == before.bytes_in_use);
+    CHECK(after.large_pages == before.large_pages);
+    CHECK(after.alloc_count - before.alloc_count == after.free_count - before.free_count);
+}
+
 void selftest_run(void)
 {
     kprintf("[test] ===== SELFTEST boshlandi =====\n");
@@ -151,6 +234,7 @@ void selftest_run(void)
 
     test_pmm();
     test_vmm();
+    test_heap();
 
     if (tests_failed == 0)
         kprintf("[test] SELFTEST: %d ta tekshiruv, hammasi PASSED\n", tests_run);
