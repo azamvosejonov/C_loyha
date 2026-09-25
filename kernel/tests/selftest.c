@@ -15,11 +15,13 @@
 #include "tests/selftest.h"
 
 #include "arch/cpu.h"
+#include "drivers/pit.h"
 #include "lib/kprintf.h"
 #include "lib/string.h"
 #include "mm/heap.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
+#include "proc/process.h"
 
 static int tests_run;
 static int tests_failed;
@@ -227,6 +229,87 @@ static void test_heap(void)
     CHECK(after.alloc_count - before.alloc_count == after.free_count - before.free_count);
 }
 
+/* ---- Jarayon / scheduler testlari ------------------------------------------- */
+
+static volatile int shared_counter;
+static volatile int flag_from_other_thread;
+
+/* Umumiy hisoblagichni n marta oshiradi. Har 100 qadamda yield - navbatni
+ * boshqalarga beradi, shunda oqimlar haqiqatan aralashib ishlaydi. */
+static int counter_thread(void *arg)
+{
+    int n = (int)(intptr_t)arg;
+    for (int i = 0; i < n; i++) {
+        uint64_t f = irq_save();        /* ++ atomar emas: o'qish-qo'shish-yozish! */
+        shared_counter++;
+        irq_restore(f);
+        if (i % 100 == 0)
+            proc_yield();
+    }
+    return n;
+}
+
+static int sleeper_thread(void *arg)
+{
+    (void)arg;
+    uint64_t t0 = timer_ticks();
+    proc_sleep_ms(100);                 /* 100 ms = 10 tik */
+    return (int)(timer_ticks() - t0);
+}
+
+/* HECH QACHON yield qilmaydi va uxlamaydi. Agar boshqa oqim flag ni o'rnata
+ * olsa - demak taymer bizni MAJBURAN to'xtatgan (preemption ishlayapti). */
+static int spinner_thread(void *arg)
+{
+    (void)arg;
+    uint64_t t0 = timer_ticks();
+    while (!flag_from_other_thread && timer_ticks() - t0 < 300)
+        ;                               /* band kutish (busy wait) */
+    return flag_from_other_thread;
+}
+
+static int flag_setter_thread(void *arg)
+{
+    (void)arg;
+    flag_from_other_thread = 1;
+    return 0;
+}
+
+static void test_proc(void)
+{
+    kprintf("[test] proc/scheduler...\n");
+    size_t free_before = pmm_free_frames_count();
+    int code;
+
+    /* 3 ta oqim umumiy hisoblagichni oshiradi. */
+    shared_counter = 0;
+    int p1 = proc_create_kernel_thread("t-count1", counter_thread, (void *)1000);
+    int p2 = proc_create_kernel_thread("t-count2", counter_thread, (void *)1000);
+    int p3 = proc_create_kernel_thread("t-count3", counter_thread, (void *)1000);
+    CHECK(p1 > 0 && p2 > 0 && p3 > 0);
+    CHECK(proc_wait(p1, &code) == p1 && code == 1000);
+    CHECK(proc_wait(p2, &code) == p2 && code == 1000);
+    CHECK(proc_wait(p3, &code) == p3 && code == 1000);
+    CHECK(shared_counter == 3000);
+
+    /* Uxlash: kamida 10 tik o'tishi kerak. */
+    int ps = proc_create_kernel_thread("t-sleep", sleeper_thread, NULL);
+    CHECK(proc_wait(ps, &code) == ps && code >= 10);
+
+    /* Preemption: spinner hech qachon CPU'ni o'zi bermaydi. */
+    flag_from_other_thread = 0;
+    int sp = proc_create_kernel_thread("t-spin", spinner_thread, NULL);
+    int fs = proc_create_kernel_thread("t-flag", flag_setter_thread, NULL);
+    CHECK(proc_wait(sp, &code) == sp && code == 1);
+    CHECK(proc_wait(fs, &code) == fs);
+
+    /* Bola yo'q - wait darhol -1 qaytaradi (abadiy osilib qolmaydi). */
+    CHECK(proc_wait(-1, &code) == -1);
+
+    /* Barcha yadro steklari qaytarildimi? */
+    CHECK(pmm_free_frames_count() == free_before);
+}
+
 void selftest_run(void)
 {
     kprintf("[test] ===== SELFTEST boshlandi =====\n");
@@ -235,6 +318,7 @@ void selftest_run(void)
     test_pmm();
     test_vmm();
     test_heap();
+    test_proc();
 
     if (tests_failed == 0)
         kprintf("[test] SELFTEST: %d ta tekshiruv, hammasi PASSED\n", tests_run);

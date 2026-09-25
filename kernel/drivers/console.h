@@ -15,5 +15,6 @@ void console_write(const char *s, size_t len);
 void console_input_char(char c);
 /* Serial port orqali kiritishni yoqish (IRQ4). Uzilishlar sozlangandan keyin. */
 void console_enable_serial_input(void);
-/* Bitta belgi kelguncha KUTADI va uni qaytaradi. */
-char console_getc(void);
+/* Bitta belgi kelguncha jarayonni UXLATADI va belgini qaytaradi.
+ * Jarayon kill() qilingan bo'lsa -1. */
+int console_getc(void);

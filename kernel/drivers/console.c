@@ -27,6 +27,7 @@
 #include "arch/interrupts.h"
 #include "drivers/serial.h"
 #include "drivers/vga.h"
+#include "proc/process.h"
 
 #define INPUT_BUFFER_SIZE 256           /* 2 ning darajasi bo'lishi SHART */
 
@@ -60,6 +61,7 @@ void console_input_char(char c)
         return;
     input_buffer[input_head] = c;
     input_head = next;
+    proc_wakeup((const void *)&input_head);           /* o'qishni kutayotgan jarayonni uyg'otamiz */
 }
 
 /* Serial port IRQ4 handleri: kelgan barcha baytlarni navbatga qo'yamiz. */
@@ -82,21 +84,22 @@ void console_enable_serial_input(void)
     serial_enable_rx_interrupt();
 }
 
-char console_getc(void)
+int console_getc(void)
 {
-    for (;;) {
-        cpu_cli();                      /* tekshirish va uxlash orasida uzilish "yo'qolmasin" */
-        if (input_tail != input_head) {
-            char c = input_buffer[input_tail];
-            input_tail = (input_tail + 1) & (INPUT_BUFFER_SIZE - 1);
-            cpu_sti();
-            return c;
+    uint64_t flags = irq_save();        /* tekshirish va uxlash orasida uzilish "yo'qolmasin" */
+    while (input_tail == input_head) {
+        if (current->killed) {          /* kill() qilingan - kutishni to'xtatamiz */
+            irq_restore(flags);
+            return -1;
         }
-        /* "sti; hlt" - atomar juftlik: sti ning ta'siri BITTA instruksiyadan keyin
-         * boshlanadi. Demak uzilish sti va hlt ORASIDA kela olmaydi - agar kelsa,
-         * u hlt ni uyg'otadi. Aks holda belgi kelib, biz uni sezmay uxlab qolishimiz
-         * mumkin edi ("lost wakeup" muammosi). 6-bosqichda bu yerni jarayonni
-         * uxlatish bilan almashtiramiz. */
-        __asm__ volatile("sti; hlt" ::: "memory");
+        /* Bufer bo'sh: jarayonni &input_head "kanali"da uxlatamiz. CPU boshqa
+         * jarayonlarga beriladi. console_input_char() bizni uyg'otadi.
+         * (2-bosqichda bu yerda "sti; hlt" tsikli edi - u butun CPU'ni band
+         * qilardi. Endi kutish hech kimga xalaqit bermaydi.) */
+        proc_sleep_on((const void *)&input_head);
     }
+    char c = input_buffer[input_tail];
+    input_tail = (input_tail + 1) & (INPUT_BUFFER_SIZE - 1);
+    irq_restore(flags);
+    return (unsigned char)c;
 }
