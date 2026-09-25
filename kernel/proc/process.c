@@ -351,6 +351,7 @@ void proc_init(void)
 
 void proc_sleep(const void *channel, spinlock_t *lk)
 {
+    /* >>> LAB proc_sleep - vazifa: labs/README.md */
     struct process *p = current;
     if (p->is_idle)
         panic("proc_sleep: idle uxlay olmaydi");
@@ -368,16 +369,19 @@ void proc_sleep(const void *channel, spinlock_t *lk)
         spin_unlock(&proc_lock);
         spin_lock(lk);
     }
+    /* <<< LAB proc_sleep */
 }
 
 /* proc_lock ushlangan holda. */
 static void wakeup_locked(const void *channel)
 {
+    /* >>> LAB wakeup_locked - vazifa: labs/README.md */
     for (int i = 0; i < MAX_PROCS; i++) {
         struct process *p = &procs[i];
         if (p->state == PROC_BLOCKED && p->wait_channel == channel)
             p->state = PROC_READY;
     }
+    /* <<< LAB wakeup_locked */
 }
 
 void proc_wake_locked(struct process *p)

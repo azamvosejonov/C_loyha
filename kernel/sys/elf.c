@@ -74,6 +74,7 @@ struct elf64_phdr {
 int elf_load(struct mm *mm, const uint8_t *data, size_t size, uint64_t *entry,
              uint64_t *image_end)
 {
+    /* >>> LAB elf_load - vazifa: labs/README.md */
     if (size < sizeof(struct elf64_ehdr))
         return -1;
     const struct elf64_ehdr *eh = (const void *)data;
@@ -138,4 +139,5 @@ int elf_load(struct mm *mm, const uint8_t *data, size_t size, uint64_t *entry,
     *entry = eh->e_entry;
     *image_end = highest;
     return 0;
+    /* <<< LAB elf_load */
 }

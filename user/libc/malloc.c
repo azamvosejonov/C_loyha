@@ -88,6 +88,7 @@ static void trim_top(void)
 /* Blokni tartiblangan bo'sh ro'yxatga qo'shish va qo'shnilar bilan birlashtirish. */
 static void insert_free(struct block *b)
 {
+    /* >>> LAB insert_free - vazifa: labs/README.md */
     /* Tartiblangan ro'yxatdagi joyini topamiz: prev < b < cur */
     struct block *prev = NULL, *cur = free_list;
     while (cur && cur < b) {
@@ -110,6 +111,7 @@ static void insert_free(struct block *b)
         prev->size += HDR + b->size;
         prev->next = b->next;
     }
+    /* <<< LAB insert_free */
 }
 
 void free(void *ptr)
@@ -149,6 +151,7 @@ static int grow(size_t need)
 
 void *malloc(size_t size)
 {
+    /* >>> LAB malloc - vazifa: labs/README.md */
     if (size == 0 || size > (1UL << 30))
         return NULL;
     size = ALIGN16(size);
@@ -183,6 +186,7 @@ void *malloc(size_t size)
         if (!grow(size))
             return NULL;
     }
+    /* <<< LAB malloc */
 }
 
 void *calloc(size_t count, size_t size)

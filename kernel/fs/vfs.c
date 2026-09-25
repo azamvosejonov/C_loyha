@@ -749,6 +749,7 @@ int vfs_sync(void)
 
 int path_normalize(const char *cwd, const char *path, char *out, size_t size)
 {
+    /* >>> LAB path_normalize - vazifa: labs/README.md */
     char buf[PATH_MAX * 2];
     if (path[0] == '/')
         strlcpy(buf, path, sizeof(buf));
@@ -791,4 +792,5 @@ int path_normalize(const char *cwd, const char *path, char *out, size_t size)
         out[1] = '\0';
     }
     return 0;
+    /* <<< LAB path_normalize */
 }

@@ -13,10 +13,12 @@
 
 size_t strlen(const char *s)
 {
+    /* >>> LAB strlen - vazifa: labs/README.md */
     size_t n = 0;
     while (s[n])
         n++;
     return n;
+    /* <<< LAB strlen */
 }
 
 size_t strnlen(const char *s, size_t max)
@@ -142,6 +144,7 @@ size_t strcspn(const char *s, const char *reject)
 /* Qayta kiriluvchan (re-entrant) strtok: holat *save da, global o'zgaruvchida emas. */
 char *strtok_r(char *s, const char *delim, char **save)
 {
+    /* >>> LAB strtok_r - vazifa: labs/README.md */
     if (!s)
         s = *save;
     s += strspn(s, delim);
@@ -154,6 +157,7 @@ char *strtok_r(char *s, const char *delim, char **save)
         *end++ = '\0';
     *save = end;
     return s;
+    /* <<< LAB strtok_r */
 }
 
 void *memset(void *dst, int c, size_t n)
@@ -176,6 +180,7 @@ void *memcpy(void *dst, const void *src, size_t n)
 /* memmove - bloklar ustma-ust tushsa ham to'g'ri: kerak bo'lsa ORQADAN nusxalaydi. */
 void *memmove(void *dst, const void *src, size_t n)
 {
+    /* >>> LAB memmove - vazifa: labs/README.md */
     unsigned char *d = dst;
     const unsigned char *s = src;
     if (d < s || d >= s + n) {
@@ -186,6 +191,7 @@ void *memmove(void *dst, const void *src, size_t n)
             d[n] = s[n];
     }
     return dst;
+    /* <<< LAB memmove */
 }
 
 int memcmp(const void *a, const void *b, size_t n)

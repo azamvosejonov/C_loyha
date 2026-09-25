@@ -541,6 +541,7 @@ static struct inode *ext2_iget(struct ext2_fs *fs, uint32_t ino)
  * (1 = to'g'ridan-to'g'ri, 2 = bilvosita, ...), 0 - juda katta. */
 static int block_path(struct ext2_fs *fs, uint64_t fblock, uint32_t path[4])
 {
+    /* >>> LAB block_path - vazifa: labs/README.md */
     uint64_t apb = fs->addr_per_block;
     if (fblock < EXT2_NDIR_BLOCKS) {
         path[0] = (uint32_t)fblock;
@@ -568,6 +569,7 @@ static int block_path(struct ext2_fs *fs, uint64_t fblock, uint32_t path[4])
         return 4;
     }
     return 0;
+    /* <<< LAB block_path */
 }
 
 /* fblock uchun disk blokini topish. alloc = true bo'lsa, yetishmayotgan
@@ -575,6 +577,7 @@ static int block_path(struct ext2_fs *fs, uint64_t fblock, uint32_t path[4])
  * inode qulfi ushlangan bo'lishi kerak. */
 static int bmap(struct inode *in, uint64_t fblock, bool alloc, uint32_t *out)
 {
+    /* >>> LAB bmap - vazifa: labs/README.md */
     struct ext2_fs *fs = FS(in);
     struct ext2_node *n = NODE(in);
     uint32_t path[4];
@@ -634,6 +637,7 @@ done:
     if (inode_dirty)
         write_inode(in);
     return 0;
+    /* <<< LAB bmap */
 }
 
 /* ============================================================================
@@ -931,6 +935,7 @@ struct add_ctx {
 static bool add_visit(struct buf *b, struct ext2_dirent *d, struct ext2_dirent *prev,
                       uint32_t off, void *ctx)
 {
+    /* >>> LAB add_visit - vazifa: labs/README.md */
     (void)prev, (void)off;
     struct add_ctx *c = ctx;
     uint32_t need = rec_size(c->len);
@@ -950,11 +955,13 @@ static bool add_visit(struct buf *b, struct ext2_dirent *d, struct ext2_dirent *
     bwrite(b);
     c->done = true;
     return true;
+    /* <<< LAB add_visit */
 }
 
 /* Papkaga yangi yozuv qo'shish (dir qulfi ushlangan). */
 static int dir_add(struct inode *dir, const char *name, uint32_t ino, uint8_t ft)
 {
+    /* >>> LAB dir_add - vazifa: labs/README.md */
     struct ext2_fs *fs = FS(dir);
     struct add_ctx c = { name, (uint32_t)strlen(name), ino, ft, false };
     if (c.len > NAME_MAX)
@@ -983,6 +990,7 @@ static int dir_add(struct inode *dir, const char *name, uint32_t ino, uint8_t ft
     dir->size += fs->block_size;
     dir->mtime = dir->ctime = time_now();
     return write_inode(dir);
+    /* <<< LAB dir_add */
 }
 
 static bool remove_visit(struct buf *b, struct ext2_dirent *d, struct ext2_dirent *prev,

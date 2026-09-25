@@ -356,6 +356,7 @@ static void free_tokens(struct token *toks, int n)
 /* '*' - istalgan (bo'sh ham) ketma-ketlik, '?' - bitta belgi. Rekursiv backtracking. */
 static bool glob_match(const char *pat, const char *s)
 {
+    /* >>> LAB glob_match - vazifa: labs/README.md */
     for (; *pat; pat++, s++) {
         if (*pat == '*') {
             while (pat[1] == '*')
@@ -371,6 +372,7 @@ static bool glob_match(const char *pat, const char *s)
             return false;
     }
     return *s == '\0';
+    /* <<< LAB glob_match */
 }
 
 static int cmp_str(const void *a, const void *b)

@@ -258,6 +258,7 @@ uint64_t mm_sbrk(struct mm *mm, int64_t inc)
 /* Bitta sahifani hal qilish (mm->lock ushlangan). */
 static bool fault_page(struct mm *mm, struct vma *v, uint64_t page, bool write)
 {
+    /* >>> LAB fault_page - vazifa: labs/README.md */
     uint64_t *pte = vmm_get_pte(mm->pml4, page, true);
     if (!pte)
         return false;                   /* jadval uchun xotira yo'q */
@@ -294,6 +295,7 @@ static bool fault_page(struct mm *mm, struct vma *v, uint64_t page, bool write)
         return true;
     }
     return write ? (*pte & PTE_WRITABLE) != 0 : true;
+    /* <<< LAB fault_page */
 }
 
 /* Stek VMA sini kengaytirish (addr uning ostida, 8 MB chegarasida bo'lsa). */

@@ -14,6 +14,7 @@
 
 struct tm *gmtime_r(const time_t *t, struct tm *out)
 {
+    /* >>> LAB gmtime_r - vazifa: labs/README.md */
     int64_t secs = *t;
     int64_t days = secs / 86400;
     int64_t rem = secs % 86400;
@@ -45,4 +46,5 @@ struct tm *gmtime_r(const time_t *t, struct tm *out)
     int leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     out->tm_yday = cum[m - 1] + (int)d - 1 + (leap && m > 2);
     return out;
+    /* <<< LAB gmtime_r */
 }

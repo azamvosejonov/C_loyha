@@ -38,6 +38,7 @@ static void pad(emit_fn emit, void *ctx, char c, int n, int *count)
 static void emit_number(emit_fn emit, void *ctx, uint64_t v, bool neg, unsigned base,
                         bool upper, const struct spec *sp, int *count)
 {
+    /* >>> LAB emit_number - vazifa: labs/README.md */
     const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
     char tmp[24];
     int len = 0;
@@ -64,6 +65,7 @@ static void emit_number(emit_fn emit, void *ctx, uint64_t v, bool neg, unsigned 
         emit(tmp[--len], ctx), (*count)++;
     if (sp->left)
         pad(emit, ctx, ' ', padn, count);
+    /* <<< LAB emit_number */
 }
 
 int __format(emit_fn emit, void *ctx, const char *fmt, va_list ap)

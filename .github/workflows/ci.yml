@@ -23,6 +23,9 @@ jobs:
       - name: Yig'ish (ogohlantirishlar = xato)
         run: make -j"$(nproc)"
 
+      - name: Laboratoriyalar - stub'lar kompilyatsiya bo'ladi, libc host testi
+        run: make lab-check
+
       - name: Testlar - BIOS va UEFI (yadro selftest + shell orqali integratsion testlar)
         run: make test
 

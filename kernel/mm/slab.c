@@ -183,6 +183,7 @@ static struct page *new_slab(struct kmem_cache *c)
 
 void *kmem_cache_alloc(struct kmem_cache *c)
 {
+    /* >>> LAB kmem_cache_alloc - vazifa: labs/README.md */
     uint64_t flags = spin_lock_irqsave(&c->lock);
     struct page *slab;
     if (!list_empty(&c->partial)) {
@@ -216,6 +217,7 @@ void *kmem_cache_alloc(struct kmem_cache *c)
     if (c->ctor)
         c->ctor(obj);
     return obj;
+    /* <<< LAB kmem_cache_alloc */
 }
 
 void kmem_cache_free(struct kmem_cache *c, void *ptr)

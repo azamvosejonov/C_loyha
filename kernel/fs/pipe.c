@@ -36,6 +36,7 @@ struct pipe {
 
 static int64_t pipe_read(struct file *f, void *dst, size_t len, uint64_t off)
 {
+    /* >>> LAB pipe_read - vazifa: labs/README.md */
     (void)off;
     struct pipe *p = f->priv;
     if (len == 0)
@@ -60,10 +61,12 @@ static int64_t pipe_read(struct file *f, void *dst, size_t len, uint64_t off)
     proc_wakeup(&p->writers);           /* joy bo'shadi - yozuvchilarni uyg'otamiz */
     spin_unlock(&p->lock);
     return (int64_t)n;
+    /* <<< LAB pipe_read */
 }
 
 static int64_t pipe_write(struct file *f, const void *src, size_t len, uint64_t off)
 {
+    /* >>> LAB pipe_write - vazifa: labs/README.md */
     (void)off;
     struct pipe *p = f->priv;
     size_t done = 0;
@@ -99,6 +102,7 @@ static int64_t pipe_write(struct file *f, const void *src, size_t len, uint64_t 
     }
     spin_unlock(&p->lock);
     return (int64_t)done;
+    /* <<< LAB pipe_write */
 }
 
 static void pipe_release(struct file *f)

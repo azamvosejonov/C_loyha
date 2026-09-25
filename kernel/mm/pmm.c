@@ -97,6 +97,7 @@ static void del_free(struct zone *z, struct page *p, unsigned order)
 /* Blokni qaytarish va egizaklari bilan birlashtirish. */
 static void buddy_free(struct zone *z, uint64_t pfn, unsigned order)
 {
+    /* >>> LAB buddy_free - vazifa: labs/README.md */
     while (order < MAX_ORDER - 1) {
         uint64_t buddy_pfn = pfn ^ (1UL << order);
         if (buddy_pfn < z->start_pfn || buddy_pfn + (1UL << order) > z->end_pfn)
@@ -111,10 +112,12 @@ static void buddy_free(struct zone *z, uint64_t pfn, unsigned order)
         order++;
     }
     add_free(z, pfn_to_page(pfn), order);
+    /* <<< LAB buddy_free */
 }
 
 static struct page *buddy_alloc(struct zone *z, unsigned order)
 {
+    /* >>> LAB buddy_alloc - vazifa: labs/README.md */
     for (unsigned o = order; o < MAX_ORDER; o++) {
         if (list_empty(&z->free_area[o].list))
             continue;
@@ -128,6 +131,7 @@ static struct page *buddy_alloc(struct zone *z, unsigned order)
         return p;
     }
     return NULL;
+    /* <<< LAB buddy_alloc */
 }
 
 /* ---- Ommaviy API ---- */

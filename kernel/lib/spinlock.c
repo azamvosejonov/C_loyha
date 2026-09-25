@@ -14,6 +14,7 @@ bool spin_holding(spinlock_t *l)
 
 void spin_lock(spinlock_t *l)
 {
+    /* >>> LAB spin_lock - vazifa: labs/README.md */
     push_off();
     if (spinlocks_busted)
         return;
@@ -35,10 +36,12 @@ void spin_lock(spinlock_t *l)
         }
     }
     l->owner = this_cpu();
+    /* <<< LAB spin_lock */
 }
 
 void spin_unlock(spinlock_t *l)
 {
+    /* >>> LAB spin_unlock - vazifa: labs/README.md */
     if (!spinlocks_busted) {
         if (!spin_holding(l))
             panic("spin_unlock: '%s' qulfi bu CPU'da ushlanmagan", l->name);
@@ -48,4 +51,5 @@ void spin_unlock(spinlock_t *l)
         __atomic_store_n(&l->locked, 0, __ATOMIC_RELEASE);
     }
     pop_off();
+    /* <<< LAB spin_unlock */
 }

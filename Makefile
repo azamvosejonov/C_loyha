@@ -173,7 +173,7 @@ APPEND ?=
 # =============================================================================
 #  QOIDALAR
 # =============================================================================
-.PHONY: all disk run run-uefi run-nographic debug test clean FORCE
+.PHONY: all disk run run-uefi run-nographic debug test lab-check clean FORCE
 
 # Make pattern zanjiridagi "oraliq" fayllarni (user .o va .elf lari) yig'ishdan keyin
 # o'chirib yuboradi. .PRECIOUS ularni saqlab qoladi (gdb uchun .elf kerak), lekin
@@ -324,6 +324,12 @@ test:
 	./tools/test.sh bios
 	./tools/test.sh uefi
 	@$(MAKE) -s APPEND=    # oddiy ISO ni tiklash
+
+# Laboratoriyalar (labs/README.md): har bir "bo'sh" variant kompilyatsiya bo'lishini
+# va libc'ning host testi o'tishini tekshirish. CI ham shuni ishga tushiradi.
+lab-check:
+	@tools/host_libctest.sh
+	@tools/lab.py selfcheck
 
 clean:
 	rm -rf $(BUILD)

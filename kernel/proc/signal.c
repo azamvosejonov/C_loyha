@@ -201,6 +201,7 @@ struct sigframe {
 
 static int setup_frame(struct interrupt_frame *f, int sig, const struct myos_sigaction *act)
 {
+    /* >>> LAB setup_frame - vazifa: labs/README.md */
     struct process *p = current;
     if (!(act->sa_flags & SA_RESTORER) || !act->sa_restorer)
         return -1;                      /* qaytish yo'li yo'q - handler'ni chaqira olmaymiz */
@@ -238,6 +239,7 @@ static int setup_frame(struct interrupt_frame *f, int sig, const struct myos_sig
         p->sig_actions[sig].sa_handler = SIG_DFL;
     spin_unlock(&proc_lock);
     return 0;
+    /* <<< LAB setup_frame */
 }
 
 void signal_deliver(struct interrupt_frame *f)
@@ -378,6 +380,7 @@ int64_t sys_sigprocmask(uint64_t how, uint64_t uset, uint64_t uold)
 
 int64_t sys_sigreturn(struct interrupt_frame *f)
 {
+    /* >>> LAB sys_sigreturn - vazifa: labs/README.md */
     /* Handler `ret` qildi: RSP endi sigframe.ctx ga ko'rsatadi. */
     struct sigctx c;
     if (copy_from_user(&c, f->rsp, sizeof(c))) {
@@ -391,7 +394,9 @@ int64_t sys_sigreturn(struct interrupt_frame *f)
         kprintf("[kernel] '%s': sigreturn - noto'g'ri manzil\n", current->name);
         proc_exit_signal(SIGSEGV);
     }
-    const uint64_t user_flags = 0xCD5;  /* CF PF AF ZF SF TF DF OF */
+    /* CF PF AF ZF SF DF OF (bitlar 0,2,4,6,7,10,11). TF (8) ham yo'q: dastur
+     * sigreturn orqali o'zini "qadamma-qadam" rejimga qo'ya olmasin. */
+    const uint64_t user_flags = 0xCD5;
     f->r15 = c.r15, f->r14 = c.r14, f->r13 = c.r13, f->r12 = c.r12;
     f->r11 = c.r11, f->r10 = c.r10, f->r9 = c.r9, f->r8 = c.r8;
     f->rbp = c.rbp, f->rdi = c.rdi, f->rsi = c.rsi, f->rdx = c.rdx;
@@ -404,6 +409,7 @@ int64_t sys_sigreturn(struct interrupt_frame *f)
     current->sig_blocked = (uint32_t)c.mask & ~UNBLOCKABLE;
     spin_unlock(&proc_lock);
     return (int64_t)c.rax;              /* dispatcher buni f->rax ga yozadi */
+    /* <<< LAB sys_sigreturn */
 }
 
 int64_t sys_setpgid(int64_t pid, int64_t pgid)

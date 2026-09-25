@@ -57,6 +57,7 @@ int abs(int x)
 /* strtoul - asosiy son o'qish funksiyasi. base = 0: "0x.." -> 16, "0.." -> 8, aks holda 10. */
 unsigned long strtoul(const char *s, char **end, int base)
 {
+    /* >>> LAB strtoul - vazifa: labs/README.md */
     const char *p = s;
     while (isspace(*p))
         p++;
@@ -94,6 +95,7 @@ unsigned long strtoul(const char *s, char **end, int base)
         return ULONG_MAX_;
     }
     return neg ? -v : v;
+    /* <<< LAB strtoul */
 }
 
 long strtol(const char *s, char **end, int base)

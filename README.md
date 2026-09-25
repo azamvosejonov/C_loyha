@@ -9,6 +9,8 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 > **Qayerdan boshlash kerak?** [QOLLANMA.md](QOLLANMA.md) ni o'qing: o'qish tartibi, har bir texnologiya
 > (C'dagi `void`, `volatile`, `static`..., kompilyator bayroqlari, CPU mexanizmlari) nima qiladi, nega kerak va
 > ishlatilmasa nima bo'ladi, haqiqiy xatolar tarixi hamda o'z yadroingizni noldan yozish rejasi.
+> Keyin [labs/README.md](labs/README.md): 22 ta laboratoriya — funksiyani yopib, o'zingiz yozasiz,
+> `tools/lab.py tekshir` esa natijani tekshiradi.
 
 ```
 MyOS'ga xush kelibsiz! 'help' - buyruqlar, 'cat /README.txt' - qo'llanma.
