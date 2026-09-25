@@ -17,6 +17,7 @@
 #    make debug        - QEMU'ni GDB kutadigan holatda ishga tushirish
 #    make test         - avtomatik testlar (CI ham shuni ishlatadi)
 #    make clean        - build/ papkasini o'chirish
+#    make V=1          - kompilyatsiya buyruqlarini to'liq ko'rsatish
 #
 #  NEGA MAKE:
 #    Make faqat O'ZGARGAN fayllarni qayta kompilyatsiya qiladi. Katta loyihada
@@ -37,6 +38,16 @@ QEMU    := qemu-system-x86_64
 
 # Hamma yig'ilgan narsa shu papkaga tushadi (manba kodni iflos qilmaslik uchun).
 BUILD := build
+
+# Ixcham chiqish: sukut bo'yicha faqat "  CC  kernel/main.c" ko'rinadi.
+# To'liq buyruqlarni ko'rish uchun:  make V=1
+ifeq ($(V),1)
+  Q :=
+  say = @true
+else
+  Q := @
+  say = @echo "  $(1)	$(2)"
+endif
 
 # ---- Yadro uchun kompilyator bayroqlari -----------------------------------------
 # Har bir bayroq NEGA kerakligi:
@@ -65,13 +76,14 @@ BUILD := build
 #                           Kuchli muhandislar ogohlantirishlarni hech qachon e'tiborsiz
 #                           qoldirmaydi.
 #   -Ikernel              : #include "mm/pmm.h" kabi yo'llar kernel/ dan boshlanadi.
+#   -Iinclude             : yadro va user dasturlari UMUMIY sarlavhalari (myos/abi.h).
 #   -MMD -MP              : har bir .c uchun .d fayl (qaysi .h larga bog'liqligi) yaratadi,
 #                           shunda .h o'zgarsa, kerakli .c lar qayta yig'iladi.
 KERNEL_CFLAGS := -std=gnu11 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
                  -mno-red-zone -mgeneral-regs-only -mcmodel=small \
                  -fno-omit-frame-pointer -fno-asynchronous-unwind-tables \
                  -fno-tree-loop-distribute-patterns \
-                 -O2 -g -Wall -Wextra -Werror -Ikernel -MMD -MP
+                 -O2 -g -Wall -Wextra -Werror -Ikernel -Iinclude -MMD -MP
 
 # NASM bayroqlari: -f elf64 = 64-bitli ELF obyekt fayl, -g -F dwarf = debug ma'lumot.
 KERNEL_ASFLAGS := -f elf64 -g -F dwarf
@@ -93,7 +105,7 @@ KERNEL_LDFLAGS := -T kernel/linker.ld -nostdlib -z max-page-size=0x1000 -z noexe
 USER_CFLAGS := -std=gnu11 -ffreestanding -fno-stack-protector -fno-pic -fno-pie \
                -mgeneral-regs-only -fno-asynchronous-unwind-tables \
                -fno-tree-loop-distribute-patterns \
-               -O2 -g -Wall -Wextra -Werror -Iuser/lib -MMD -MP
+               -O2 -g -Wall -Wextra -Werror -Iuser/lib -Iinclude -MMD -MP
 USER_ASFLAGS := -f elf64 -g -F dwarf
 USER_LDFLAGS := -T user/linker.ld -nostdlib -z max-page-size=0x1000 -z noexecstack
 
@@ -137,55 +149,67 @@ APPEND ?=
 # =============================================================================
 .PHONY: all run run-nographic debug test clean
 
+# Make zanjirdagi "oraliq" fayllarni (user .o lari) avtomatik o'chirib yuboradi.
+# .SECONDARY ularni saqlab qoladi - keyingi `make` hech narsani qayta yig'maydi.
+.SECONDARY:
+
 all: $(BUILD)/kernel32.elf $(BUILD)/initrd.tar
 
 # ---- Yadroni bog'lash (link) ----
 $(BUILD)/kernel.elf: $(KERNEL_OBJ) kernel/linker.ld
-	$(LD) $(KERNEL_LDFLAGS) -o $@ $(KERNEL_OBJ)
+	$(call say,LD,$@)
+	$(Q)$(LD) $(KERNEL_LDFLAGS) -o $@ $(KERNEL_OBJ)
 
 # QEMU -kernel faqat 32-bitli ELF'ni tushunadi. objcopy faqat ELF SARLAVHASINI
 # 32-bitga o'zgartiradi, ichidagi baytlar (64-bitli kod) o'zgarmaydi. Bizning
 # boot.asm baribir 32-bitli rejimda boshlanadi, keyin o'zi 64-bitga o'tadi.
 # kernel.elf (64-bit) esa GDB uchun saqlanib qoladi - unda hamma simvollar bor.
 $(BUILD)/kernel32.elf: $(BUILD)/kernel.elf
-	$(OBJCOPY) -O elf32-i386 $< $@
+	$(call say,OBJCOPY,$@)
+	$(Q)$(OBJCOPY) -O elf32-i386 $< $@
 
 # ---- Yadro C fayllari ----
 $(BUILD)/kernel/%.c.o: kernel/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(KERNEL_CFLAGS) -c $< -o $@
+	$(call say,CC,$<)
+	$(Q)$(CC) $(KERNEL_CFLAGS) -c $< -o $@
 
 # ---- Yadro assembly fayllari ----
 $(BUILD)/kernel/%.asm.o: kernel/%.asm
 	@mkdir -p $(dir $@)
-	$(AS) $(KERNEL_ASFLAGS) $< -o $@
+	$(call say,AS,$<)
+	$(Q)$(AS) $(KERNEL_ASFLAGS) $< -o $@
 
 # ---- User C fayllari ----
 $(BUILD)/user/%.c.o: user/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(USER_CFLAGS) -c $< -o $@
+	$(call say,CC,$<)
+	$(Q)$(CC) $(USER_CFLAGS) -c $< -o $@
 
 # ---- User assembly fayllari ----
 $(BUILD)/user/%.asm.o: user/%.asm
 	@mkdir -p $(dir $@)
-	$(AS) $(USER_ASFLAGS) $< -o $@
+	$(call say,AS,$<)
+	$(Q)$(AS) $(USER_ASFLAGS) $< -o $@
 
 # ---- Har bir user dasturi: o'z .o fayli + user kutubxonasi ----
 $(BUILD)/initrd/%: $(BUILD)/user/bin/%.c.o $(ULIB_OBJ) user/linker.ld
 	@mkdir -p $(dir $@)
-	$(LD) $(USER_LDFLAGS) -o $@ $< $(ULIB_OBJ)
+	$(call say,LD,$@)
+	$(Q)$(LD) $(USER_LDFLAGS) -o $@ $< $(ULIB_OBJ)
 
 # ---- initrd/ dagi oddiy fayllarni nusxalash ----
 $(BUILD)/initrd/%: initrd/%
 	@mkdir -p $(dir $@)
-	cp $< $@
+	$(Q)cp $< $@
 
 # ---- Disk tasviri: oddiy tar arxiv (USTAR formati) ----
 # --format=ustar : eng oddiy, yaxshi hujjatlashtirilgan tar formati. fs/tarfs.c uni o'qiydi.
 # -C dir         : fayl nomlari "./" siz saqlanishi uchun papka ichidan arxivlaymiz.
 $(BUILD)/initrd.tar: $(USER_PROGS) $(INITRD_EXTRA)
 	@mkdir -p $(BUILD)/initrd
-	tar --format=ustar -cf $@ -C $(BUILD)/initrd $(notdir $(USER_PROGS) $(INITRD_EXTRA))
+	$(call say,TAR,$@)
+	$(Q)tar --format=ustar -cf $@ -C $(BUILD)/initrd $(notdir $(USER_PROGS) $(INITRD_EXTRA))
 
 # ---- Ishga tushirish ----
 run: all

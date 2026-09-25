@@ -287,24 +287,24 @@ static void test_proc(void)
     int p2 = proc_create_kernel_thread("t-count2", counter_thread, (void *)1000);
     int p3 = proc_create_kernel_thread("t-count3", counter_thread, (void *)1000);
     CHECK(p1 > 0 && p2 > 0 && p3 > 0);
-    CHECK(proc_wait(p1, &code) == p1 && code == 1000);
-    CHECK(proc_wait(p2, &code) == p2 && code == 1000);
-    CHECK(proc_wait(p3, &code) == p3 && code == 1000);
+    CHECK(proc_wait(p1, &code, false) == p1 && code == 1000);
+    CHECK(proc_wait(p2, &code, false) == p2 && code == 1000);
+    CHECK(proc_wait(p3, &code, false) == p3 && code == 1000);
     CHECK(shared_counter == 3000);
 
     /* Uxlash: kamida 10 tik o'tishi kerak. */
     int ps = proc_create_kernel_thread("t-sleep", sleeper_thread, NULL);
-    CHECK(proc_wait(ps, &code) == ps && code >= 10);
+    CHECK(proc_wait(ps, &code, false) == ps && code >= 10);
 
     /* Preemption: spinner hech qachon CPU'ni o'zi bermaydi. */
     flag_from_other_thread = 0;
     int sp = proc_create_kernel_thread("t-spin", spinner_thread, NULL);
     int fs = proc_create_kernel_thread("t-flag", flag_setter_thread, NULL);
-    CHECK(proc_wait(sp, &code) == sp && code == 1);
-    CHECK(proc_wait(fs, &code) == fs);
+    CHECK(proc_wait(sp, &code, false) == sp && code == 1);
+    CHECK(proc_wait(fs, &code, false) == fs);
 
     /* Bola yo'q - wait darhol -1 qaytaradi (abadiy osilib qolmaydi). */
-    CHECK(proc_wait(-1, &code) == -1);
+    CHECK(proc_wait(-1, &code, false) == -1);
 
     /* Barcha yadro steklari qaytarildimi? */
     CHECK(pmm_free_frames_count() == free_before);

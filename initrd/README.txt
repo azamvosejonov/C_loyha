@@ -8,4 +8,6 @@ o'qiydi. Shell'da quyidagilarni sinab ko'ring:
   cat README.txt
   hello     - birinchi user-mode dastur
   ps        - jarayonlar
-  mem       - xotira statistikasi
+  free      - xotira statistikasi
+  memtest   - user malloc stress testi
+  crash null - himoya: faqat shu dastur o'ladi, tizim emas

@@ -21,6 +21,7 @@
 #include "drivers/pic.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
+#include "proc/process.h"
 
 static interrupt_handler_t handlers[256];
 
@@ -78,8 +79,6 @@ static void explain_page_fault(uint64_t err)
             (err & 16) ? ", instruksiya o'qishda" : "");
 }
 
-/* Faqat stub - 7-bosqichda user dasturdagi xato butun tizimni emas, faqat
- * o'sha jarayonni o'ldiradigan qilamiz. */
 static void handle_exception(struct interrupt_frame *frame)
 {
     uint64_t v = frame->vector;
@@ -90,6 +89,18 @@ static void handle_exception(struct interrupt_frame *frame)
         return;
     }
 
+    /* USER DASTURIDAGI XATO: faqat o'sha jarayonni o'ldiramiz, yadro va
+     * boshqa jarayonlar ishlashda davom etadi. Bu - himoya halqalari va
+     * virtual xotiraning butun mazmuni! Linux'da bu "Segmentation fault". */
+    if (frame_from_user(frame)) {
+        kprintf("\n[kernel] '%s' (pid %d) o'ldirildi: %s, RIP=%p\n",
+                current->name, current->pid, exception_names[v], (void *)frame->rip);
+        if (v == 14)
+            explain_page_fault(frame->error_code);
+        proc_exit(128 + (int)v);        /* Unix an'anasi: 128 + signal/xato raqami */
+    }
+
+    /* YADRODAGI XATO: tuzatib bo'lmaydi - bu bizning kodimizdagi bug. */
     kprintf("\n!!! EXCEPTION %lu: %s\n", v, exception_names[v]);
     if (v == 14)
         explain_page_fault(frame->error_code);
@@ -127,6 +138,11 @@ void interrupt_dispatch(struct interrupt_frame *frame)
         ;                               /* handleri yo'q IRQ - e'tiborsiz qoldiramiz */
     else
         kprintf("[int] Kutilmagan uzilish: vektor %lu\n", v);
+
+    /* User rejimiga qaytish arafasi - kill() belgisini tekshirish uchun
+     * xavfsiz nuqta: jarayon yadroda hech qanday resurs ushlab turmaydi. */
+    if (frame_from_user(frame) && current && current->killed)
+        proc_exit(-1);
 }
 
 void interrupt_register(uint8_t vector, interrupt_handler_t handler)

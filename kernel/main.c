@@ -7,8 +7,9 @@
  *  Tartib muhim: masalan, xotira menejerisiz heap ishlamaydi, heap'siz
  *  jarayon yarata olmaymiz.
  *
- *     console -> interrupts -> pmm -> vmm -> (heap) -> proc -> qurilmalar -> sti
- *        -> "init" yadro oqimi (pid 1) -> kmain o'zi "idle" (pid 0) ga aylanadi
+ *     console -> interrupts -> pmm -> vmm -> (heap) -> proc -> tarfs/syscall
+ *        -> qurilmalar -> sti -> "init" yadro oqimi (pid 1) -> user shell
+ *        kmain o'zi esa "idle" (pid 0) ga aylanadi
  * ============================================================================= */
 #include <stdint.h>
 
@@ -19,6 +20,7 @@
 #include "drivers/keyboard.h"
 #include "drivers/pit.h"
 #include "drivers/vga.h"
+#include "fs/tarfs.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
 #include "lib/string.h"
@@ -26,6 +28,7 @@
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "proc/process.h"
+#include "sys/syscall.h"
 #include "tests/crashdemo.h"
 #include "tests/selftest.h"
 
@@ -52,8 +55,8 @@ static void maybe_run_crashdemo(void)
     crashdemo_run(name);
 }
 
-/* ---- 6-bosqich namoyishi: bir vaqtda ishlaydigan yadro oqimlari ---- */
-
+/* ---- 6-bosqich namoyishi: bir vaqtda ishlaydigan yadro oqimlari ----
+ * make run APPEND=threads */
 static int ticker_thread(void *arg)
 {
     const char *label = arg;
@@ -64,34 +67,33 @@ static int ticker_thread(void *arg)
     return 0;
 }
 
-static int echo_thread(void *arg)
-{
-    (void)arg;
-    kprintf("Klaviaturada yozing (echo oqimi):\n> ");
-    for (;;) {
-        int c = console_getc();         /* bu oqim uxlaydi - CPU boshqalarga qoladi */
-        if (c < 0)
-            return 0;
-        if (c == '\n')
-            kprintf("\n> ");
-        else
-            console_putc((char)c);
-    }
-}
-
 /* pid 1: "init" yadro oqimi. Uzilishlar yoqilgan, scheduler ishlab turgan
- * muhitda kerakli ishlarni bajaradi. */
+ * muhitda kerakli ishlarni bajaradi, keyin birinchi USER dasturni - shell'ni
+ * ishga tushiradi va u tugasa, qayta ishga tushiradi (Unix'dagi init/getty
+ * kabi). */
 static int init_thread(void *arg)
 {
     (void)arg;
     if (cmdline_has("selftest"))
         selftest_run();
     maybe_run_crashdemo();
+    if (cmdline_has("threads")) {
+        int a = proc_create_kernel_thread("ticker-A", ticker_thread, "A");
+        int b = proc_create_kernel_thread("ticker-B", ticker_thread, "B");
+        proc_wait(a, NULL, false);
+        proc_wait(b, NULL, false);
+    }
 
-    proc_create_kernel_thread("ticker-A", ticker_thread, "A");
-    proc_create_kernel_thread("ticker-B", ticker_thread, "B");
-    proc_create_kernel_thread("echo", echo_thread, NULL);
-    return 0;
+    for (;;) {
+        static char sh_name[] = "sh";
+        char *argv[] = { sh_name };
+        int pid = proc_spawn("sh", 1, argv);
+        if (pid < 0)
+            panic("init: /sh ni ishga tushirib bo'lmadi (xato %d)", pid);
+        int code;
+        proc_wait(pid, &code, false);
+        kprintf("[init] shell tugadi (kod %d). Qayta ishga tushiramiz...\n", code);
+    }
 }
 
 void kmain(uint32_t magic, uint32_t multiboot_info_phys);
@@ -132,13 +134,17 @@ void kmain(uint32_t magic, uint32_t multiboot_info_phys)
     /* 6-qadam: jarayonlar. kmain shu lahzadan 0-jarayon ("idle"). */
     proc_init();
 
-    /* 7-qadam: qurilmalar va uzilishlarni yoqish. */
+    /* 7-qadam: user rejimi uchun: fayl tizimi (initrd) va syscall'lar. */
+    tarfs_init(mbi);
+    syscall_init();
+
+    /* 8-qadam: qurilmalar va uzilishlarni yoqish. */
     pit_init();
     keyboard_init();
     console_enable_serial_input();
     proc_create_kernel_thread("init", init_thread, NULL);
+    kprintf("[int]  Uzilishlar yoqilmoqda (taymer %d Hz)\n", TIMER_HZ);
     cpu_sti();                          /* Endi taymer "yuradi" va scheduler ishlaydi */
-    kprintf("[int]  Uzilishlar yoqildi (taymer %d Hz)\n", TIMER_HZ);
 
     /* kmain hech qachon qaytmaydi: u idle jarayoniga aylanadi. */
     proc_idle_loop();

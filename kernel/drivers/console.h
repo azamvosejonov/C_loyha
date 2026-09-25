@@ -3,6 +3,7 @@
  * ============================================================================= */
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 
 void console_init(void);
@@ -18,3 +19,5 @@ void console_enable_serial_input(void);
 /* Bitta belgi kelguncha jarayonni UXLATADI va belgini qaytaradi.
  * Jarayon kill() qilingan bo'lsa -1. */
 int console_getc(void);
+/* Kutmasdan o'qish mumkin bo'lgan belgi bormi? */
+bool console_input_available(void);

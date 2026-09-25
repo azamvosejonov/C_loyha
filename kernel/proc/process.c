@@ -31,6 +31,7 @@
 #include "arch/cpu.h"
 #include "arch/gdt.h"
 #include "drivers/pit.h"
+#include "fs/file.h"
 #include "lib/common.h"
 #include "lib/kprintf.h"
 #include "lib/panic.h"
@@ -278,10 +279,16 @@ void proc_sleep_ms(uint64_t ms)
 
 /* ---- Tugash va kutish ------------------------------------------------------- */
 
-/* 7-bosqichda fayllarni yopish shu yerga qo'shiladi. */
-__attribute__((weak)) void proc_close_all_files(struct process *p)
+/* Jarayon tugaganda barcha ochiq fayllarni yopamiz - aks holda ular
+ * (va ular egallagan xotira) abadiy "oqib" qoladi. */
+static void proc_close_all_files(struct process *p)
 {
-    (void)p;
+    for (int fd = 0; fd < MAX_FDS; fd++) {
+        if (p->files[fd]) {
+            file_close(p->files[fd]);
+            p->files[fd] = NULL;
+        }
+    }
 }
 
 void proc_exit(int code)
@@ -320,7 +327,7 @@ void proc_exit(int code)
     panic("proc_exit: zombie jarayon qayta ishga tushdi");
 }
 
-int proc_wait(int pid, int *exit_code)
+int proc_wait(int pid, int *exit_code, bool nohang)
 {
     uint64_t flags = irq_save();
     for (;;) {
@@ -344,6 +351,10 @@ int proc_wait(int pid, int *exit_code)
         if (!have_child) {
             irq_restore(flags);
             return -1;                  /* bunday bola yo'q - abadiy kutmaymiz */
+        }
+        if (nohang) {
+            irq_restore(flags);
+            return 0;                   /* bolalar bor, lekin hali tugamagan */
         }
         proc_sleep_on(current);         /* bola exit() qilganda bizni uyg'otadi */
     }
@@ -370,15 +381,15 @@ int proc_kill(int pid)
     return -1;
 }
 
-/* Jarayon ishlatayotgan user xotira sahifalari (taxminan: heap + stek). */
+/* Jarayon ishlatayotgan user xotira sahifalari. */
 static uint64_t user_pages(const struct process *p)
 {
-    if (!p->is_user)
+    if (!p->is_user || p->pml4 == vmm_kernel_pml4())
         return 0;
-    return (p->brk - USER_SPACE_START + PAGE_SIZE - 1) / PAGE_SIZE + USER_STACK_PAGES;
+    return vmm_count_user_pages(p->pml4);
 }
 
-int proc_list(struct proc_info *out, int max)
+int proc_list(struct myos_proc_info *out, int max)
 {
     int n = 0;
     uint64_t flags = irq_save();

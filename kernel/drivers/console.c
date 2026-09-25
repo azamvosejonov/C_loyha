@@ -21,6 +21,7 @@
  * ============================================================================= */
 #include "drivers/console.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "arch/cpu.h"
@@ -29,7 +30,7 @@
 #include "drivers/vga.h"
 #include "proc/process.h"
 
-#define INPUT_BUFFER_SIZE 256           /* 2 ning darajasi bo'lishi SHART */
+#define INPUT_BUFFER_SIZE 1024          /* 2 ning darajasi bo'lishi SHART */
 
 static char input_buffer[INPUT_BUFFER_SIZE];
 static volatile uint32_t input_head;    /* uzilish handleri o'zgartiradi -> volatile */
@@ -82,6 +83,11 @@ void console_enable_serial_input(void)
 {
     irq_register(IRQ_COM1, serial_irq);
     serial_enable_rx_interrupt();
+}
+
+bool console_input_available(void)
+{
+    return input_tail != input_head;
 }
 
 int console_getc(void)

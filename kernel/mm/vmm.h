@@ -70,6 +70,12 @@ bool vmm_map_anonymous(uint64_t pml4, uint64_t virt, size_t pages, uint64_t flag
  * orqali. ELF yuklovchi va argv ni user stekiga qo'yish uchun kerak. */
 bool vmm_copy_to_space(uint64_t pml4, uint64_t virt, const void *src, size_t len);
 
+/* Allaqachon xaritalangan sahifaning bayroqlarini o'zgartirish (ELF yuklovchi). */
+bool vmm_update_flags(uint64_t pml4, uint64_t virt, uint64_t flags);
+
+/* User hududida nechta sahifa xaritalangan (ps buyrug'i uchun). */
+uint64_t vmm_count_user_pages(uint64_t pml4);
+
 /* SYSCALL XAVFSIZLIGI: user bergan [virt, virt+len) buferi haqiqatan user
  * hududidami, xaritalanganmi, U=1 va (kerak bo'lsa) yozish mumkinmi? */
 bool vmm_user_range_ok(uint64_t pml4, uint64_t virt, size_t len, bool write);

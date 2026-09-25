@@ -7,8 +7,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "myos/abi.h"
+
 #define MAX_PROCS       64
 #define MAX_FDS         16              /* har bir jarayonda ochiq fayllar soni */
+#define MAX_ARGS        16              /* spawn: argv elementlari soni chegarasi */
 #define PROC_NAME_LEN   32
 #define KSTACK_PAGES    4               /* har bir jarayonning yadro steki: 16 KB */
 #define SCHED_QUANTUM   5               /* vaqt kvanti: 5 tik = 50 ms */
@@ -68,17 +71,6 @@ struct process {
     int quantum_left;
 };
 
-/* ps buyrug'i uchun jarayon haqida qisqa ma'lumot (user rejimiga nusxalanadi). */
-struct proc_info {
-    int32_t pid;
-    int32_t ppid;
-    int32_t state;
-    int32_t is_user;
-    uint64_t cpu_ticks;
-    uint64_t mem_pages;
-    char name[PROC_NAME_LEN];
-};
-
 /* Joriy (hozir ishlayotgan) jarayon. */
 extern struct process *current;
 
@@ -114,9 +106,14 @@ void proc_sleep_ms(uint64_t ms);
 
 /* ---- Tugash ---- */
 __attribute__((noreturn)) void proc_exit(int code);
-/* pid li bolani (yoki -1: istalganini) kutish. Qaytaradi: pid yoki -1. */
-int proc_wait(int pid, int *exit_code);
+/* pid li bolani (yoki -1: istalganini) kutish. Qaytaradi: pid yoki -1.
+ * nohang=true: bola hali tugamagan bo'lsa kutmasdan 0 qaytaradi. */
+int proc_wait(int pid, int *exit_code, bool nohang);
 int proc_kill(int pid);
 
 /* ps uchun. Qaytaradi: nechta yozuv to'ldirildi. */
-int proc_list(struct proc_info *out, int max);
+int proc_list(struct myos_proc_info *out, int max);
+
+/* ELF dasturni initrd dan yuklab, yangi USER jarayon yaratish (7-bosqich).
+ * argv - yadro xotirasidagi satrlar. Qaytaradi: pid yoki manfiy xato. */
+int proc_spawn(const char *path, int argc, char *const argv[]);

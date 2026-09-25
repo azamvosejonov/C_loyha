@@ -279,6 +279,37 @@ uint64_t vmm_translate(uint64_t pml4, uint64_t virt, uint64_t *flags_out)
     return (entry & PTE_ADDR_MASK) + (virt & (PAGE_SIZE - 1));
 }
 
+bool vmm_update_flags(uint64_t pml4, uint64_t virt, uint64_t flags)
+{
+    uint64_t *pte = walk(pml4, virt, false);
+    if (!pte || !(*pte & PTE_PRESENT))
+        return false;
+    *pte = (*pte & PTE_ADDR_MASK) | (flags & ~PTE_ADDR_MASK) | PTE_PRESENT;
+    if (pml4 == cpu_read_cr3())
+        cpu_invlpg(virt);
+    return true;
+}
+
+uint64_t vmm_count_user_pages(uint64_t pml4)
+{
+    uint64_t count = 0;
+    uint64_t *pdpt_v = phys_to_virt(phys_to_virt(pml4)[0] & PTE_ADDR_MASK);
+    for (int i = 1; i < 512; i++) {             /* 0 - yadro, sanamaymiz */
+        if (!(pdpt_v[i] & PTE_PRESENT))
+            continue;
+        uint64_t *pd_v = phys_to_virt(pdpt_v[i] & PTE_ADDR_MASK);
+        for (int j = 0; j < 512; j++) {
+            if (!(pd_v[j] & PTE_PRESENT))
+                continue;
+            uint64_t *pt_v = phys_to_virt(pd_v[j] & PTE_ADDR_MASK);
+            for (int k = 0; k < 512; k++)
+                if (pt_v[k] & PTE_PRESENT)
+                    count++;
+        }
+    }
+    return count;
+}
+
 bool vmm_map_anonymous(uint64_t pml4, uint64_t virt, size_t pages, uint64_t flags)
 {
     for (size_t i = 0; i < pages; i++) {
