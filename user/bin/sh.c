@@ -32,9 +32,17 @@
  *      *.txt  ?           glob: mos fayl nomlari bilan almashtiriladi
  *      # izoh
  *
+ *  JOB CONTROL (interaktiv rejimda):
+ *      Har bir pipeline - alohida JARAYON GURUHI (job). Terminal faqat
+ *      "oldingi plandagi" guruhga tegishli: Ctrl-C/Ctrl-Z faqat unga boradi,
+ *      shell esa o'zi SIGINT/SIGTSTP ni e'tiborsiz qoldiradi.
+ *      Ctrl-Z   - job to'xtaydi         jobs  - ro'yxat
+ *      fg [%n]  - oldingi planga        bg [%n] - fonda davom ettirish
+ *
  *  Ishga tushirish:  sh (interaktiv) | sh skript.sh | sh -c "buyruqlar"
  * ============================================================================= */
 #include <ctype.h>
+#include <signal.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -64,6 +72,33 @@ static struct {
 } vars[VARS_MAX];
 
 static int last_status;                 /* $? */
+
+/* ---- Job control holati ---- */
+#define JOBS_MAX 16
+
+struct job {
+    int id;                             /* [1], [2] ... (0 - bo'sh slot) */
+    int pgid;
+    int pids[PIPE_MAX];
+    int npids;
+    int alive;                          /* hali tugamagan jarayonlar */
+    bool stopped;
+    int status;                         /* oxirgi buyruqning holat so'zi */
+    char cmd[128];
+};
+
+static struct job jobs[JOBS_MAX];
+static bool job_control;                /* interaktiv terminal: guruhlar, fg/bg */
+static int shell_pgid;
+static volatile sig_atomic_t got_sigint;
+
+struct pipeline;
+static struct job *job_by_pid(int pid, int *index);
+static void job_update(struct job *j, int k, int status);
+static int job_foreground(struct job *j, bool resume);
+static struct job *job_find(const char *spec);
+static void jobs_list(void);
+static void reap_background(void);
 
 static const char *var_get(const char *name)
 {
@@ -546,6 +581,7 @@ static int run_script(const char *path);
 static void print_help(void)
 {
     puts("Ichki buyruqlar: cd [papka], pwd, exit [kod], help, wait, set, . <skript>");
+    puts("Job control:     jobs, fg [%n], bg [%n]   (Ctrl-C - to'xtatish, Ctrl-Z - pauza)");
     puts("Dasturlar /bin ichida ('ls /bin'):");
     puts("  fayllar:   ls [-la], cat, cp, mv, rm [-rf], mkdir [-p], rmdir, touch, stat");
     puts("  matn:      echo, wc [-lwc], head, tail, grep [-ivnc], tee, seq");
@@ -585,11 +621,41 @@ static bool run_builtin(struct cmd *c, int *status)
         *status = 0;
         return true;
     }
-    if (strcmp(name, "wait") == 0) {   /* barcha fon jarayonlarini kutish */
-        int st;
-        while (waitpid(-1, &st, 0) > 0)
-            ;
+    if (strcmp(name, "wait") == 0) {   /* barcha fon joblarini kutish */
+        int st, pid, k;
+        while ((pid = waitpid(-1, &st, 0)) > 0) {
+            struct job *j = job_by_pid(pid, &k);
+            if (j) {
+                job_update(j, k, st);
+                if (j->alive == 0)
+                    j->id = 0;
+            }
+        }
         *status = 0;
+        return true;
+    }
+    if (strcmp(name, "jobs") == 0) {
+        reap_background();              /* avval holatlarni yangilaymiz */
+        jobs_list();
+        *status = 0;
+        return true;
+    }
+    if (strcmp(name, "fg") == 0 || strcmp(name, "bg") == 0) {
+        struct job *j = job_find(c->argc > 1 ? c->argv[1] : NULL);
+        if (!j) {
+            fprintf(stderr, "%s: bunday job yo'q\n", name);
+            *status = 1;
+            return true;
+        }
+        if (name[0] == 'f') {
+            printf("%s\n", j->cmd);
+            *status = job_foreground(j, true);
+        } else {
+            j->stopped = false;
+            kill(-j->pgid, SIGCONT);
+            printf("[%d]  %s &\n", j->id, j->cmd);
+            *status = 0;
+        }
         return true;
     }
     if (strcmp(name, "set") == 0) {
@@ -614,7 +680,7 @@ static bool run_builtin(struct cmd *c, int *status)
 static bool is_builtin(const char *name)
 {
     static const char *const names[] = { "cd", "pwd", "exit", "help", "wait", "set", ".",
-                                         "source", NULL };
+                                         "source", "jobs", "fg", "bg", NULL };
     for (int i = 0; names[i]; i++)
         if (strcmp(name, names[i]) == 0)
             return true;
@@ -634,9 +700,47 @@ static bool is_assignment(const char *s)
 }
 
 /* BOLA jarayonda: buyruqni bajarish. Hech qachon qaytmaydi. */
+/* `kill %2` -> `kill -- -<pgid>`: job raqamini guruh raqamiga aylantirish
+ * (bash'da kill ichki buyruq; bizda /bin/kill, shuning uchun argumentlarni
+ * shell o'zi tarjima qiladi). */
+static void translate_kill_args(struct cmd *c)
+{
+    static char bufs[ARGS_MAX][16];
+    int first_pid = 1;
+    if (c->argc > 1 && c->argv[1][0] == '-' && c->argv[1][1] != '%')
+        first_pid = 2;                  /* signal: -9, -STOP ... */
+    bool any = false;
+    for (int i = first_pid; i < c->argc; i++)
+        any |= c->argv[i][0] == '%';
+    if (!any || c->argc >= ARGS_MAX)
+        return;
+    /* "--" qo'shamiz: "-12" signal emas, guruh raqami ekanini bildiradi. */
+    for (int i = c->argc; i > first_pid; i--)
+        c->argv[i] = c->argv[i - 1];
+    c->argv[first_pid] = "--";
+    c->argc++;
+    c->argv[c->argc] = NULL;
+    for (int i = first_pid + 1; i < c->argc; i++) {
+        if (c->argv[i][0] != '%')
+            continue;
+        struct job *j = job_find(c->argv[i]);
+        snprintf(bufs[i], sizeof(bufs[i]), "-%d", j ? j->pgid : 999999);
+        c->argv[i] = bufs[i];
+        /* To'xtagan job'ga SIGTERM kabi signal SIGCONT gacha "osilib" turadi
+         * (POSIX). Bash kabi avval davom ettiramiz - aks holda kill ta'sirsiz
+         * ko'rinardi. To'xtatuvchi signallar uchun bu kerak emas. */
+        const char *spec = first_pid == 2 ? c->argv[1] + 1 : "TERM";
+        bool stopping = strstr("STOP TSTP TTIN TTOU CONT 18 19 20 21 22", spec) != NULL;
+        if (j && j->stopped && !stopping)
+            kill(-j->pgid, SIGCONT);
+    }
+}
+
 __attribute__((noreturn)) static void exec_cmd(struct cmd *c)
 {
     int status;
+    if (strcmp(c->argv[0], "kill") == 0)
+        translate_kill_args(c);         /* bola jarayonda - asl argv otada o'zgarmaydi */
     if (run_builtin(c, &status)) {      /* pipe ichidagi builtin: help | grep cd */
         fflush(NULL);
         _exit(status);
@@ -681,6 +785,121 @@ static int run_builtin_here(struct cmd *c)
     return status;
 }
 
+/* ---- Joblar ---------------------------------------------------------------- */
+
+static struct job *job_new(const struct pipeline *pl)
+{
+    for (int i = 0; i < JOBS_MAX; i++) {
+        if (jobs[i].id)
+            continue;
+        struct job *j = &jobs[i];
+        memset(j, 0, sizeof(*j));
+        j->id = i + 1;
+        /* Buyruq matni (jobs ro'yxati uchun): "seq 100 | wc -l" */
+        size_t len = 0;
+        for (int c = 0; c < pl->n; c++) {
+            for (int a = 0; a < pl->cmds[c].argc && len < sizeof(j->cmd) - 1; a++)
+                len += (size_t)snprintf(j->cmd + len, sizeof(j->cmd) - len, "%s%s",
+                                        len ? " " : "", pl->cmds[c].argv[a]);
+            if (c < pl->n - 1 && len < sizeof(j->cmd) - 3)
+                len += (size_t)snprintf(j->cmd + len, sizeof(j->cmd) - len, " |");
+        }
+        return j;
+    }
+    return NULL;
+}
+
+static struct job *job_by_pid(int pid, int *index)
+{
+    for (int i = 0; i < JOBS_MAX; i++)
+        for (int k = 0; jobs[i].id && k < jobs[i].npids; k++)
+            if (jobs[i].pids[k] == pid) {
+                *index = k;
+                return &jobs[i];
+            }
+    return NULL;
+}
+
+/* waitpid natijasini job holatiga yozish. */
+static void job_update(struct job *j, int k, int status)
+{
+    if (WIFSTOPPED(status)) {
+        j->stopped = true;
+        return;
+    }
+    j->stopped = false;                 /* tugagan jarayon to'xtagan emas (tashqaridan CONT olgan bo'lishi mumkin) */
+    j->pids[k] = -j->pids[k];           /* tugagan (manfiy - "o'lik" belgisi) */
+    j->alive--;
+    if (k == j->npids - 1)
+        j->status = status;             /* pipeline natijasi - oxirgi buyruqniki */
+}
+
+/* Holat so'zidan $? qiymati (bash qoidasi). */
+static int status_to_code(int st)
+{
+    if (WIFEXITED(st))
+        return WEXITSTATUS(st);
+    if (WIFSTOPPED(st))
+        return 128 + WSTOPSIG(st);
+    return 128 + WTERMSIG(st);
+}
+
+/* Job'ni oldingi planda kutish (buyruq yoki `fg`). Qaytaradi: $? qiymati. */
+static int job_foreground(struct job *j, bool resume)
+{
+    if (job_control)
+        tcsetpgrp(STDIN_FILENO, j->pgid);   /* klaviatura endi shu job'niki */
+    if (resume) {
+        j->stopped = false;
+        kill(-j->pgid, SIGCONT);
+    }
+    while (j->alive > 0 && !j->stopped) {
+        int st;
+        for (int k = 0; k < j->npids && !j->stopped; k++) {
+            if (j->pids[k] <= 0)
+                continue;
+            int r = waitpid(j->pids[k], &st, WUNTRACED);
+            if (r == j->pids[k])
+                job_update(j, k, st);
+            else if (r < 0 && errno == ECHILD)
+                job_update(j, k, 0);
+        }
+    }
+    if (job_control)
+        tcsetpgrp(STDIN_FILENO, shell_pgid);    /* terminal shell'ga qaytadi */
+    if (j->stopped) {
+        printf("\n[%d]+  To'xtatildi       %s\n", j->id, j->cmd);
+        return 128 + SIGTSTP;
+    }
+    int st = j->status;
+    /* Signal bilan o'lgan bo'lsa - bash kabi xabar (Ctrl-C va SIGPIPE - jim). */
+    if (WIFSIGNALED(st) && WTERMSIG(st) != SIGINT && WTERMSIG(st) != SIGPIPE)
+        fprintf(stderr, "%s\n", strsignal(WTERMSIG(st)));
+    j->id = 0;                          /* slot bo'shadi */
+    return status_to_code(st);
+}
+
+/* "%2" yoki "" (oxirgisi) -> job. */
+static struct job *job_find(const char *spec)
+{
+    if (spec && *spec) {
+        int n = atoi(spec[0] == '%' ? spec + 1 : spec);
+        return (n >= 1 && n <= JOBS_MAX && jobs[n - 1].id) ? &jobs[n - 1] : NULL;
+    }
+    for (int i = JOBS_MAX - 1; i >= 0; i--)
+        if (jobs[i].id)
+            return &jobs[i];
+    return NULL;
+}
+
+static void jobs_list(void)
+{
+    for (int i = 0; i < JOBS_MAX; i++)
+        if (jobs[i].id)
+            printf("[%d]  %-12s %s\n", jobs[i].id, jobs[i].stopped ? "To'xtatildi" : "Ishlayapti",
+                   jobs[i].cmd);
+}
+
 static int run_pipeline(struct pipeline *pl)
 {
     struct cmd *first = &pl->cmds[0];
@@ -708,8 +927,11 @@ static int run_pipeline(struct pipeline *pl)
      *  yopishi shart. Pipe'ning yozish uchi kamida bitta jarayonda ochiq qolsa,
      *  o'quvchi hech qachon EOF olmaydi va abadiy kutadi (masalan, `ls | wc`
      *  osilib qoladi). Shuning uchun ota ham har bir uchni darhol yopadi. */
-    int pids[PIPE_MAX];
-    int started = 0;
+    struct job *job = job_new(pl);
+    if (!job) {
+        fprintf(stderr, "sh: joblar juda ko'p\n");
+        return 1;
+    }
     int prev_read = -1;
     for (int i = 0; i < pl->n; i++) {
         struct cmd *c = &pl->cmds[i];
@@ -728,6 +950,22 @@ static int run_pipeline(struct pipeline *pl)
             break;
         }
         if (pid == 0) {
+            if (job_control) {
+                /* Guruhga qo'shilish: birinchi bola - guruh yetakchisi (pgid = o'z pid'i).
+                 * Ota ham xuddi shuni qiladi - kim birinchi ulgursa ham natija bir xil
+                 * (poyga holati yo'q). */
+                int pg = job->pgid ? job->pgid : getpid();
+                setpgid(0, pg);
+                if (!pl->background)
+                    tcsetpgrp(STDIN_FILENO, pg);
+                /* Shell e'tiborsiz qoldirgan signallar dasturda STANDART bo'lsin
+                 * (exec SIG_IGN ni saqlab qoladi!). */
+                signal(SIGINT, SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
+                signal(SIGTSTP, SIG_DFL);
+                signal(SIGTTIN, SIG_DFL);
+                signal(SIGTTOU, SIG_DFL);
+            }
             /* BOLA: stdin <- oldingi pipe, stdout -> keyingi pipe. */
             if (prev_read >= 0) {
                 dup2(prev_read, STDIN_FILENO);
@@ -744,31 +982,31 @@ static int run_pipeline(struct pipeline *pl)
                 _exit(0);
             exec_cmd(c);
         }
-        /* OTA: endi keraksiz uchlarni yopamiz. */
+        /* OTA */
+        if (job_control) {
+            if (!job->pgid)
+                job->pgid = pid;
+            setpgid(pid, job->pgid);
+        }
         if (prev_read >= 0)
             close(prev_read);
         if (p[1] >= 0)
             close(p[1]);
         prev_read = p[0];
-        pids[started++] = pid;
+        job->pids[job->npids++] = pid;
+        job->alive++;
     }
     if (prev_read >= 0)
         close(prev_read);
-    if (started == 0)
+    if (job->npids == 0) {
+        job->id = 0;
         return 1;
-
+    }
     if (pl->background) {
-        printf("[%d]\n", pids[started - 1]);
+        printf("[%d] %d\n", job->id, job->pids[job->npids - 1]);
         return 0;
     }
-    int status = 1;
-    for (int i = 0; i < started; i++) {
-        int st = 0;
-        waitpid(pids[i], &st, 0);
-        if (i == started - 1)
-            status = st;                /* pipeline natijasi - oxirgi buyruqniki */
-    }
-    return status;
+    return job_foreground(job, false);
 }
 
 /* Bitta qatorni bajarish: pipeline'lar ; && || & bilan bog'langan. */
@@ -805,9 +1043,19 @@ static void run_line(const char *line)
 /* Fonda tugagan jarayonlarni "yig'ib olish" - aks holda ular zombie bo'lib qoladi. */
 static void reap_background(void)
 {
-    int status, pid;
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
-        printf("[%d] tugadi (kod %d)\n", pid, status);
+    int st, pid, k;
+    while ((pid = waitpid(-1, &st, WNOHANG | WUNTRACED)) > 0) {
+        struct job *j = job_by_pid(pid, &k);
+        if (!j)
+            continue;
+        job_update(j, k, st);
+        if (j->stopped) {
+            printf("[%d]+  To'xtatildi       %s\n", j->id, j->cmd);
+        } else if (j->alive == 0) {
+            printf("[%d]   Tugadi (%d)       %s\n", j->id, status_to_code(j->status), j->cmd);
+            j->id = 0;
+        }
+    }
 }
 
 /* stdin'dan bitta qator. BAYTMA-BAYT o'qiymiz: stdio buferi ishlatilsa, shell
@@ -819,6 +1067,8 @@ static int read_line(char *buf, size_t size)
     for (;;) {
         char c;
         ssize_t n = read(STDIN_FILENO, &c, 1);
+        if (n < 0 && errno == EINTR)
+            return -2;                  /* Ctrl-C: qator bekor, yangi so'rov */
         if (n <= 0)
             return len ? (int)len : -1; /* EOF (Ctrl-D) yoki xato */
         if (c == '\n')
@@ -828,6 +1078,12 @@ static int read_line(char *buf, size_t size)
     }
     buf[len] = '\0';
     return (int)len;
+}
+
+static void on_sigint(int sig)
+{
+    (void)sig;
+    got_sigint = 1;                     /* handler'da faqat bayroq - xavfsiz */
 }
 
 static int run_script(const char *path)
@@ -856,6 +1112,20 @@ int main(int argc, char **argv)
 
     bool interactive = isatty(STDIN_FILENO);
     if (interactive) {
+        /* Job control: o'z guruhimiz, terminal bizniki. Shell Ctrl-Z / Ctrl-\\ dan
+         * o'lmasligi kerak; Ctrl-C esa faqat terilayotgan qatorni bekor qiladi
+         * (SA_RESTART YO'Q - read() -EINTR bilan qaytishi uchun). */
+        job_control = true;
+        setpgid(0, 0);
+        shell_pgid = getpgrp();
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+        signal(SIGTSTP, SIG_IGN);
+        signal(SIGTTIN, SIG_IGN);
+        signal(SIGTTOU, SIG_IGN);
+        signal(SIGQUIT, SIG_IGN);
+        struct sigaction sa = { .sa_handler = on_sigint };
+        sigaction(SIGINT, &sa, NULL);
+
         int fd = open("/etc/motd", O_RDONLY);  /* "message of the day" */
         if (fd >= 0) {
             char buf[1024];
@@ -875,7 +1145,10 @@ int main(int argc, char **argv)
             printf("myos:%s$ ", cwd);
             fflush(stdout);
         }
-        if (read_line(line, sizeof(line)) < 0)
+        int n = read_line(line, sizeof(line));
+        if (n == -2)
+            continue;
+        if (n < 0)
             break;
         run_line(line);
     }

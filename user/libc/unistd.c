@@ -271,20 +271,24 @@ time_t time(time_t *out)
     return t;
 }
 
-void sleep_ms(uint64_t ms)
+/* Qaytaradi: signal uzgan bo'lsa - qolgan millisekundlar, aks holda 0. */
+uint64_t sleep_ms(uint64_t ms)
 {
-    __syscall1(SYS_SLEEP, (long)ms);
+    long r = __syscall1(SYS_SLEEP, (long)ms);
+    return r == -EINTR ? ms : 0;        /* (yadro qolganini argumentga yozadi, bizda aniq qiymat yo'q) */
 }
 
 unsigned sleep(unsigned seconds)
 {
-    sleep_ms((uint64_t)seconds * 1000);
-    return 0;
+    return sleep_ms((uint64_t)seconds * 1000) ? 1 : 0;  /* POSIX: uzilsa - noldan katta */
 }
 
 int usleep(unsigned long usec)
 {
-    sleep_ms((usec + 999) / 1000);
+    if (sleep_ms((usec + 999) / 1000)) {
+        errno = EINTR;
+        return -1;
+    }
     return 0;
 }
 

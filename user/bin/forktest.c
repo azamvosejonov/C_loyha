@@ -63,7 +63,7 @@ int main(void)
     }
     for (int i = 0; i < 20; i++) {
         waitpid(pids[i], &st, 0);
-        sum += st;
+        sum += WEXITSTATUS(st);         /* holat so'zidan chiqish kodi */
     }
     check(sum == 210, "20 ta bola, chiqish kodlari yig'indisi 210");
 

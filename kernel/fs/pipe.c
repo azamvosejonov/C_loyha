@@ -13,7 +13,7 @@
  *    * Barcha yozuvchilar yopilsa va bufer bo'sh - o'quvchi 0 oladi (EOF).
  *      Shuning uchun shell ORTIQCHA yozish uchlarini yopishi SHART, aks holda
  *      `grep` hech qachon EOF ko'rmaydi va abadiy kutadi (klassik xato!).
- *    * O'quvchilar yo'q bo'lsa, yozish -EPIPE qaytaradi.
+ *    * O'quvchilar yo'q bo'lsa, yozuvchiga SIGPIPE yuboriladi va yozish -EPIPE qaytaradi.
  * ============================================================================= */
 #include "fs/pipe.h"
 
@@ -22,6 +22,7 @@
 #include "lib/string.h"
 #include "mm/slab.h"
 #include "proc/process.h"
+#include "proc/signal.h"
 
 #define PIPE_SIZE 16384
 
@@ -45,7 +46,7 @@ static int64_t pipe_read(struct file *f, void *dst, size_t len, uint64_t off)
             spin_unlock(&p->lock);
             return 0;
         }
-        if (current->killed) {
+        if (signal_interrupted(current)) {
             spin_unlock(&p->lock);
             return -EINTR;
         }
@@ -70,10 +71,17 @@ static int64_t pipe_write(struct file *f, const void *src, size_t len, uint64_t 
     while (done < len) {
         if (p->readers == 0) {
             spin_unlock(&p->lock);
-            return done ? (int64_t)done : -EPIPE;
+            if (done)
+                return (int64_t)done;
+            /* O'quvchi yo'q: SIGPIPE (standart amal - tugash). Shu tufayli
+             * `seq 1000000 | head -1` da seq head tugashi bilan to'xtaydi. */
+            spin_lock(&proc_lock);
+            signal_send_locked(current, SIGPIPE);
+            spin_unlock(&proc_lock);
+            return -EPIPE;
         }
         if (p->count == PIPE_SIZE) {
-            if (current->killed) {
+            if (signal_interrupted(current)) {
                 spin_unlock(&p->lock);
                 return done ? (int64_t)done : -EINTR;
             }

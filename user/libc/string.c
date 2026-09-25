@@ -7,6 +7,7 @@
  *  Makefile'dagi -ffreestanding va -fno-builtin buni oldini oladi.
  * ============================================================================= */
 #include <errno.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -250,4 +251,38 @@ char *strerror(int err)
     if (err >= 0 && err < (int)(sizeof(messages) / sizeof(messages[0])) && messages[err])
         return (char *)messages[err];
     return "Noma'lum xato";
+}
+
+/* ---- Signal nomlari (bash xabarlari bilan bir xil ma'noda) ---- */
+
+static const char *const signames[NSIG] = {
+    [SIGHUP] = "Terminal uzildi",
+    [SIGINT] = "Uzildi",
+    [SIGQUIT] = "Chiqish",
+    [SIGILL] = "Noto'g'ri instruksiya",
+    [SIGTRAP] = "Trace/breakpoint",
+    [SIGABRT] = "Abort qilindi",
+    [SIGBUS] = "Shina xatosi",
+    [SIGFPE] = "Suzuvchi nuqta xatosi",
+    [SIGKILL] = "O'ldirildi",
+    [SIGUSR1] = "Foydalanuvchi signali 1",
+    [SIGSEGV] = "Segmentation fault",
+    [SIGUSR2] = "Foydalanuvchi signali 2",
+    [SIGPIPE] = "Pipe uzildi",
+    [SIGALRM] = "Budilnik",
+    [SIGTERM] = "Tugatildi",
+    [SIGCHLD] = "Bola holati o'zgardi",
+    [SIGCONT] = "Davom etdi",
+    [SIGSTOP] = "To'xtatildi (signal)",
+    [SIGTSTP] = "To'xtatildi",
+    [SIGTTIN] = "To'xtatildi (terminal kiritish)",
+    [SIGTTOU] = "To'xtatildi (terminal chiqarish)",
+    [SIGWINCH] = "Oyna o'lchami o'zgardi",
+};
+
+char *strsignal(int sig)
+{
+    if (sig > 0 && sig < NSIG && signames[sig])
+        return (char *)signames[sig];
+    return "Noma'lum signal";
 }

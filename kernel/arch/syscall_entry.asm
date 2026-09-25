@@ -26,6 +26,7 @@ section .text
 %define CPU_USER_RSP   16
 
 ; frame ichidagi siljishlar (arch/interrupts.h: r15..rax, vector, err, rip, cs, rflags, rsp, ss)
+%define F_VECTOR 120
 %define F_RIP    136
 %define F_CS     144
 %define F_RFLAGS 152
@@ -78,6 +79,10 @@ syscall_entry:
     ; bilan sysret qilinsa, #GP xatosi RING 0 da, lekin USER stekida sodir
     ; bo'ladi -> hujumchi yadro kodini bajarishi mumkin edi. FreeBSD, Xen,
     ; Windows shundan zarar ko'rgan. Shuning uchun RIP ni tekshiramiz.
+    ; sigreturn barcha registrlarni (RCX va R11 ni ham) tiklashi kerak - sysret
+    ; esa ularni buzadi. Shunday holatda C kodi "vektor"ni 0x81 qilib qo'yadi.
+    cmp qword [rsp + F_VECTOR], 0x80
+    jne .slow_path
     mov rcx, [rsp + F_RIP]
     mov r11, 0x00007FFFFFFFFFFF
     cmp rcx, r11

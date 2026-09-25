@@ -69,10 +69,11 @@ Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qi
 | Fayllar | `kernel/fs/*`, `sys/sys_fs.c` | **VFS**, tmpfs, `/dev`, pipe, mount, errno | 12 |
 | Disklar | `drivers/{ata,ahci}.c`, `fs/block.c` | ATA PIO, SATA AHCI (DMA), MBR/GPT, buffer cache | 13 |
 | ext2 | `fs/ext2.c` | o'qish + yozish, e2fsck bilan tekshiriladi | 13 |
+| Signallar | `proc/signal.c` | handler, sigreturn, niqob, alarm, STOP/CONT, process group | 14 |
 | Terminal | `drivers/tty.c` | line discipline: echo, backspace, Ctrl-D, termios | 12 |
 | libc | `user/libc/*`, `user/include/*` | `stdio.h`, `unistd.h`, `FILE*` buferlash, `libc.a` | 12 |
-| Shell va utilitalar | `user/bin/*` | `|` `>` `<` `&&` `$?` glob; 40 ta dastur | 12 |
-| Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 37 ta integratsion test (BIOS/IDE + UEFI/AHCI), e2fsck | 08 |
+| Shell va utilitalar | `user/bin/*` | `|` `>` `<` `&&` `$?` glob, job control (Ctrl-Z, fg, bg); 43 ta dastur | 12, 14 |
+| Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 40 ta integratsion test (BIOS/IDE + UEFI/AHCI), e2fsck | 08 |
 
 ## Qanday o'rganish kerak
 
@@ -86,8 +87,8 @@ Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qi
    ```
 4. Har bir hujjat oxiridagi **"Sinab ko'ring"** bo'limini bajaring: kodni ataylab buzing va natijani kuzating.
 5. [docs/09-yangi-arxitektura.md](docs/09-yangi-arxitektura.md), [docs/10-smp.md](docs/10-smp.md), [docs/11-fork-cow.md](docs/11-fork-cow.md),
-   [docs/12-vfs.md](docs/12-vfs.md), [docs/13-disk-ext2.md](docs/13-disk-ext2.md) — hozirgi yadro: GRUB/UEFI,
-   higher-half, buddy, slab, SMP, fork/COW, VFS, pipe, terminal, libc, shell, disklar va ext2. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
+   [docs/12-vfs.md](docs/12-vfs.md), [docs/13-disk-ext2.md](docs/13-disk-ext2.md), [docs/14-signallar.md](docs/14-signallar.md) — hozirgi yadro: GRUB/UEFI,
+   higher-half, buddy, slab, SMP, fork/COW, VFS, pipe, terminal, libc, shell, disklar, ext2 va signallar. 01–08 bo'limlar kichik versiyani (`e5906bb`) tushuntiradi. Ular oddiyroq,
    shuning uchun avval o'shalarni o'qing.
 6. [docs/mashqlar.md](docs/mashqlar.md) — o'zingiz qo'shadigan narsalar. **Eng muhim qism shu.**
 

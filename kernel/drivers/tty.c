@@ -25,8 +25,16 @@
  *  darhol ekranda ko'rinmaydi - o'qilganda chiqadi. Linux buni uzilish
  *  kontekstida (n_tty_receive_buf) qiladi. Mashqlarga qarang.
  *
- *  Ctrl-C (VINTR) hozircha faqat joriy qatorni bekor qiladi. Signallar
- *  qo'shilgach, u oldingi plandagi jarayonga SIGINT yuboradi.
+ *  MAXSUS TUGMALAR (ISIG yoqiq bo'lsa) signalga aylanadi:
+ *      Ctrl-C  -> SIGINT    Ctrl-\ -> SIGQUIT    Ctrl-Z -> SIGTSTP
+ *  Ular OLDINGI PLANDAGI jarayon guruhiga (fg_pgrp) yuboriladi - shell buni
+ *  har bir buyruqdan oldin TIOCSPGRP bilan o'rnatadi. Bu tugmalar klaviatura
+ *  UZILISHIDA qayta ishlanadi (tty_input_signal): cheksiz tsikldagi dastur
+ *  terminaldan hech narsa o'qimasa ham Ctrl-C uni to'xtatadi.
+ *
+ *  JOB CONTROL: fon (background) guruhidagi jarayon terminaldan o'qimoqchi
+ *  bo'lsa, SIGTTIN oladi va to'xtaydi - aks holda ikki dastur bitta
+ *  klaviatura uchun "urishardi".
  * ============================================================================= */
 #include "drivers/tty.h"
 
@@ -34,6 +42,8 @@
 #include "lib/common.h"
 #include "lib/mutex.h"
 #include "lib/string.h"
+#include "proc/process.h"
+#include "proc/signal.h"
 #include "sys/uaccess.h"
 
 #define LINE_MAX 1024
@@ -48,6 +58,7 @@ static struct {
     size_t ready;                       /* shundan nechtasi dasturga berishga tayyor */
     size_t rpos;                        /* tayyor qismning qanchasi allaqachon o'qildi */
     bool eof;                           /* Ctrl-D bo'sh qatorda: keyingi read() = 0 */
+    int fg_pgrp;                        /* oldingi plan guruhi (0 - job control yo'q) */
 } tty = {
     .lock = MUTEX_INIT("tty"),
     .tio = {
@@ -55,6 +66,8 @@ static struct {
         .c_lflag = ISIG | ICANON | ECHO | ECHOE,
         .c_cc = {
             [VINTR] = CTRL('C'),
+            [VQUIT] = 0x1C,             /* Ctrl-\ */
+            [VSUSP] = CTRL('Z'),
             [VERASE] = 0x7F,
             [VKILL] = CTRL('U'),
             [VEOF] = CTRL('D'),
@@ -91,9 +104,10 @@ static void canon_input(char c)
     } else if (c == (char)cc[VKILL]) {
         while (tty.len > tty.ready)
             erase_one();
-    } else if (c == (char)cc[VINTR] && (tty.tio.c_lflag & ISIG)) {
-        tty.len = tty.ready;            /* joriy qatorni bekor qilamiz */
-        echo("^C\n", 3);
+    } else if ((tty.tio.c_lflag & ISIG) &&
+               (c == (char)cc[VINTR] || c == (char)cc[VQUIT] || c == (char)cc[VSUSP])) {
+        /* Signal allaqachon yuborilgan va "^C" chiqarilgan (tty_input_signal). */
+        tty.len = tty.ready;            /* joriy (yarim terilgan) qatorni bekor qilamiz */
     } else if (c == (char)cc[VEOF]) {
         /* Ctrl-D: qatorda nimadir bo'lsa - uni '\n' siz yuboramiz, bo'lmasa - EOF. */
         if (tty.len == tty.ready)
@@ -113,11 +127,51 @@ static void canon_input(char c)
     /* Boshqa boshqaruv belgilari (masalan, strelkalar ESC ketma-ketligi) - tashlanadi. */
 }
 
+bool tty_input_signal(char c)
+{
+    uint32_t lflag = tty.tio.c_lflag;   /* qulfsiz o'qish - uzilish kontekstida mutex yo'q */
+    if (!(lflag & ISIG))
+        return false;
+    const uint8_t *cc = tty.tio.c_cc;
+    int sig;
+    const char *shown;
+    if (c == (char)cc[VINTR])
+        sig = SIGINT, shown = "^C\n";
+    else if (c == (char)cc[VQUIT])
+        sig = SIGQUIT, shown = "^\\\n";
+    else if (c == (char)cc[VSUSP])
+        sig = SIGTSTP, shown = "^Z\n";
+    else
+        return false;
+    if (lflag & ECHO)
+        console_write(shown, strlen(shown));
+    int pg = __atomic_load_n(&tty.fg_pgrp, __ATOMIC_RELAXED);
+    if (pg > 0)
+        signal_send_pgrp(pg, sig);
+    return true;
+}
+
+/* Fon guruhidagi jarayon o'qimoqchi: SIGTTIN (standart amal - to'xtash). */
+static int background_read_check(void)
+{
+    struct process *me = current;
+    int pg = __atomic_load_n(&tty.fg_pgrp, __ATOMIC_RELAXED);
+    if (pg <= 0 || !me->is_user || me->pgid == pg)
+        return 0;
+    if (me->sig_actions[SIGTTIN].sa_handler == SIG_IGN || (me->sig_blocked & (1u << SIGTTIN)))
+        return -EIO;                    /* POSIX: to'xtatib bo'lmasa - xato */
+    signal_send_pgrp(me->pgid, SIGTTIN);
+    return -EINTR;                      /* to'xtaydi; SIGCONT dan keyin read qayta boshlanadi */
+}
+
 static int64_t tty_read(struct file *f, void *buf, size_t len, uint64_t off)
 {
     (void)f, (void)off;
     if (len == 0)
         return 0;
+    int bg = background_read_check();
+    if (bg)
+        return bg;
     mutex_lock(&tty.lock);
     int64_t ret;
 
@@ -196,6 +250,19 @@ static int tty_ioctl(struct file *f, uint64_t cmd, uint64_t arg)
             tty.eof = false;
         }
         mutex_unlock(&tty.lock);
+        return 0;
+    }
+    case TIOCGPGRP: {
+        int32_t pg = tty.fg_pgrp;
+        return copy_to_user(arg, &pg, sizeof(pg)) ? -EFAULT : 0;
+    }
+    case TIOCSPGRP: {                   /* tcsetpgrp: shell buyruqni oldingi planga o'tkazadi */
+        int32_t pg;
+        if (copy_from_user(&pg, arg, sizeof(pg)))
+            return -EFAULT;
+        if (pg < 0)
+            return -EINVAL;
+        __atomic_store_n(&tty.fg_pgrp, pg, __ATOMIC_RELAXED);
         return 0;
     }
     case TIOCGWINSZ: {

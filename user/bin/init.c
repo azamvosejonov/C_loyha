@@ -14,6 +14,7 @@
  *  ishga tushiradi.
  * ============================================================================= */
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -39,6 +40,9 @@ static int run(char *const argv[])
 
 int main(void)
 {
+    /* Yangi SESSIYA: init barcha foydalanuvchi jarayonlarining "ajdodi". Shell
+     * o'z guruhini (job control) shu sessiya ichida yaratadi. */
+    setsid();
     struct stat st;
     if (stat("/etc/rc", &st) == 0) {
         char *rc[] = { "/bin/sh", "/etc/rc", NULL };
@@ -53,6 +57,10 @@ int main(void)
         last_start = uptime_ms();
         char *sh[] = { "/bin/sh", NULL };
         int status = run(sh);
-        printf("[init] shell tugadi (kod %d) - yangisi ochilmoqda\n", status);
+        if (WIFSIGNALED(status))
+            printf("[init] shell signal bilan tugadi (%s) - yangisi ochilmoqda\n",
+                   strsignal(WTERMSIG(status)));
+        else
+            printf("[init] shell tugadi (kod %d) - yangisi ochilmoqda\n", WEXITSTATUS(status));
     }
 }

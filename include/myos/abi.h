@@ -67,7 +67,15 @@
 #define SYS_TIME     41                 /* time() -> Unix vaqti (soniya)             */
 #define SYS_IOCTL    42
 #define SYS_UMOUNT   43
-#define SYS_COUNT    44
+#define SYS_SIGACTION   44              /* sigaction(sig, &yangi, &eski)             */
+#define SYS_SIGPROCMASK 45              /* sigprocmask(how, &set, &eski)             */
+#define SYS_SIGRETURN   46              /* signal handler'dan qaytish (libc chaqiradi) */
+#define SYS_SETPGID     47              /* setpgid(pid, pgid)                        */
+#define SYS_GETPGID     48              /* getpgid(pid)                              */
+#define SYS_SETSID      49              /* setsid() - yangi sessiya                  */
+#define SYS_ALARM       50              /* alarm(soniya) -> SIGALRM                  */
+#define SYS_PAUSE       51              /* signal kelguncha uxlash                   */
+#define SYS_COUNT       52
 
 /* ---- Xato kodlari (errno) - Linux bilan AYNAN bir xil qiymatlar ----
  * Yadro xatoda MANFIY kod qaytaradi (-ENOENT), libc uni errno ga yozib -1
@@ -181,6 +189,8 @@ struct myos_dirent {                    /* libc'da: struct dirent */
 #define TCGETS      0x5401              /* ioctl(fd, TCGETS, &termios) */
 #define TCSETS      0x5402              /* ioctl(fd, TCSETS, &termios) */
 #define TIOCGWINSZ  0x5413              /* ioctl(fd, TIOCGWINSZ, &winsize) */
+#define TIOCGPGRP   0x540F              /* terminalning oldingi plan guruhi */
+#define TIOCSPGRP   0x5410
 
 #define ISIG    0000001                 /* Ctrl-C va boshqalar signal yuboradi */
 #define ICANON  0000002                 /* kanonik (qatorli) rejim */
@@ -190,10 +200,12 @@ struct myos_dirent {                    /* libc'da: struct dirent */
 #define ICRNL   0000400                 /* kiritishda \r -> \n (iflag) */
 
 #define VINTR   0                       /* c_cc indekslari */
+#define VQUIT   1
 #define VERASE  2
 #define VKILL   3
 #define VEOF    4
 #define VMIN    6
+#define VSUSP   10
 #define NCCS    19
 
 struct myos_termios {                   /* Linux yadrosidagi struct termios bilan bir xil joylashuv */
@@ -211,6 +223,60 @@ struct myos_winsize {
 
 /* wait() bayroqlari */
 #define WAIT_NOHANG  1                  /* bola hali tugamagan bo'lsa kutmasdan 0 qaytar */
+#define WAIT_UNTRACED 2                 /* TO'XTAGAN (Ctrl-Z) bolalar haqida ham xabar ber */
+
+/* wait() holat so'zi (POSIX/Linux bilan bir xil kodlash):
+ *   tugadi:          (kod << 8)          WIFEXITED,   WEXITSTATUS
+ *   signal o'ldirdi: signal              WIFSIGNALED, WTERMSIG
+ *   to'xtatildi:     (signal << 8) | 0x7F WIFSTOPPED, WSTOPSIG */
+
+/* ---- Signallar (raqamlar Linux x86 bilan bir xil) ----
+ * Signal - jarayonga yuboriladigan asinxron "xabar". Jarayon uni e'tiborsiz
+ * qoldirishi, o'z funksiyasi (handler) bilan ushlashi yoki standart amalga
+ * (odatda - tugash) qoldirishi mumkin. SIGKILL va SIGSTOP ni ushlab bo'lmaydi. */
+#define SIGHUP    1                     /* terminal yopildi */
+#define SIGINT    2                     /* Ctrl-C */
+#define SIGQUIT   3                     /* Ctrl-\ */
+#define SIGILL    4                     /* noto'g'ri instruksiya */
+#define SIGTRAP   5
+#define SIGABRT   6                     /* abort() */
+#define SIGBUS    7
+#define SIGFPE    8                     /* nolga bo'lish */
+#define SIGKILL   9                     /* darhol o'ldirish (ushlab bo'lmaydi) */
+#define SIGUSR1   10
+#define SIGSEGV   11                    /* noto'g'ri xotira murojaati */
+#define SIGUSR2   12
+#define SIGPIPE   13                    /* o'quvchisiz pipe'ga yozish */
+#define SIGALRM   14                    /* alarm() vaqti tugadi */
+#define SIGTERM   15                    /* "iltimos, tugat" (kill ning sukuti) */
+#define SIGCHLD   17                    /* bola tugadi yoki to'xtadi */
+#define SIGCONT   18                    /* to'xtagan jarayonni davom ettirish */
+#define SIGSTOP   19                    /* to'xtatish (ushlab bo'lmaydi) */
+#define SIGTSTP   20                    /* Ctrl-Z */
+#define SIGTTIN   21                    /* fon jarayoni terminaldan o'qimoqchi */
+#define SIGTTOU   22
+#define SIGWINCH  28                    /* terminal o'lchami o'zgardi */
+#define NSIG      32
+
+#define SIG_DFL   0                     /* standart amal */
+#define SIG_IGN   1                     /* e'tiborsiz qoldirish */
+
+#define SA_RESTART   0x10000000         /* uzilgan syscall avtomatik qayta boshlansin */
+#define SA_RESTORER  0x04000000         /* sa_restorer to'ldirilgan (libc doim qo'yadi) */
+#define SA_NODEFER   0x40000000         /* handler ichida shu signal bloklanmasin */
+#define SA_RESETHAND 0x80000000         /* bir martalik: keyin SIG_DFL */
+
+#define SIG_BLOCK    0
+#define SIG_UNBLOCK  1
+#define SIG_SETMASK  2
+
+/* Linux yadrosining x86-64 dagi struct sigaction'i bilan bir xil joylashuv. */
+struct myos_sigaction {
+    uint64_t sa_handler;                /* SIG_DFL, SIG_IGN yoki funksiya manzili */
+    uint64_t sa_flags;
+    uint64_t sa_restorer;               /* handler qaytadigan joy (sigreturn chaqiradi) */
+    uint64_t sa_mask;                   /* handler ishlayotganda qo'shimcha bloklanadiganlar */
+};
 
 #define MYOS_NAME_MAX 32
 
@@ -231,6 +297,7 @@ struct myos_meminfo {
 #define MYOS_PROC_RUNNING 3
 #define MYOS_PROC_BLOCKED 4
 #define MYOS_PROC_ZOMBIE  5
+#define MYOS_PROC_STOPPED 7
 
 struct myos_pci_info {
     uint8_t bus, dev, func, class_code;
@@ -253,6 +320,8 @@ struct myos_sysinfo {
 struct myos_proc_info {
     int32_t pid;
     int32_t ppid;
+    int32_t pgid;                       /* jarayon guruhi (job) */
+    int32_t sid;                        /* sessiya */
     int32_t state;
     int32_t is_user;
     uint64_t cpu_ticks;

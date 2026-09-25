@@ -41,6 +41,7 @@
 #include "mm/slab.h"
 #include "myos/abi.h"
 #include "proc/process.h"
+#include "proc/signal.h"
 #include "sys/sys_fs.h"
 #include "sys/uaccess.h"
 
@@ -101,14 +102,14 @@ static int64_t with_path_argv(uint64_t upath, uint64_t uargv, struct interrupt_f
 
 static int64_t sys_wait(int64_t pid, uint64_t ustatus, uint64_t flags)
 {
-    int code = 0;
-    int r = proc_wait((int)pid, &code, (flags & WAIT_NOHANG) != 0);
+    int status = 0;
+    int r = proc_wait((int)pid, &status, (int)(flags & (WAIT_NOHANG | WAIT_UNTRACED)));
     if (r > 0 && ustatus) {
-        int32_t c = code;
-        if (copy_to_user(ustatus, &c, sizeof(c)))
+        int32_t st = status;
+        if (copy_to_user(ustatus, &st, sizeof(st)))
             return -EFAULT;
     }
-    return r < 0 ? -ECHILD : r;
+    return r;
 }
 
 static int64_t sys_mmap(uint64_t addr, uint64_t len, uint64_t prot, uint64_t flags)
@@ -247,8 +248,24 @@ void syscall_dispatch(struct interrupt_frame *f)
         case SYS_GETPID:   ret = current->pid; break;
         case SYS_GETPPID:  ret = current->parent ? current->parent->pid : 0; break;
         case SYS_YIELD:    proc_yield(); ret = 0; break;
-        case SYS_SLEEP:    proc_sleep_ms(a1); ret = 0; break;
-        case SYS_KILL:     ret = (int64_t)a1 <= 1 ? -EPERM : (proc_kill((int)a1) ? -ESRCH : 0); break;
+        case SYS_SLEEP: {
+            /* Signal uzsa: qolgan vaqtni argumentga yozib qo'yamiz - qayta
+             * boshlansa (Ctrl-Z + fg), faqat QOLGAN qismi uxlanadi. */
+            uint64_t left = proc_sleep_ms(a1);
+            if (left)
+                f->rdi = left;
+            ret = left ? -EINTR : 0;
+            break;
+        }
+        case SYS_KILL:     ret = signal_kill((int)(int64_t)a1, (int)a2); break;
+        case SYS_SIGACTION:   ret = sys_sigaction(a1, a2, a3); break;
+        case SYS_SIGPROCMASK: ret = sys_sigprocmask(a1, a2, a3); break;
+        case SYS_SIGRETURN:   ret = sys_sigreturn(f); break;
+        case SYS_SETPGID:     ret = sys_setpgid((int64_t)a1, (int64_t)a2); break;
+        case SYS_GETPGID:     ret = sys_getpgid((int64_t)a1); break;
+        case SYS_SETSID:      ret = sys_setsid(); break;
+        case SYS_ALARM:       ret = sys_alarm(a1); break;
+        case SYS_PAUSE:       ret = sys_pause(); break;
         case SYS_SBRK:     ret = (int64_t)mm_sbrk(current->mm, (int64_t)a1); break;
         case SYS_MMAP:     ret = sys_mmap(a1, a2, a3, a4); break;
         case SYS_MUNMAP:   ret = mm_unmap(current->mm, a1, a2) ? -EINVAL : 0; break;
@@ -264,11 +281,19 @@ void syscall_dispatch(struct interrupt_frame *f)
         default:           ret = -ENOSYS; break;                 /* noma'lum syscall */
         }
     }
-    f->rax = (uint64_t)ret;             /* natija user'ning RAX registriga */
+    /* Signal bilan uzilgan syscall: SA_RESTART bo'lsa (yoki Ctrl-Z bilan
+     * to'xtatilgan bo'lsa) - `syscall` instruksiyasini QAYTA bajaramiz: RIP ni
+     * 2 bayt (syscall = 0F 05) orqaga, RAX = asl raqam. Argumentlar
+     * (RDI, RSI ...) freymda o'zgarmagan. */
+    if (ret == -EINTR && signal_should_restart(nr)) {
+        f->rax = nr;
+        f->rip -= 2;
+    } else {
+        f->rax = (uint64_t)ret;         /* natija user'ning RAX registriga */
+    }
 
-    /* User rejimiga qaytish arafasi - kill() belgisini tekshirish joyi. */
-    if (current->killed)
-        proc_exit(-1);
+    /* User rejimiga qaytish arafasi - signallarni yetkazish joyi. */
+    signal_deliver(f);
 }
 
 extern void syscall_entry(void);        /* syscall_entry.asm */

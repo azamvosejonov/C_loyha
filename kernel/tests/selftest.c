@@ -279,7 +279,7 @@ static int counter_thread(void *arg)
         if (i % 100 == 0)
             proc_yield();
     }
-    return n;
+    return n % 256;                     /* chiqish kodi 8 bit (wait holat so'zi) */
 }
 
 /* Spinlock testi: ODDIY (atomar bo'lmagan) ++ ni qulf bilan himoyalaymiz. Qulf
@@ -326,6 +326,9 @@ static int flag_setter_thread(void *arg)
     return 0;
 }
 
+/* proc_wait holat so'zidan exit() kodi (abi.h: WEXITSTATUS). */
+#define EXIT_CODE(st) (((st) >> 8) & 0xFF)
+
 static void test_proc(void)
 {
     kprintf("[test] jarayonlar / scheduler...\n");
@@ -337,30 +340,30 @@ static void test_proc(void)
     int p2 = proc_create_kernel_thread("t-count2", counter_thread, (void *)1000);
     int p3 = proc_create_kernel_thread("t-count3", counter_thread, (void *)1000);
     CHECK(p1 > 0 && p2 > 0 && p3 > 0);
-    CHECK(proc_wait(p1, &code, false) == p1 && code == 1000);
-    CHECK(proc_wait(p2, &code, false) == p2 && code == 1000);
-    CHECK(proc_wait(p3, &code, false) == p3 && code == 1000);
+    CHECK(proc_wait(p1, &code, 0) == p1 && EXIT_CODE(code) == 1000 % 256);
+    CHECK(proc_wait(p2, &code, 0) == p2 && EXIT_CODE(code) == 1000 % 256);
+    CHECK(proc_wait(p3, &code, 0) == p3 && EXIT_CODE(code) == 1000 % 256);
     CHECK(shared_counter == 3000);
 
     locked_counter = 0;
     int l1 = proc_create_kernel_thread("t-lock1", lock_thread, (void *)20000);
     int l2 = proc_create_kernel_thread("t-lock2", lock_thread, (void *)20000);
     int l3 = proc_create_kernel_thread("t-lock3", lock_thread, (void *)20000);
-    proc_wait(l1, &code, false);
-    proc_wait(l2, &code, false);
-    proc_wait(l3, &code, false);
+    proc_wait(l1, &code, 0);
+    proc_wait(l2, &code, 0);
+    proc_wait(l3, &code, 0);
     CHECK(locked_counter == 60000);
 
     int ps = proc_create_kernel_thread("t-sleep", sleeper_thread, NULL);
-    CHECK(proc_wait(ps, &code, false) == ps && code >= 10);
+    CHECK(proc_wait(ps, &code, 0) == ps && EXIT_CODE(code) >= 10);
 
     flag_from_other_thread = 0;
     int sp = proc_create_kernel_thread("t-spin", spinner_thread, NULL);
     int fs = proc_create_kernel_thread("t-flag", flag_setter_thread, NULL);
-    CHECK(proc_wait(sp, &code, false) == sp && code == 1);
-    CHECK(proc_wait(fs, &code, false) == fs);
+    CHECK(proc_wait(sp, &code, 0) == sp && EXIT_CODE(code) == 1);
+    CHECK(proc_wait(fs, &code, 0) == fs);
 
-    CHECK(proc_wait(-1, &code, false) == -1);
+    CHECK(proc_wait(-1, &code, 0) == -ECHILD);         /* bolalar qolmadi */
     CHECK(pmm_free_pages_count() == free_before);       /* yadro steklari qaytdi */
 }
 

@@ -34,11 +34,19 @@ void exit(int code)
     _exit(code);
 }
 
+/* abort: SIGABRT ni o'zimizga yuboramiz. Handler bo'lsa ham qaytib kelsa -
+ * standart amalni tiklab, yana yuboramiz (POSIX: abort qaytmaydi). */
 void abort(void)
 {
     fflush(NULL);
-    fputs("abort()\n", stderr);
-    _exit(134);                         /* 128 + SIGABRT(6) - Linux shell shunday ko'rsatadi */
+    sigset_t s;
+    sigemptyset(&s);
+    sigaddset(&s, SIGABRT);
+    sigprocmask(SIG_UNBLOCK, &s, NULL);
+    raise(SIGABRT);
+    signal(SIGABRT, SIG_DFL);
+    raise(SIGABRT);
+    _exit(127);
 }
 
 int abs(int x)

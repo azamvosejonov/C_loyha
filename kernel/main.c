@@ -89,8 +89,8 @@ static int init_thread(void *arg)
     if (cmdline_has("threads")) {
         int a = proc_create_kernel_thread("ticker-A", ticker_thread, "A");
         int b = proc_create_kernel_thread("ticker-B", ticker_thread, "B");
-        proc_wait(a, NULL, false);
-        proc_wait(b, NULL, false);
+        proc_wait(a, NULL, 0);
+        proc_wait(b, NULL, 0);
     }
 
     static char path[64];
@@ -107,8 +107,8 @@ static int init_thread(void *arg)
         if (pid < 0)
             panic("init: %s ni ishga tushirib bo'lmadi (xato %d)", path, pid);
         int code;
-        proc_wait(pid, &code, false);
-        kprintf("[init] %s tugadi (kod %d) - qayta ishga tushiramiz\n", path, code);
+        proc_wait(pid, &code, 0);
+        kprintf("[init] %s tugadi (holat 0x%x) - qayta ishga tushiramiz\n", path, code);
     }
 }
 

@@ -28,6 +28,7 @@
  *        RSP ─────► └────────────────────┘   RDI = argc, RSI = &argv[0]
  * ============================================================================= */
 #include "proc/process.h"
+#include "proc/signal.h"
 
 #include "arch/gdt.h"
 #include "arch/interrupts.h"
@@ -177,6 +178,7 @@ int proc_spawn(const char *path, int argc, char *const argv[])
     p->is_user = true;
     p->mm = img.mm;
     p->pml4 = img.mm->pml4;
+    signal_exec_reset(p);               /* spawn = fork + exec */
     init_user_frame(prepare_kstack(p), &img, argc);
     /* stdin, stdout, stderr: agar chaqiruvchida bo'lsa - meros, aks holda konsol. */
     struct process *par = current;
@@ -213,6 +215,7 @@ int proc_exec(struct interrupt_frame *f, const char *path, int argc, char *const
     vmm_switch(p->pml4);
     if (old)
         mm_destroy(old);                /* eski dasturning butun xotirasi */
+    signal_exec_reset(p);               /* eski handler funksiyalari endi yo'q */
 
     init_user_frame(f, &img, argc);     /* syscall'dan "qaytish" yangi dastur boshiga */
     return 0;

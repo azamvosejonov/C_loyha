@@ -16,7 +16,7 @@
 
 int spawn(const char *path, char *const argv[]);    /* fork+exec bitta chaqiruvda */
 void yield(void);
-void sleep_ms(uint64_t ms);
+uint64_t sleep_ms(uint64_t ms);           /* != 0 - signal uzdi */
 uint64_t uptime_ms(void);
 int meminfo(struct myos_meminfo *out);
 int ps(struct myos_proc_info *buf, int max);

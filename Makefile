@@ -132,7 +132,8 @@ KERNEL_OBJ := $(patsubst %,$(BUILD)/%.o,$(KERNEL_C) $(KERNEL_ASM))
 # Bizning libc: crt0.o (dastur boshlanishi) + libc.a (STATIK KUTUBXONA - .o
 # fayllar arxivi). Linker arxivdan faqat KERAKLI .o fayllarni oladi: `true`
 # dasturiga printf kodi qo'shilmaydi. glibc'ning libc.a si ham shunday ishlaydi.
-LIBC_OBJ := $(patsubst %,$(BUILD)/%.o,$(wildcard user/libc/*.c))
+LIBC_OBJ := $(patsubst %,$(BUILD)/%.o,$(wildcard user/libc/*.c) \
+              $(filter-out user/libc/crt0.asm,$(wildcard user/libc/*.asm)))
 CRT0     := $(BUILD)/user/libc/crt0.asm.o
 LIBC_A   := $(BUILD)/user/libc.a
 

@@ -47,6 +47,7 @@
 #include "mm/pmm.h"
 #include "mm/vmalloc.h"
 #include "mm/vmm.h"
+#include "proc/signal.h"
 
 _Static_assert(PROC_EMBRYO == MYOS_PROC_EMBRYO && PROC_READY == MYOS_PROC_READY &&
                PROC_RUNNING == MYOS_PROC_RUNNING && PROC_BLOCKED == MYOS_PROC_BLOCKED &&
@@ -91,6 +92,15 @@ struct process *proc_alloc(const char *name)
     p->state = PROC_EMBRYO;             /* joy band, lekin scheduler hali ko'rmaydi */
     p->pid = next_pid++;
     p->parent = current;
+    /* Otadan meros: jarayon guruhi, sessiya, signal handler'lari va niqobi
+     * (fork semantikasi; exec keyin handler'larni tozalaydi). */
+    struct process *par = current;
+    if (par && !par->is_idle) {
+        p->pgid = par->pgid;
+        p->sid = par->sid;
+        memcpy(p->sig_actions, par->sig_actions, sizeof(p->sig_actions));
+        p->sig_blocked = par->sig_blocked;
+    }
     spin_unlock(&proc_lock);
 
     strlcpy(p->name, name, sizeof(p->name));
@@ -107,7 +117,6 @@ struct process *proc_alloc(const char *name)
     p->quantum_left = SCHED_QUANTUM;
     p->last_cpu = -1;
     /* Joriy papka otadan meros (yadro oqimlari uchun - ildiz). */
-    struct process *par = p->parent;
     if (par && !par->is_idle && par->cwd) {
         p->cwd = iget(par->cwd);
         strlcpy(p->cwd_path, par->cwd_path, sizeof(p->cwd_path));
@@ -303,6 +312,7 @@ void sched_tick(void)
                 p->wake_tick <= now)
                 p->state = PROC_READY;
         }
+        signal_check_alarms_locked(now);
         spin_unlock(&proc_lock);
     }
 
@@ -370,6 +380,25 @@ static void wakeup_locked(const void *channel)
     }
 }
 
+void proc_wake_locked(struct process *p)
+{
+    if (p->state == PROC_BLOCKED)
+        p->state = PROC_READY;
+}
+
+struct process *proc_slot(int i)
+{
+    return &procs[i];
+}
+
+struct process *proc_find_locked(int pid)
+{
+    for (int i = 0; i < MAX_PROCS; i++)
+        if (procs[i].state != PROC_UNUSED && procs[i].pid == pid)
+            return &procs[i];
+    return NULL;
+}
+
 void proc_wakeup(const void *channel)
 {
     spin_lock(&proc_lock);
@@ -377,14 +406,17 @@ void proc_wakeup(const void *channel)
     spin_unlock(&proc_lock);
 }
 
-void proc_sleep_ms(uint64_t ms)
+uint64_t proc_sleep_ms(uint64_t ms)
 {
     uint64_t ticks = (ms * TIMER_HZ + 999) / 1000;
     spin_lock(&proc_lock);
     current->wake_tick = timer_ticks() + (ticks ? ticks : 1);
-    while (timer_ticks() < current->wake_tick && !current->killed)
+    while (timer_ticks() < current->wake_tick && !signal_interrupted(current))
         proc_sleep(&sleep_channel, &proc_lock);
+    uint64_t now = timer_ticks();
+    uint64_t left = now < current->wake_tick ? (current->wake_tick - now) * 1000 / TIMER_HZ : 0;
     spin_unlock(&proc_lock);
+    return left;
 }
 
 /* ---- Tugash va kutish ------------------------------------------------------- */
@@ -399,7 +431,8 @@ static void proc_close_all_files(struct process *p)
     }
 }
 
-void proc_exit(int code)
+/* Tugashning umumiy qismi. status - wait() holat so'zi. */
+__attribute__((noreturn)) static void do_exit(int status)
 {
     struct process *me = current;
     if (me->is_idle)
@@ -424,19 +457,62 @@ void proc_exit(int code)
     }
 
     spin_lock(&proc_lock);
-    me->exit_code = code;
+    me->exit_status = status;
     /* Bolalarimizni yetim qilamiz; zombie bo'lganlarini CPU0 tozalaydi. */
     for (int i = 0; i < MAX_PROCS; i++)
         if (procs[i].state != PROC_UNUSED && procs[i].parent == me)
             procs[i].parent = NULL;
     me->state = PROC_ZOMBIE;
-    if (me->parent)
+    if (me->parent) {
         wakeup_locked(me->parent);      /* ota-ona wait() da o'z manzili ustida uxlaydi */
+        signal_send_locked(me->parent, SIGCHLD);
+    }
     sched();                            /* ZOMBIE hech qachon tanlanmaydi */
     panic("proc_exit: zombie qayta ishga tushdi");
 }
 
-int proc_wait(int pid, int *exit_code, bool nohang)
+void proc_exit(int code)
+{
+    do_exit((code & 0xFF) << 8);        /* WIFEXITED, WEXITSTATUS = code */
+}
+
+void proc_exit_signal(int sig)
+{
+    do_exit(sig & 0x7F);                /* WIFSIGNALED, WTERMSIG = sig */
+}
+
+void proc_stop_self(int sig)
+{
+    struct process *me = current;
+    spin_lock(&proc_lock);
+    if (me->killed) {                   /* SIGKILL to'xtashdan ustun */
+        spin_unlock(&proc_lock);
+        return;
+    }
+    me->state = PROC_STOPPED;
+    me->stop_sig = sig;
+    me->stop_reported = false;
+    if (me->parent) {
+        wakeup_locked(me->parent);      /* waitpid(WUNTRACED) kutayotgan shell */
+        signal_send_locked(me->parent, SIGCHLD);
+    }
+    sched();                            /* SIGCONT (yoki SIGKILL) READY qilguncha */
+    spin_unlock(&proc_lock);
+}
+
+/* Bola wait() so'roviga mosmi? */
+static bool wait_matches(const struct process *p, int pid)
+{
+    if (pid > 0)
+        return p->pid == pid;
+    if (pid == -1)
+        return true;
+    if (pid == 0)
+        return p->pgid == current->pgid;
+    return p->pgid == -pid;
+}
+
+int proc_wait(int pid, int *status, int flags)
 {
     spin_lock(&proc_lock);
     for (;;) {
@@ -444,61 +520,53 @@ int proc_wait(int pid, int *exit_code, bool nohang)
         struct process *found = NULL;
         for (int i = 0; i < MAX_PROCS; i++) {
             struct process *p = &procs[i];
-            if (p->state == PROC_UNUSED || p->parent != current)
-                continue;
-            if (pid != -1 && p->pid != pid)
+            if (p->state == PROC_UNUSED || p->parent != current || !wait_matches(p, pid))
                 continue;
             have_child = true;
             if (p->state == PROC_ZOMBIE) {
                 found = p;
                 break;
             }
+            if (p->state == PROC_STOPPED && (flags & WAIT_UNTRACED) && !p->stop_reported) {
+                p->stop_reported = true;
+                if (status)
+                    *status = (p->stop_sig << 8) | 0x7F;    /* WIFSTOPPED */
+                int fpid = p->pid;
+                spin_unlock(&proc_lock);
+                return fpid;
+            }
         }
         if (found) {
             int fpid = found->pid;
-            if (exit_code)
-                *exit_code = found->exit_code;
+            if (status)
+                *status = found->exit_status;
             found->state = PROC_DEAD;   /* hech kim tegmasin */
             spin_unlock(&proc_lock);
             proc_free(found);           /* qulfsiz: vfree TLB shootdown qilishi mumkin */
             return fpid;
         }
-        if (!have_child || current->killed) {
+        if (!have_child) {
             spin_unlock(&proc_lock);
-            return -1;
+            return -ECHILD;
         }
-        if (nohang) {
+        if (flags & WAIT_NOHANG) {
             spin_unlock(&proc_lock);
             return 0;
+        }
+        if (signal_interrupted(current)) {
+            spin_unlock(&proc_lock);
+            return -EINTR;
         }
         proc_sleep(current, &proc_lock);
     }
-}
-
-int proc_kill(int pid)
-{
-    spin_lock(&proc_lock);
-    for (int i = 0; i < MAX_PROCS; i++) {
-        struct process *p = &procs[i];
-        if (p->pid == pid && p->state != PROC_UNUSED && p->state != PROC_ZOMBIE &&
-            p->state != PROC_DEAD) {
-            /* Boshqa jarayonni zo'rlab to'xtatmaymiz (u yadroda resurs ushlab turgan
-             * bo'lishi mumkin) - faqat BELGI. U user rejimiga qaytishda o'zi chiqadi. */
-            p->killed = true;
-            if (p->state == PROC_BLOCKED)
-                p->state = PROC_READY;
-            spin_unlock(&proc_lock);
-            return 0;
-        }
-    }
-    spin_unlock(&proc_lock);
-    return -1;
 }
 
 static void fill_info(struct myos_proc_info *o, const struct process *p)
 {
     o->pid = p->pid;
     o->ppid = p->parent ? p->parent->pid : -1;
+    o->pgid = p->pgid;
+    o->sid = p->sid;
     o->state = p->state == PROC_DEAD ? PROC_ZOMBIE : p->state;
     o->is_user = p->is_user;
     o->cpu_ticks = p->cpu_ticks;

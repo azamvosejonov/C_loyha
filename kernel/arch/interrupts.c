@@ -25,6 +25,7 @@
 #include "lib/panic.h"
 #include "mm/mm.h"
 #include "proc/process.h"
+#include "proc/signal.h"
 
 static interrupt_handler_t handlers[256];
 
@@ -82,12 +83,28 @@ static void explain_page_fault(uint64_t err)
             (err & 16) ? ", instruksiya o'qishda" : "");
 }
 
+/* CPU exception'i qaysi signalga aylanadi (Linux bilan bir xil). */
+static int exception_signal(uint64_t v)
+{
+    switch (v) {
+    case 0:  return SIGFPE;             /* #DE nolga bo'lish */
+    case 16:
+    case 19: return SIGFPE;             /* x87 / SIMD suzuvchi nuqta */
+    case 1:
+    case 3:  return SIGTRAP;            /* debug, int3 */
+    case 6:  return SIGILL;             /* #UD noma'lum instruksiya */
+    case 17: return SIGBUS;             /* #AC tekislash */
+    default: return SIGSEGV;            /* #GP, #PF, #SS ... */
+    }
+}
+
 static void handle_exception(struct interrupt_frame *frame)
 {
     uint64_t v = frame->vector;
 
-    /* int3 (breakpoint) - xato emas, debug uchun. Xabar berib davom etamiz. */
-    if (v == 3) {
+    /* Yadrodagi int3 (breakpoint) - xato emas, debug uchun. Xabar berib davom
+     * etamiz. User dasturida esa SIGTRAP (debugger'lar shunga tayanadi). */
+    if (v == 3 && !frame_from_user(frame)) {
         kprintf("[int3] Breakpoint: RIP=%p - davom etamiz\n", (void *)frame->rip);
         return;
     }
@@ -103,11 +120,18 @@ static void handle_exception(struct interrupt_frame *frame)
         return;
 
     if (frame_from_user(frame)) {
-        kprintf("\n[kernel] '%s' (pid %d) o'ldirildi: %s, RIP=%p\n",
-                current->name, current->pid, exception_names[v], (void *)frame->rip);
-        if (v == 14)
-            explain_page_fault(frame->error_code);
-        proc_exit(128 + (int)v);        /* Unix an'anasi: 128 + signal/xato raqami */
+        /* Exception -> signal. Dastur handler o'rnatgan bo'lsa (masalan, SIGSEGV
+         * ni ushlab, xatoni o'zi hal qilmoqchi) - handler chaqiriladi. Aks holda
+         * standart amal: jarayon tugaydi (Linux: "Segmentation fault"). */
+        int sig = exception_signal(v);
+        if (signal_force(sig)) {
+            kprintf("\n[kernel] '%s' (pid %d) o'ldirildi: %s, RIP=%p\n",
+                    current->name, current->pid, exception_names[v], (void *)frame->rip);
+            if (v == 14)
+                explain_page_fault(frame->error_code);
+            proc_exit_signal(sig);
+        }
+        return;                         /* handler qaytishda (signal_deliver) chaqiriladi */
     }
 
     /* YADRODAGI XATO: tuzatib bo'lmaydi - bu bizning kodimizdagi bug. */
@@ -126,6 +150,8 @@ void interrupt_dispatch(struct interrupt_frame *frame)
 
     if (v < 32) {
         handle_exception(frame);
+        if (frame_from_user(frame))
+            signal_deliver(frame);
         return;
     }
 
@@ -155,10 +181,11 @@ void interrupt_dispatch(struct interrupt_frame *frame)
     else
         kprintf("[int] Kutilmagan uzilish: vektor %lu\n", v);
 
-    /* User rejimiga qaytish arafasi - kill() belgisini tekshirish uchun
-     * xavfsiz nuqta: jarayon yadroda hech qanday resurs ushlab turmaydi. */
-    if (frame_from_user(frame) && current->killed)
-        proc_exit(-1);
+    /* User rejimiga qaytish arafasi - signallarni yetkazish uchun xavfsiz
+     * nuqta: jarayon yadroda hech qanday qulf yoki resurs ushlab turmaydi.
+     * Taymer uzilishi tufayli cheksiz tsikldagi dastur ham Ctrl-C ni oladi. */
+    if (frame_from_user(frame))
+        signal_deliver(frame);
 }
 
 void interrupt_register(uint8_t vector, interrupt_handler_t handler)

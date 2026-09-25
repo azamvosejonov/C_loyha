@@ -103,7 +103,7 @@ o'rniga "major, minor" ni ko'rsatadi.
 - Bufer bo'sh → o'quvchi **uxlaydi**. To'la → yozuvchi **uxlaydi** (backpressure). `seq 20000 | grep 7`
   da `seq` `grep` dan tezroq ishlaydi, lekin xotirani to'ldirib yubora olmaydi.
 - **Barcha** yozish uchlari yopilsa, o'quvchi `read() == 0` (EOF) oladi.
-- O'quvchi qolmasa, yozish `-EPIPE` qaytaradi. Signallar qo'shilgach, `SIGPIPE` ham yuboriladi.
+- O'quvchi qolmasa, yozuvchi `SIGPIPE` oladi va yozish `-EPIPE` qaytaradi.
 
 ### Eng mashhur pipe xatosi
 
@@ -130,7 +130,7 @@ emas, yadroda bajariladi:
 | Ctrl-U | butun qator o'chadi |
 | Enter | qator dasturga beriladi (`read()` qaytadi) |
 | Ctrl-D | bo'sh qatorda **EOF** (`read() == 0`), aks holda qatorni `\n` siz yuboradi |
-| Ctrl-C | qator bekor qilinadi (signallar qo'shilgach SIGINT yuboradi) |
+| Ctrl-C / Ctrl-Z | oldingi plan guruhiga SIGINT / SIGTSTP ([14-signallar.md](14-signallar.md)) |
 
 Muharrir va o'yinlar **xom rejimga** o'tadi: `tcgetattr` → `c_lflag &= ~(ICANON|ECHO)` → `tcsetattr`.
 Bular `ioctl(fd, TCGETS/TCSETS)` chaqiruvlari bo'lib, raqamlar va `struct termios` Linux bilan bir xil.

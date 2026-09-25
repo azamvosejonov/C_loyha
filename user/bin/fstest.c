@@ -20,6 +20,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -221,7 +222,11 @@ static void test_pipe(void)
 
     check(pipe(p) == 0, "ikkinchi pipe");
     close(p[0]);                        /* o'quvchi yo'q */
+    /* Odatda bunda SIGPIPE jarayonni O'LDIRADI. Xato kodini ko'rish uchun
+     * signalni vaqtincha e'tiborsiz qoldiramiz. */
+    signal(SIGPIPE, SIG_IGN);
     check(write(p[1], "x", 1) < 0 && errno == EPIPE, "o'quvchisiz pipe'ga yozish -> EPIPE");
+    signal(SIGPIPE, SIG_DFL);
     close(p[1]);
 }
 

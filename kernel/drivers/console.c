@@ -24,9 +24,11 @@
 
 #include "arch/interrupts.h"
 #include "drivers/serial.h"
+#include "drivers/tty.h"
 #include "lib/klog.h"
 #include "lib/spinlock.h"
 #include "proc/process.h"
+#include "proc/signal.h"
 
 #define INPUT_BUFFER_SIZE 1024          /* 2 ning darajasi bo'lishi SHART */
 
@@ -120,6 +122,7 @@ size_t console_read_log(char *buf, size_t size)
 /* Uzilish kontekstidan chaqiriladi (klaviatura yoki serial IRQ). */
 void console_input_char(char c)
 {
+    tty_input_signal(c);                /* Ctrl-C -> SIGINT (uzilish kontekstida, darhol) */
     spin_lock(&input_lock);
     uint32_t next = (input_head + 1) & (INPUT_BUFFER_SIZE - 1);
     if (next != input_tail) {           /* bufer to'la bo'lsa - belgi tashlab yuboriladi */
@@ -160,7 +163,7 @@ int console_getc(void)
 {
     spin_lock(&input_lock);
     while (input_tail == input_head) {
-        if (current->killed) {          /* kill() qilingan - kutishni to'xtatamiz */
+        if (signal_interrupted(current)) {  /* signal keldi - kutishni to'xtatamiz (-EINTR) */
             spin_unlock(&input_lock);
             return -1;
         }

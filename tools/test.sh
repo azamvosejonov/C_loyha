@@ -56,6 +56,11 @@ COMMANDS=(
     "mkdir -p /home/a/b && cd /home/a/b && pwd && cd /"
     "memtest"
     "forktest"
+    "sigtest"
+    "spin cheksiz 1000"
+    "@kut:\\[cheksiz\\] 3/1000"
+    $'\x03'
+    "echo ctrl-c holati=\$?"
     "crash null"
     "crash kernel"
     "crash cli"
@@ -75,6 +80,16 @@ COMMANDS=(
 feed_commands() {
     sleep 6
     for cmd in "${COMMANDS[@]}"; do
+        # "@kut:<regex>" - buyruq emas: logda shu satr paydo bo'lguncha kutish
+        # (masalan, Ctrl-C ni dastur haqiqatan ishga tushgandan KEYIN yuborish uchun;
+        # Ctrl-C uzilishda darhol ishlaydi - oldindan yuborilsa, boshqa dasturni to'xtatadi).
+        if [[ "$cmd" == @kut:* ]]; then
+            for _ in $(seq 600); do
+                grep -Eq -- "${cmd#@kut:}" "$LOG" 2> /dev/null && break
+                sleep 0.2
+            done
+            continue
+        fi
         printf '%s\n' "$cmd"
         sleep 1
     done
@@ -112,10 +127,13 @@ EXPECT=(
     "^/home/a/b$|mkdir -p, cd, pwd, &&"
     "memtest: PASSED|user malloc/free stress testi"
     "forktest: PASSED|fork + copy-on-write + exec + demand paging"
+    "sigtest: PASSED|signallar: handler, sigreturn, niqob, alarm, STOP/CONT, SIGPIPE, EINTR"
+    "^ctrl-c holati=130$|Ctrl-C: SIGINT oldingi plandagi dasturni to'xtatdi"
     "Sabab: sahifa mavjud emas, YOZISH, user rejimida|NULL ga yozish ushlandi"
     "Sabab: ruxsat buzildi \(sahifa bor\), O'QISH, user rejimida|yadro xotirasi himoyalangan"
     "General Protection Fault|imtiyozli instruksiya (cli) ushlandi"
     "Manzil \(CR2\) = 0x00007fffff7|user stek 8 MB gacha o'sib, keyin to'lishi ushlandi"
+    "^Segmentation fault$|shell signal bilan o'lganini xabar qildi"
     "mavjud_emas: buyruq topilmadi|mavjud bo'lmagan dastur xatosi"
     "^\[[0-9]+\]|fon rejimi (&)"
     "HOLAT|ps ishladi"

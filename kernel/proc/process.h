@@ -38,6 +38,7 @@ enum proc_state {
     PROC_BLOCKED,                       /* nimanidir kutyapti (klaviatura, taymer, bola) */
     PROC_ZOMBIE,                        /* tugagan, lekin ota-ona natijani hali olmagan */
     PROC_DEAD,                          /* resurslari tozalanmoqda (keyin UNUSED) */
+    PROC_STOPPED,                       /* SIGSTOP/SIGTSTP (Ctrl-Z) - SIGCONT gacha tanlanmaydi */
 };
 
 struct file;                            /* fs/vfs.h da */
@@ -60,8 +61,18 @@ struct process {
 
     /* --- Oila --- */
     struct process *parent;
-    int exit_code;
-    bool killed;                        /* kill() qilingan: user rejimiga qaytishda chiqadi */
+    int exit_status;                    /* wait() holat so'zi (abi.h: WIFEXITED ...) */
+    bool killed;                        /* SIGKILL: user rejimiga qaytishda albatta tugaydi */
+    int pgid;                           /* jarayon guruhi: shell'dagi bitta "job" */
+    int sid;                            /* sessiya: bitta terminaldagi hamma narsa */
+
+    /* --- Signallar (proc/signal.c) --- */
+    uint32_t sig_pending;               /* n-bit = n-signal yetkazilishini kutyapti */
+    uint32_t sig_blocked;               /* n-bit = n-signal hozircha bloklangan */
+    struct myos_sigaction sig_actions[NSIG];
+    int stop_sig;                       /* qaysi signal to'xtatgan (wait uchun) */
+    bool stop_reported;                 /* ota-onaga to'xtash haqida aytildimi */
+    uint64_t alarm_tick;                /* alarm(): shu tikda SIGALRM (0 - yo'q) */
 
     /* --- Kutish --- */
     const void *wait_channel;           /* nimani kutyapti (ixtiyoriy manzil - "kanal") */
@@ -114,14 +125,26 @@ void sched_tick(void);
  * "shartni tekshirdim -> uxlamoqchiman" orasida uyg'otish yo'qolmaydi. */
 void proc_sleep(const void *channel, spinlock_t *lock);
 void proc_wakeup(const void *channel);
-void proc_sleep_ms(uint64_t ms);
+/* ms millisekund uxlash. Qaytaradi: signal uzgan bo'lsa - qolgan ms, aks holda 0. */
+uint64_t proc_sleep_ms(uint64_t ms);
 
 /* ---- Tugash ---- */
 __attribute__((noreturn)) void proc_exit(int code);
-/* pid li bolani (yoki -1: istalganini) kutish. Qaytaradi: pid yoki -1.
- * nohang=true: bola hali tugamagan bo'lsa kutmasdan 0 qaytaradi. */
-int proc_wait(int pid, int *exit_code, bool nohang);
-int proc_kill(int pid);
+/* Signal tufayli tugash (holat so'zi = signal raqami). */
+__attribute__((noreturn)) void proc_exit_signal(int sig);
+/* Bolani kutish. pid > 0 - aynan shu bola, -1 - istalgani, 0 - o'z guruhimizdagi,
+ * < -1 - |pid| guruhidagi. flags: WAIT_NOHANG, WAIT_UNTRACED.
+ * Qaytaradi: pid, 0 (NOHANG va hech kim tayyor emas), -ECHILD yoki -EINTR. */
+int proc_wait(int pid, int *status, int flags);
+
+/* Jarayonni to'xtatish (signal yetkazish paytida, o'z kontekstida). SIGCONT
+ * kelguncha qaytmaydi. */
+void proc_stop_self(int sig);
+/* Jadvaldagi i-slot (proc_lock ushlangan holda aylanib chiqish uchun). */
+struct process *proc_slot(int i);
+/* BLOCKED jarayonni uyg'otish (proc_lock ushlangan). */
+void proc_wake_locked(struct process *p);
+struct process *proc_find_locked(int pid);
 
 /* ps uchun. Qaytaradi: nechta yozuv to'ldirildi. */
 int proc_list(struct myos_proc_info *out, int max);
