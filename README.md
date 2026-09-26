@@ -6,14 +6,18 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 
 **Har bir fayl va deyarli har bir qator o'zbek tilida izohlangan:** kod nima qiladi va **nega** aynan shunday yozilgan.
 
-> **Qayerdan boshlash kerak?** [QOLLANMA.md](QOLLANMA.md) ni o'qing: o'qish tartibi, har bir texnologiya
-> (C'dagi `void`, `volatile`, `static`..., kompilyator bayroqlari, CPU mexanizmlari) nima qiladi, nega kerak va
-> ishlatilmasa nima bo'ladi, haqiqiy xatolar tarixi hamda o'z yadroingizni noldan yozish rejasi.
-> **Haqiqiy kompyuterga o'rnatish, har bir C belgisining ma'nosi va tizimni kengaytirish:**
-> [YAKUNIY.md](YAKUNIY.md) — yakuniy qo'llanma ("Endi o'zing davom et" vazifalari bilan).
+> ## Qayerdan boshlash kerak?
 >
-> Keyin [labs/README.md](labs/README.md): 22 ta laboratoriya — funksiyani yopib, o'zingiz yozasiz,
-> `tools/lab.py tekshir` esa natijani tekshiradi.
+> **C'ni endi boshlayotgan bo'lsangiz** — [REJA.md](REJA.md) (6 oylik haftama-hafta reja) va shu tartib:
+>
+> 1. [darslik/](darslik/README.md) — C tili noldan: 19 bob, har bir belgi (`;`, `void`, `*`, `->` ...) va
+>    boshlovchining har bir "nega?" savoliga javob.
+> 2. [mashqlar/](mashqlar/README.md) — 40 ta mashq, `tools/mashq.py` avtomatik tekshiradi (xotira
+>    xatolarini ham ushlaydi): C asoslaridan sahifa jadvali, buddy, slab, ext2 va mini shell'gacha.
+> 3. [QOLLANMA.md](QOLLANMA.md) — loyihaning to'liq qo'llanmasi: o'qish tartibi, texnologiyalar, xatolar
+>    tarixi, noldan yadro yozish rejasi. Keyin `docs/` — yadroning har bir qatlami.
+> 4. [labs/](labs/README.md) — 22 ta laboratoriya: yadro funksiyasini yopib, o'zingiz yozasiz (`tools/lab.py`).
+> 5. [YAKUNIY.md](YAKUNIY.md) — haqiqiy kompyuterga o'rnatish va tizimni kengaytirish ("Endi o'zing davom et").
 
 ```
 MyOS'ga xush kelibsiz! 'help' - buyruqlar, 'cat /README.txt' - qo'llanma.

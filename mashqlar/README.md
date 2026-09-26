@@ -1,4 +1,4 @@
-# Mashqlar — C tilini noldan yadro darajasigacha
+# Mashqlar — C tilini noldan yadro darajasigacha (40 ta)
 
 > Bu papka — [darslik](../darslik/README.md) bilan birga ishlatiladigan **amaliy mashqlar**.
 > Har bir mashqda siz bitta faylni (`yechim.c`) yozasiz, avtomatik test esa natijani
@@ -85,6 +85,20 @@ va odatda nimadan kelib chiqadi. Hisobotdagi `#0 ... yechim.c:QATOR` — xato ay
 | 28 | `pipe` + `dup2` | 14 | quvurlar, deadlock | `fs/pipe.c`, shell |
 | 29 | Oqimlar va mutex | 15 | poyga holati | `lib/spinlock.c`, `mutex.c` |
 | 30 | O'z `malloc`'ingiz | 08, 16 | bloklar, bo'lish, birlashtirish | `libc/malloc.c`, `mm/slab.c` |
+| | **6-modul: yadro mexanizmlari (oddiy dastur sifatida)** | | | |
+| 31 | Sahifa jadvali (4 daraja) | 07, 16, 18 | virtual → fizik tarjima, kanonik manzillar | `mm/vmm.c` |
+| 32 | Buddy allocator | 08, 16 | ikkiga bo'lish, juftni XOR bilan topish | `mm/pmm.c` |
+| 33 | Slab allocator | 08, 09 | obyekt keshlari, manzildan slabni topish | `mm/slab.c` |
+| 34 | Spinlock va ticket lock | 15 | atomik amallar, acquire/release | `lib/spinlock.c` |
+| 35 | Round Robin scheduler | 04, 09 | navbat, kvant, kontekst almashish | `proc/process.c` |
+| 36 | ELF tahlilchisi | 09, 13 | fayl formati, dushman kirishni tekshirish | `sys/elf.c` (exec) |
+| 37 | ext2 o'qish | 09, 14 | superblok, inode, bilvosita bloklar, papkalar | `fs/ext2.c` |
+| 38 | Bloklanadigan navbat | 15 | uxlash/uyg'otish, yo'qolgan uyg'otish | `proc_sleep`, `fs/pipe.c` |
+| 39 | Kichik CPU | 17 | fetch-decode-execute, stek, istisnolar, syscall | CPU va `arch/interrupts.c` |
+| 40 | Mini shell (yakuniy) | 14 | pipeline, yo'naltirish, zombi va fd'lar | `user/bin/sh.c` |
 
-**Keyingi bosqich:** 30 tasi tugagach — [labs/README.md](../labs/README.md) (MyOS yadrosining
+6-modul yadroning **o'zini** simulyatsiya qiladi: haqiqiy yadroga kirishdan oldin har bir mexanizmni
+xavfsiz joyda (sanitizer'lar ostida) yozasiz. 37-mashq uchun `mke2fs` kerak (`sudo apt install e2fsprogs`).
+
+**Keyingi bosqich:** 40 tasi tugagach — [labs/README.md](../labs/README.md) (MyOS yadrosining
 ichida, xuddi shu usulda: funksiyani o'chirib, qayta yozasiz).

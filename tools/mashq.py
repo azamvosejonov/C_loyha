@@ -205,7 +205,7 @@ def tekshir(n, d, jim=False, yechim=None):
         if k:
             print(f"Keyingisi: {k[0]} - {sarlavha(k[1])}   (tools/mashq.py vazifa)")
         else:
-            print("Hamma 30 ta mashq tugadi! Endi REJA.md dagi keyingi bosqichga o'ting.")
+            print(f"Hamma {len(mashqlar())} ta mashq tugadi! Endi labs/README.md ga o'ting (REJA.md).")
     elif not vaqt and not sanitizer and code != 0 and 'NATIJA' not in out:
         print(f"\n[YIQILDI] Dastur {code} kodi bilan tugadi.")
     return otdi

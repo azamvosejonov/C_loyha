@@ -7,7 +7,8 @@
 > 4. o'z yadroingizni **noldan, yordamsiz** yozish rejasi (bosqichma-bosqich, tekshiruv nuqtalari bilan).
 >
 > Batafsil tushuntirishlar `docs/` papkasida (00–15), izohlar esa kodning o'zida.
-> Amaliy mashqlar (kodni yopib, o'zingiz yozish): [labs/README.md](labs/README.md).
+> C'ni endi boshlayotgan bo'lsangiz — avval [darslik/](darslik/README.md) va [mashqlar/](mashqlar/README.md),
+> reja: [REJA.md](REJA.md). Yadro ichidagi amaliy mashqlar: [labs/README.md](labs/README.md).
 > Haqiqiy kompyuterda ishlatish va tizimni kengaytirish: [YAKUNIY.md](YAKUNIY.md).
 
 ---
