@@ -325,11 +325,13 @@ test:
 	./tools/test.sh uefi
 	@$(MAKE) -s APPEND=    # oddiy ISO ni tiklash
 
-# Laboratoriyalar (labs/README.md): har bir "bo'sh" variant kompilyatsiya bo'lishini
-# va libc'ning host testi o'tishini tekshirish. CI ham shuni ishga tushiradi.
+# Laboratoriyalar (labs/README.md) va mashqlar (mashqlar/README.md): har bir "bo'sh"
+# variant kompilyatsiya bo'lishini va libc'ning host testi o'tishini tekshirish.
+# CI ham shuni ishga tushiradi.
 lab-check:
 	@tools/host_libctest.sh
 	@tools/lab.py selfcheck
+	@tools/mashq.py selfcheck
 
 clean:
 	rm -rf $(BUILD)
