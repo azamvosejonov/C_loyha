@@ -1,4 +1,4 @@
-# Mashqlar — C tilini noldan yadro darajasigacha (40 ta)
+# Mashqlar — C tilini noldan yadro darajasigacha (48 ta)
 
 > Bu papka — [darslik](../darslik/README.md) bilan birga ishlatiladigan **amaliy mashqlar**.
 > Har bir mashqda siz bitta faylni (`yechim.c`) yozasiz, avtomatik test esa natijani
@@ -97,8 +97,18 @@ va odatda nimadan kelib chiqadi. Hisobotdagi `#0 ... yechim.c:QATOR` — xato ay
 | 39 | Kichik CPU | 17 | fetch-decode-execute, stek, istisnolar, syscall | CPU va `arch/interrupts.c` |
 | 40 | Mini shell (yakuniy) | 14 | pipeline, yo'naltirish, zombi va fd'lar | `user/bin/sh.c` |
 
+| | **7-modul: nazariya amalda (darslik II qismi)** | | | |
+| 41 | float bitlari (IEEE 754) | 20 | float'ni qismlarga ajratish, qo'lda yaxlitlash | fayl formatlari, FPU holati |
+| 42 | LRU kesh, O(1) | 21, 24, 28 | xesh + ikki tomonlama ro'yxat | sahifa/inode/dentry keshlari |
+| 43 | Sahifa almashtirish | 24 | FIFO, LRU, OPT, Clock, Belady anomaliyasi | swap, sahifa qaytarib olish |
+| 44 | Semafor | 26 | mutex + shart o'zgaruvchisi | `struct semaphore` |
+| 45 | O'quvchilar-yozuvchilar qulfi | 26 | yozuvchi och qolmasligi | `rw_semaphore`, `mmap_lock` |
+| 46 | Min-heap | 28 | suzdirish/cho'ktirish, O(n) qurish | taymerlar, `lib/sort.c` |
+| 47 | AVL daraxt | 28 | aylantirishlar, muvozanat | `rbtree` (CFS, taymerlar) |
+| 48 | Deadlock: grafda sikl | 26, 28 | rekursiyasiz DFS, CSR graf | `lockdep` |
+
 6-modul yadroning **o'zini** simulyatsiya qiladi: haqiqiy yadroga kirishdan oldin har bir mexanizmni
 xavfsiz joyda (sanitizer'lar ostida) yozasiz. 37-mashq uchun `mke2fs` kerak (`sudo apt install e2fsprogs`).
 
-**Keyingi bosqich:** 40 tasi tugagach — [labs/README.md](../labs/README.md) (MyOS yadrosining
+**Keyingi bosqich:** 48 tasi tugagach — [labs/README.md](../labs/README.md) (MyOS yadrosining
 ichida, xuddi shu usulda: funksiyani o'chirib, qayta yozasiz).

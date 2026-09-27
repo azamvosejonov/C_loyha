@@ -78,6 +78,10 @@ TUSHUNTIRISH = [
      "ishorali sonni chapga surish toshdi. Ishorasiz tur (`1u << n`) ishlating."),
     ('division by zero',
      "nolga bo'lish."),
+    ('AddressSanitizer: stack-overflow',
+     "STEK TO'LDI: juda chuqur rekursiya (funksiya o'zini juda ko'p marta chaqirdi).\n"
+     "  Rekursiyani sikl + o'zingiz boshqaradigan stek (malloc qilingan massiv) bilan almashtiring.\n"
+     "  Yadroda stek atigi 8-16 KB - u yerda chuqur rekursiya umuman taqiqlangan."),
     ('stack-use-after-return',
      "funksiyadan qaytgan lokal o'zgaruvchining manzilidan foydalandingiz."),
     ('load of misaligned address',

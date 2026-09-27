@@ -169,5 +169,8 @@ YAKUNIY.md IV qism                  yangi drayverlar va quyi tizimlar (NVMe, USB
 - MyOS: `kernel/main.c` ni boshidan oxirigacha o'qing va har bir `*_init()` chaqiruvi qaysi faylga olib
   borishini daftaringizga yozing. Bu — yadroning "mundarijasi".
 
-**Tabriklayman — C darsligi tugadi.** Endi siz yadro kodini o'qiy oladigan darajadasiz. Qolgan hamma
-narsa — amaliyot: har kuni kod yozish va o'qish.
+**Tabriklayman — darslikning I qismi (C tili) tugadi.** Endi siz yadro kodini o'qiy oladigan darajadasiz.
+II qism (19–31-boblar) — kompyuter tizimlari va operatsion tizimlar nazariyasi: odatda ingliz tilidagi
+bir nechta kitobdan o'rganiladigan bilimlar shu yerda.
+
+Keyingi bob: [19-bob. Linux terminali va Git](19-terminal-git.md)

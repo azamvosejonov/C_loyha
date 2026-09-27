@@ -10,10 +10,11 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 >
 > **C'ni endi boshlayotgan bo'lsangiz** — [REJA.md](REJA.md) (6 oylik haftama-hafta reja) va shu tartib:
 >
-> 1. [darslik/](darslik/README.md) — C tili noldan: 19 bob, har bir belgi (`;`, `void`, `*`, `->` ...) va
->    boshlovchining har bir "nega?" savoliga javob.
-> 2. [mashqlar/](mashqlar/README.md) — 40 ta mashq, `tools/mashq.py` avtomatik tekshiradi (xotira
->    xatolarini ham ushlaydi): C asoslaridan sahifa jadvali, buddy, slab, ext2 va mini shell'gacha.
+> 1. [darslik/](darslik/README.md) — 32 bob: C tili noldan (har bir belgi, har bir "nega?"), keyin kompyuter
+>    tizimlari va OS nazariyasi (kesh, virtual xotira, parallellik, fayl tizimlari, algoritmlar) va
+>    ingliz atamalari lug'ati — boshqa kitob kerak emas.
+> 2. [mashqlar/](mashqlar/README.md) — 48 ta mashq, `tools/mashq.py` avtomatik tekshiradi (xotira
+>    xatolarini ham ushlaydi): C asoslaridan sahifa jadvali, buddy, slab, ext2, LRU, AVL va mini shell'gacha.
 > 3. [QOLLANMA.md](QOLLANMA.md) — loyihaning to'liq qo'llanmasi: o'qish tartibi, texnologiyalar, xatolar
 >    tarixi, noldan yadro yozish rejasi. Keyin `docs/` — yadroning har bir qatlami.
 > 4. [labs/](labs/README.md) — 22 ta laboratoriya: yadro funksiyasini yopib, o'zingiz yozasiz (`tools/lab.py`).

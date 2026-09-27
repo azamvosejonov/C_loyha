@@ -39,6 +39,42 @@
 | [17](17-assembly.md) | **Assembly**: registrlar, chaqirish qoidalari, stek kadri, inline asm | — |
 | [18](18-yadroga-koprik.md) | **Yadroga ko'prik**: freestanding C, linker skripti, MyOS'ni o'qish | 31–40 |
 
+### II qism: kompyuter tizimlari va operatsion tizimlar
+
+| Bob | Mavzu | Mashqlar |
+|---|---|---|
+| [19](19-terminal-git.md) | **Terminal va Git**: fayllar, qidirish, quvurlar, ruxsatlar, commit, `git bisect` | — |
+| [20](20-sonlar.md) | **Sonlar**: ikkilik/o'n oltilik, ikkiga to'ldirish, ishora kengayishi, IEEE 754 float | 41 |
+| [21](21-kesh.md) | **Xotira ierarxiyasi va kesh**: lokallik, kesh qatori, soxta bo'lishish, TLB | — |
+| [22](22-boglash.md) | **Bog'lash va ELF**: belgilar, relokatsiya, statik/dinamik, PLT/GOT, `exec` | 36 |
+| [23](23-jarayonlar-scheduling.md) | **Jarayonlar va rejalashtirish**: holatlar, kontekst almashish, FIFO/SJF/RR/MLFQ/CFS | 35 |
+| [24](24-virtual-xotira.md) | **Virtual xotira**: sahifalash, page fault, almashtirish algoritmlari, COW, `mmap` | 31, 43 |
+| [25](25-xotira-ajratish.md) | **Xotira ajratish**: fragmentatsiya, bo'sh ro'yxatlar, chegara teglari, buddy, slab | 30, 32, 33 |
+| [26](26-parallellik-chuqur.md) | **Parallellik chuqur**: qulflarni qurish, semaforlar, klassik masalalar, deadlock | 44, 45, 48 |
+| [27](27-fayl-tizimlari.md) | **Qurilmalar va fayl tizimlari**: DMA, disklar, inode, FFS, jurnal | 37 |
+| [28](28-algoritmlar.md) | **Algoritmlar**: O-belgi, xesh, daraxtlar, heap, graflar, saralash | 42, 46, 47, 48 |
+| [29](29-debug-vositalari.md) | **Debug vositalari**: gdb chuqur, sanitizer, valgrind, strace, perf | — |
+| [30](30-yadro-arxitekturasi.md) | **Yadro arxitekturasi**: monolit/mikroyadro, Linux xaritasi, modul, patch | — |
+| [31](31-lugat.md) | **Lug'at**: ingliz atamalari, koddagi qisqartmalar, xato xabarlari tarjimasi | — |
+
+### Bu darslik qaysi kitoblar o'rnini bosadi
+
+Bu darslik quyidagi mashhur (ingliz tilidagi) kitoblarning **asosiy mavzularini** o'zbek tilida, o'z
+tushuntirishlarimiz va MyOS kodi misollari bilan qamraydi — ularni tarjima qilmaydi, balki shu bilimlarni
+beradi:
+
+| Kitob (asl nomi) | Mavzu | Darslikda |
+|---|---|---|
+| K. N. King, *C Programming: A Modern Approach*; Kernighan & Ritchie, *The C Programming Language* | C tili | 00–18 |
+| Bryant & O'Hallaron, *Computer Systems: A Programmer's Perspective* (CS:APP) | sonlar, assembly, kesh, bog'lash, jarayonlar, virtual xotira, `malloc`, I/O, parallellik | 13–17, 20–22, 24–26 |
+| Arpaci-Dusseau, *Operating Systems: Three Easy Pieces* (OSTEP) | jarayonlar, scheduling, virtual xotira, parallellik, fayl tizimlari | 14, 15, 23–27 |
+| Cormen va boshq., *Introduction to Algorithms* (asosiy qismlari) | algoritmlar va tuzilmalar | 28 |
+| Love, *Linux Kernel Development*; Bovet & Cesati, *Understanding the Linux Kernel* (umumiy manzara) | yadro arxitekturasi | 18, 30 va `docs/` |
+| Intel SDM (kerakli qismlari), OSDev Wiki | x86-64, yuklash, uzilishlar, APIC | 16, 17 va `docs/01–15` |
+
+Chuqurlik jihatidan bu kitoblar kattaroq — lekin yadro dasturchisi bo'lish uchun **kerakli yadrosi** shu
+yerda, amaliy mashqlar va haqiqiy yadro kodi bilan bog'langan holda.
+
 ## Tez savollar — boshlovchilar eng ko'p so'raydigan narsalar
 
 Qisqa javob va batafsil tushuntirish qaysi bobda ekani.
@@ -110,10 +146,10 @@ Qisqa javob va batafsil tushuntirish qaysi bobda ekani.
 ## Darslikdan keyin
 
 ```text
-darslik 00-18  →  mashqlar 01-30  →  mashqlar 31-40  →  docs/ + MyOS kodi  →  labs  →  noldan yadro
+darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ + MyOS kodi → labs → noldan yadro
 ```
 
-- [mashqlar/README.md](../mashqlar/README.md) — 40 ta mashq, avtomatik tekshiruv bilan.
+- [mashqlar/README.md](../mashqlar/README.md) — 48 ta mashq, avtomatik tekshiruv bilan.
 - [QOLLANMA.md](../QOLLANMA.md) — loyihaning to'liq qo'llanmasi va noldan yadro yozish rejasi.
 - [labs/README.md](../labs/README.md) — yadro ichidagi 22 ta laboratoriya.
 - [YAKUNIY.md](../YAKUNIY.md) — haqiqiy kompyuterda ishlatish va tizimni kengaytirish.

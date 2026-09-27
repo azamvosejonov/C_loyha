@@ -967,6 +967,11 @@ Uch oltin qoida (ularni buzish haqiqiy apparatda qotishga olib keladi):
 
 ## 30. O'qish uchun manbalar
 
+> **Ingliz tilini bilmasangiz ham bo'ladi:** quyidagi kitoblarning asosiy mazmuni o'zbek tilida
+> [darslik](darslik/README.md)ning II qismida (19–31-boblar) jamlangan — qaysi bob qaysi kitob o'rnini
+> bosishi darslik README'sida yozilgan. Bu ro'yxat — keyinchalik, ingliz tilini o'rganganingizdan so'ng
+> chuqurlashish uchun.
+
 | Manba | Nima uchun |
 |---|---|
 | **Intel SDM** (Software Developer's Manual), 3-jild | x86 haqidagi yakuniy haqiqat: paging, uzilishlar, APIC, MSR'lar |

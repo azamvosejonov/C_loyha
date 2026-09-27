@@ -3,8 +3,9 @@
 > Bu reja **to'liq kunlik** o'qish uchun: haftasiga 6 kun, kuniga 6–7 soat (jami ~950 soat).
 > Kuniga 2–3 soat vaqtingiz bo'lsa — xuddi shu reja, lekin taxminan **15 oy**. Tartib o'zgarmaydi.
 >
-> Hamma material shu loyiha ichida: [darslik](darslik/README.md) (19 bob), [mashqlar](mashqlar/README.md)
-> (40 ta, avtomatik tekshiruv bilan), `docs/` (MyOS yadrosi), [labs](labs/README.md) (22 ta),
+> Hamma material shu loyiha ichida: [darslik](darslik/README.md) (32 bob: I qism — C tili, II qism —
+> kompyuter tizimlari va OS nazariyasi, lug'at bilan), [mashqlar](mashqlar/README.md) (48 ta, avtomatik
+> tekshiruv bilan), `docs/` (MyOS yadrosi), [labs](labs/README.md) (22 ta),
 > [QOLLANMA.md](QOLLANMA.md), [YAKUNIY.md](YAKUNIY.md). Internetdan qidirish shart emas.
 
 ## Halol kutilma
@@ -39,7 +40,7 @@ Bu — "junior tizim dasturchisi"ning mustahkam darajasi va yadro sohasiga eng t
 
 | Hafta | O'qish | Mashqlar | Hafta oxirida qila olishingiz kerak |
 |---|---|---|---|
-| 1 | Darslik 00–03 | 01, 02, 03, 04 | Dasturni kompilyatsiya qilish, xatoni o'qish, gdb'da qadamma-qadam yurish; bitlar bilan ishlash |
+| 1 | Darslik 00–03 va **19** (terminal, Git) | 01, 02, 03, 04 | Dasturni kompilyatsiya qilish, xatoni o'qish, gdb'da qadamma-qadam yurish; bitlar bilan ishlash |
 | 2 | Darslik 04–06 | 05, 08, 09, 11, 12 | Massiv/satr funksiyalarini yozish; `'\0'` va bufer hajmini doim hisobga olish |
 | 3 | Darslik 07 (**3–4 kun**, eng muhim bob) | 06, 07, 10, 16 | Har qanday ko'rsatkich ifodasini qog'ozda chizib tushuntirish |
 | 4 | Darslik 08 | 13, 14, 15, 17, 18 | `malloc`/`free` ni xatosiz ishlatish; sanitizer hisobotidan xatoni topish |
@@ -58,26 +59,30 @@ o'chirish, ozod qilish) va satr `split` ni yozing — hammasi `-fsanitize=addres
 
 **2-nazorat:** o'z mini-shell'ingiz (kodga qaramasdan): buyruqlar, `|`, `>`, `<`, `cd`, `exit`.
 
-## 3-oy: yadro mexanizmlari — oddiy dastur sifatida (9–12-haftalar)
+## 3-oy: kompyuter tizimlari nazariyasi + yadro mexanizmlari (9–12-haftalar)
+
+Darslikning II qismi: har bir bob — o'sha haftaning mashqlari bilan.
 
 | Hafta | O'qish | Mashqlar |
 |---|---|---|
-| 9 | Darslik 18; `docs/04-virtual-xotira.md` | 31 (sahifa jadvali), 32 (buddy) |
-| 10 | `docs/03-fizik-xotira.md`, `docs/05-heap.md` | 33 (slab), 34 (spinlock), 35 (scheduler) |
-| 11 | `docs/13-disk-ext2.md` (ext2 qismi) | 36 (ELF), 37 (ext2) |
-| 12 | `docs/06-jarayonlar.md` | 38 (kutish navbati), 39 (kichik CPU), 40 (mini shell) |
+| 9 | Darslik 18, 20 (sonlar), 21 (kesh) | 41 (float), 31 (sahifa jadvali) |
+| 10 | Darslik 22 (bog'lash, ELF), 23 (jarayonlar, scheduling) | 36 (ELF), 35 (scheduler), 39 (kichik CPU) |
+| 11 | Darslik 24 (virtual xotira), 25 (xotira ajratish) | 43 (sahifa almashtirish), 32 (buddy), 33 (slab) |
+| 12 | Darslik 26 (parallellik chuqur) | 34 (spinlock), 38 (kutish navbati), 44 (semafor), 45 (rw qulf), 48 (deadlock) |
 
-**3-nazorat:** `tools/mashq.py hammasi` → 40/40. Keyin 32 (buddy) va 31 (sahifa jadvali) ni yopib, 2 soat
-ichida qayta yozing.
+**3-nazorat:** 32 (buddy) va 31 (sahifa jadvali) ni yopib, 2 soat ichida qayta yozing. 26-bobdagi
+deadlock'ning 4 shartini va ularni qanday buzishni og'zaki tushuntiring.
 
-## 4-oy: MyOS'ni o'qish va birinchi lab'lar (13–16-haftalar)
+## 4-oy: nazariyaning qolgani va MyOS'ni o'qish (13–16-haftalar)
 
 | Hafta | O'qish | Amaliyot |
 |---|---|---|
-| 13 | README, QOLLANMA 0–5-bo'limlar; `docs/00-kirish.md`–`02-uzilishlar.md` (v0.1: `git checkout e5906bb`) | `make run`, `make debug` + gdb bilan yuklanishni kuzatish |
-| 14 | `docs/03`–`05` (fizik xotira, virtual xotira, heap) + kod | Har bir hujjatning "Sinab ko'ring" bo'limi |
-| 15 | `docs/06`–`08` (jarayonlar, user rejimi, test/debug) + kod | Ataylab xato kiritib, gdb bilan topish |
-| 16 | QOLLANMA 6–7-bo'limlar | Lab'lar 1–2-daraja: `strlen`, `memmove`, `strtok_r`, `strtoul`, `emit_number`, `gmtime_r`, `glob_match`, `malloc`, `insert_free`, `path_normalize`, `pipe` |
+| 13 | Darslik 27 (fayl tizimlari), 28 (algoritmlar) | 37 (ext2), 42 (LRU), 46 (heap), 47 (AVL) |
+| 14 | Darslik 29 (debug vositalari), 30 (yadro arxitekturasi), 31 (lug'at — takrorlash uchun) | 40 (mini shell); `tools/mashq.py hammasi` → **48/48** |
+| 15 | README, QOLLANMA 0–7-bo'limlar; `docs/00`–`05` (v0.1: `git checkout e5906bb`) | `make run`, `make debug` + gdb bilan yuklanishni kuzatish; "Sinab ko'ring" bo'limlari |
+| 16 | `docs/06`–`08` + kod | Lab'lar 1–2-daraja: `strlen`, `memmove`, `strtok_r`, `strtoul`, `emit_number`, `gmtime_r`, `glob_match`, `malloc`, `insert_free`, `path_normalize`, `pipe` |
+
+Nazariya (II qism) MyOS'ni o'qishni ancha tezlashtiradi: `docs/` dagi tushunchalarning ko'pi sizga allaqachon tanish bo'ladi.
 
 **4-nazorat:** `kernel/main.c` ni ochib, har bir `*_init()` nima qilishini va nega aynan shu tartibda
 chaqirilishini og'zaki tushuntiring (o'zingizga yoki kimgadir).
