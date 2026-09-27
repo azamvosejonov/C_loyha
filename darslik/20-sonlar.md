@@ -5,6 +5,9 @@
 > `float` ning bitlarini va `0.1 + 0.2 != 0.3` sababini bilasiz. (Mavzu odatda "Computer Systems:
 > A Programmer's Perspective" kitobining 2-bobidan o'rganiladi.) Mashqlar: 03, 04, 41.
 
+> **To'liq ishlaydigan misol:** [misollar/20_sonlar.c](misollar/20_sonlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 20.1. Pozitsion sanoq tizimlari
 
 O'nlik: `347 = 3·10² + 4·10¹ + 7·10⁰`. Har bir o'rin — asosning darajasi.

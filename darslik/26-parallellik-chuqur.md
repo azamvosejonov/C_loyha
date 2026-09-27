@@ -5,6 +5,9 @@
 > ovqatlanayotgan faylasuflar), deadlock'ning 4 shartini va real dasturlardagi parallellik xatolari
 > turlarini bilasiz. (OSTEP "Concurrency" qismi.) 15-bobning davomi. Mashqlar: 29, 34, 38, 44, 45, 48.
 
+> **To'liq ishlaydigan misol:** [misollar/26_faylasuflar.c](misollar/26_faylasuflar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 26.1. Qulfga talablar
 
 Yaxshi qulf: 1) **o'zaro istisno** — kritik seksiyada bir vaqtda bittadan ko'p oqim yo'q;

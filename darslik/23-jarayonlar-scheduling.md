@@ -5,6 +5,9 @@
 > ulush, Linux CFS) va ularni baholash metrikalarini bilasiz. (Mavzu "Operating Systems: Three Easy
 > Pieces" kitobining virtualizatsiya qismidan.) Mashqlar: 35.
 
+> **To'liq ishlaydigan misol:** [misollar/23_jarayonlar.c](misollar/23_jarayonlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 23.1. Jarayon — "virtual CPU"
 
 Kompyuterda 4–8 ta yadro bor, lekin yuzlab dastur "bir vaqtda" ishlaydi. OS har bir dasturga

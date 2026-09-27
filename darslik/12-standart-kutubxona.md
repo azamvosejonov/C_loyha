@@ -4,6 +4,9 @@
 > buferlashini, `errno` ni va `qsort` ni bilasiz — va ularning **ichida** nima borligini tushunasiz
 > (chunki yadroda ularning hech biri yo'q, o'zingiz yozasiz). Mashqlar: 11, 12, 19, 24.
 
+> **To'liq ishlaydigan misol:** [misollar/12_stdlib.c](misollar/12_stdlib.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 12.1. libc nima
 
 C tilining o'zi juda kichik: kalit so'zlar va operatorlar. `printf`, `malloc`, `strlen`, `fopen` — bular

@@ -5,6 +5,9 @@
 > narsani. Bu bob — **yadroning tashqi eshigi**: keyingi qadamda (MyOS) shu eshikning ichkarisini yozasiz.
 > Mashqlar: 25–28.
 
+> **To'liq ishlaydigan misol:** [misollar/14_jarayonlar.c](misollar/14_jarayonlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 14.1. Tizim chaqiruvi (syscall) nima
 
 Oddiy dastur (user rejimi, CPU'ning 3-halqasi) apparatga tega olmaydi: diskni o'qiy olmaydi, ekranga

@@ -5,6 +5,9 @@
 > shu yerda o'zbek tilida jamlangan. Bu bob — hamma narsaning poydevori: terminalda ishlash va Git.
 > Agar terminalni allaqachon yaxshi bilsangiz, 19.6 dan (Git) boshlang.
 
+> **To'liq ishlaydigan misol:** [misollar/19_terminal.sh](misollar/19_terminal.sh) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 19.1. Nega terminal
 
 Grafik oyna (sichqoncha bilan bosish) qulay, lekin dasturchi uchun terminal kuchliroq:

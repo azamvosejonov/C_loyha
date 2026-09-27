@@ -4,6 +4,9 @@
 > `signed`/`unsigned` farqini va yadroda nega `uint32_t` kabi aniq o'lchamli turlar ishlatilishini bilasiz.
 > Mashqlar: 01, 02, 03.
 
+> **To'liq ishlaydigan misol:** [misollar/02_turlar.c](misollar/02_turlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 2.1. O'zgaruvchi nima
 
 Python'da o'zgaruvchi — obyektga yopishtirilgan **nom** (yorliq). C'da o'zgaruvchi — xotiradagi

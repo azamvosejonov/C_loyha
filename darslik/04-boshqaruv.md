@@ -3,6 +3,9 @@
 > **Bu bobdan keyin:** C'dagi barcha shart va sikl ko'rinishlarini, `{ }` qo'yilmasa nima bo'lishini,
 > `switch` dagi "tushib ketish"ni va yadroda nega `goto` ishlatilishini bilasiz. Mashqlar: 01, 02, 05.
 
+> **To'liq ishlaydigan misol:** [misollar/04_boshqaruv.c](misollar/04_boshqaruv.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 4.1. `if` / `else`
 
 ```c

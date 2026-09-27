@@ -4,6 +4,9 @@
 > kompilyator kodingizni **o'zgartirishiga** sabab bo'lishini, eng ko'p uchraydigan UB turlarini va
 > ulardan himoyalanishni bilasiz. Yadro muhandisi uchun bu bob majburiy. Mashqlar: 01, 03, 04, 09, 12, 18.
 
+> **To'liq ishlaydigan misol:** [misollar/13_ub.c](misollar/13_ub.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 13.1. UB nima
 
 C standarti ba'zi holatlar uchun natijani **aniqlamaydi**: "bunday qilmang — agar qilsangiz, har qanday

@@ -5,6 +5,9 @@
 > Yadroning C bilan yozib bo'lmaydigan qismlari (yuklash, uzilishlar, kontekst almashish, syscall
 > kirishi) assembly'da — ularni o'qiy olishingiz kerak.
 
+> **To'liq ishlaydigan misol:** [misollar/17_assembly.c](misollar/17_assembly.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 17.1. Registrlar
 
 CPU ichidagi juda tez "o'zgaruvchilar". x86-64 da 16 ta umumiy 64 bitli registr:

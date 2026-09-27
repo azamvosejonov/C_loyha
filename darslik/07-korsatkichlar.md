@@ -4,6 +4,9 @@
 > Bobdan keyin: `&`, `*`, `->`, `NULL`, ko'rsatkich arifmetikasi, `void *`, `char **`, `const` ko'rsatkichlar
 > va funksiya ko'rsatkichlarini bilasiz. Mashqlar: 06, 07, 08, 10, 16, 20, 23.
 
+> **To'liq ishlaydigan misol:** [misollar/07_korsatkichlar.c](misollar/07_korsatkichlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 7.1. Ko'rsatkich — manzilni saqlaydigan o'zgaruvchi
 
 Xotira — raqamlangan baytlar qatori (0-bob). Har bir o'zgaruvchi qaysidir **manzilda** turadi.

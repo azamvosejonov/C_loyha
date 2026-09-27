@@ -4,6 +4,9 @@
 > (tekislash va to'ldiruvchi baytlar), `packed` va bit maydonlarini, `union` va `enum` ni bilasiz —
 > apparat va disk tuzilmalarini C'da tasvirlash uchun hammasi kerak. Mashqlar: 13, 16, 17, 19, 22, 23.
 
+> **To'liq ishlaydigan misol:** [misollar/09_struct.c](misollar/09_struct.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 9.1. `struct` — bir nechta qiymat bitta nom ostida
 
 ```c

@@ -5,6 +5,9 @@
 > jarayonini bilasiz. Bu — MyOS'dan keyin haqiqiy katta yadroga o'tish uchun xarita. (Odatda "Linux
 > Kernel Development" va "Understanding the Linux Kernel" kitoblaridan o'rganiladigan umumiy manzara.)
 
+> **To'liq ishlaydigan misol:** [misollar/30_yadro_moduli/](misollar/30_yadro_moduli/salom_modul.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 30.1. Yadro nima qiladi — besh vazifa
 
 1. **CPU'ni bo'lish** — jarayonlar, oqimlar, rejalashtirish (23-bob).

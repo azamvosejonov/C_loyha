@@ -4,6 +4,9 @@
 > ma'nosini, kutubxonalar (`.a`) ni va `Makefile` o'qish/yozishni bilasiz. MyOS'ning `Makefile`'i
 > endi siz uchun ochiq kitob bo'ladi.
 
+> **To'liq ishlaydigan misol:** [misollar/11_kop_fayl/](misollar/11_kop_fayl/main.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 11.1. Loyihani fayllarga bo'lish
 
 Qoidalar (MyOS va Linux shunday tuzilgan):

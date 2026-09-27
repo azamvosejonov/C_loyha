@@ -332,6 +332,7 @@ lab-check:
 	@tools/host_libctest.sh
 	@tools/lab.py selfcheck
 	@tools/mashq.py selfcheck
+	@sh darslik/misollar/tekshir.sh
 
 clean:
 	rm -rf $(BUILD)

@@ -4,6 +4,9 @@
 > nega **nusxa** sifatida uzatilishini, `static` funksiyalarni, rekursiya va stek nima ekanini bilasiz.
 > Mashqlar: 03, 06, 07.
 
+> **To'liq ishlaydigan misol:** [misollar/05_funksiyalar.c](misollar/05_funksiyalar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 5.1. Funksiyaning tuzilishi
 
 ```c

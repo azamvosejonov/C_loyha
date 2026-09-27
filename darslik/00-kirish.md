@@ -3,6 +3,9 @@
 > **Bu bobdan keyin:** kompyuteringizda C dasturini yozib, kompilyatsiya qilib, ishga tushira olasiz
 > va eng birinchi dasturdagi **har bir belgining** nima qilishini bilasiz.
 
+> **To'liq ishlaydigan misol:** [misollar/00_salom.c](misollar/00_salom.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 0.1. Kompyuter aslida nima qiladi
 
 Kompyuterni juda soddalashtirib tasavvur qilsak, unda ikkita asosiy qism bor:
@@ -265,7 +268,53 @@ printf("yosh=%d boy=%.2f harf=%c ism=%s\n", yosh, boy, harf, "Ali");
 **Muhim:** format va argument turi mos kelmasa — **aniqlanmagan xatti-harakat** (masalan, `%d`
 ga `long` berish). `-Wall` buni ogohlantiradi. Python'dagi f-string kabi avtomatik o'giriш yo'q.
 
-## 0.9. Savol-javob
+## 0.9. Kitobdagi kod parchalarini qanday sinash kerak
+
+Keyingi boblarda ko'pincha **parcha** ko'rasiz — to'liq dastur emas, faqat g'oya:
+
+```c
+#define N 10
+int massiv[N];
+```
+
+Bu parchani o'zi kompilyatsiya qilib bo'lmaydi: unda `main` yo'q. Uni sinash uchun doim bitta
+**shablonga** qo'yasiz (`sinov.c` deb saqlang):
+
+```c
+#include <stdio.h>
+
+/* 1) #define, struct, funksiyalar - shu yerga, main dan TASHQARIGA */
+#define N 10
+
+int main(void)
+{
+    /* 2) o'zgaruvchilar va buyruqlar - main ICHIGA */
+    int massiv[N];
+    for (int i = 0; i < N; i++)
+        massiv[i] = i * i;
+
+    /* 3) natijani ko'rish uchun - printf */
+    for (int i = 0; i < N; i++)
+        printf("massiv[%d] = %d\n", i, massiv[i]);
+    return 0;
+}
+```
+
+```bash
+gcc -Wall -Wextra -g sinov.c -o sinov && ./sinov
+```
+
+Endi **o'zgartiring**: `N` ni 5 qiling, yana yig'ing — faqat bitta qatorni o'zgartirdingiz, lekin massiv
+ham, ikkala sikl ham moslashdi. Aynan shunday tajribalar bilan o'rganasiz: har safar natijani **avval
+taxmin qiling**, keyin tekshiring. Taxmin noto'g'ri chiqqan joy — siz hali tushunmagan joy.
+
+Kompilyator `implicit declaration of function 'strlen'` desa — kerakli `#include` yetishmayapti
+(`strlen` → `<string.h>`, `malloc` → `<stdlib.h>`). Qaysi biri kerakligini `man 3 strlen` aytadi.
+
+Bundan tashqari, **har bir bob uchun tayyor to'liq dastur** bor: [misollar/](misollar/README.md). Har
+birining boshida — ishga tushirish buyrug'i, kutilgan natija va "Sinab ko'ring" topshiriqlari.
+
+## 0.10. Savol-javob
 
 **Nega `main` dan qaytgan son "chiqish kodi" bo'ladi?**
 Operatsion tizim (shell) dasturni ishga tushiradi va u tugaganda natijasini so'raydi. `make`,
@@ -281,7 +330,7 @@ olasiz. MyOS'ning o'z `stdio.h` i ancha sodda: `user/include/stdio.h`.
 drayveri → ekran. MyOS'da bu yo'lning har bir qadamini o'qishingiz mumkin (`user/bin/hello.c`
 ning boshidagi izohga qarang). 14-bobda buni o'zingiz qilasiz.
 
-## 0.10. O'zingizni tekshiring
+## 0.11. O'zingizni tekshiring
 
 1. `#include` qatorining oxirida nega `;` yo'q?
 2. `printf("a"); printf("b\n");` nima chiqaradi? `\n` bo'lmasa-chi?
@@ -298,7 +347,7 @@ ning boshidagi izohga qarang). 14-bobda buni o'zingiz qilasiz.
 5. Shell dasturni faqat `PATH` papkalarida qidiradi; joriy papka odatda unda yo'q.
 </details>
 
-## 0.11. Mashq
+## 0.12. Mashq
 
 - `salom.c` ni o'zgartiring: ismingiz va yoshingizni `printf` bilan chiqaring.
 - `;` ni ataylab o'chirib, xato xabarini o'qing. `}` ni o'chirib ko'ring. `#include` ni o'chirib ko'ring.

@@ -4,6 +4,9 @@
 > ishlatishni, "egalik" (kim `free` qiladi) qoidasini va xotira xatolarini (leak, use-after-free,
 > double free) topishni bilasiz. Mashqlar: 13–18, 30.
 
+> **To'liq ishlaydigan misol:** [misollar/08_xotira.c](misollar/08_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 8.1. Jarayon xotirasining xaritasi
 
 Linux'da (va MyOS'da) har bir dastur o'z virtual manzil maydonini ko'radi:

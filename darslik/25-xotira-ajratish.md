@@ -5,6 +5,9 @@
 > (first/next/best fit), ajratilgan ro'yxatlarni, buddy va slab'ni bilasiz. (CS:APP 9.9 va OSTEP
 > "Free-Space Management".) Mashqlar: 13, 30, 32, 33.
 
+> **To'liq ishlaydigan misol:** [misollar/25_malloc_ichi.c](misollar/25_malloc_ichi.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 25.1. Vazifa va cheklovlar
 
 Allocator katta xotira hududini (heap) oladi va so'rovlarga bo'laklab beradi. Cheklovlari:

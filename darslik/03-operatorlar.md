@@ -4,6 +4,9 @@
 > ularning ustuvorligidagi tuzoqlarni taniysiz va bitlar bilan ishlashni boshlaysiz.
 > Mashqlar: 02, 03, 04.
 
+> **To'liq ishlaydigan misol:** [misollar/03_bitlar.c](misollar/03_bitlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 3.1. Arifmetika
 
 | Operator | Ma'nosi | E'tibor |

@@ -4,6 +4,9 @@
 > "undefined reference" va "implicit declaration" xatolari nimadan kelib chiqishini bilasiz.
 > Yadro yozishda bu bilim **majburiy**: yadro Makefile'i va linker skripti aynan shu bosqichlarni boshqaradi.
 
+> **To'liq ishlaydigan misol:** [misollar/01_kompilyatsiya.sh](misollar/01_kompilyatsiya.sh) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 1.1. To'rt bosqich
 
 `gcc salom.c -o salom` aslida to'rtta dasturni ketma-ket ishga tushiradi:

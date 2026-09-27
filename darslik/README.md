@@ -11,6 +11,8 @@
 
 1. **Tartib bilan.** Har bir bob oldingilariga tayanadi.
 2. **Har bir misolni qo'lda yozing** (ko'chirmang) va ishga tushiring. Keyin o'zgartirib, nima bo'lishini kuzating.
+   Har bir bob uchun **to'liq ishlaydigan dastur** [misollar/](misollar/README.md) papkasida bor (bob boshida
+   havolasi). Bobdagi kod parchasini (masalan, faqat `#define N 10`) qanday sinashni ham o'sha yerda o'qing.
 3. Bob oxiridagi **"O'zingizni tekshiring"** savollariga avval o'zingiz javob bering, keyin javobni oching.
 4. Bobga tegishli **mashqlarni** bajaring: `tools/mashq.py vazifa`, `tools/mashq.py tekshir`.
 5. Tushunmagan joyni **qayta o'qing**, keyin kichik dastur yozib sinang. Tushunmasdan keyingi bobga o'tmang.

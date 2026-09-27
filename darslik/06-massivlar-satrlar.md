@@ -4,6 +4,9 @@
 > satr = `'\0'` bilan tugaydigan baytlar ekanini va bufer to'lishi (buffer overflow) qanday
 > paydo bo'lishini bilasiz. Mashqlar: 05, 08, 09, 10, 11, 12.
 
+> **To'liq ishlaydigan misol:** [misollar/06_satrlar.c](misollar/06_satrlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 6.1. Massiv
 
 ```c

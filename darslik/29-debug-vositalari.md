@@ -4,6 +4,9 @@
 > (watchpoint, shartli to'xtash, core dump), sanitizer'lar, valgrind, strace, ltrace, perf, objdump,
 > addr2line va QEMU monitor'ini bilasiz. Dasturchi vaqtining yarmi — debug; bu bob o'sha yarmini tezlashtiradi.
 
+> **To'liq ishlaydigan misol:** [misollar/29_xatoli.c](misollar/29_xatoli.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 29.1. Debug usuli — asbobdan oldin fikr
 
 1. **Takrorlang.** Xatoni har safar chiqadigan qiling (kirish, buyruq, qadamlar). Takrorlanmaydigan xato

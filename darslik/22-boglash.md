@@ -5,6 +5,9 @@
 > `nm`, `readelf`, `objdump` bilan istalgan dasturning ichini ko'ra olasiz. (Odatda CS:APP 7-bobidan
 > o'rganiladi.) Mashqlar: 36 (ELF tahlilchisi).
 
+> **To'liq ishlaydigan misol:** [misollar/22_boglash.c](misollar/22_boglash.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 22.1. Ikki xil ELF: obyekt va bajariladigan
 
 Linux'da (va MyOS'da) hamma dastur fayllari **ELF** (Executable and Linkable Format) formatida:

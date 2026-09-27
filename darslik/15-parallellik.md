@@ -5,6 +5,9 @@
 > dasturlashning **eng qiyin** mavzusi: MyOS 64 tagacha yadroda bir vaqtda ishlaydi va har bir umumiy
 > ma'lumot himoyalangan bo'lishi kerak. Mashqlar: 29, 34.
 
+> **To'liq ishlaydigan misol:** [misollar/15_oqimlar.c](misollar/15_oqimlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 15.1. Oqim (thread) nima
 
 Jarayon — alohida xotira maydoni. **Oqim** — bitta jarayon ichidagi alohida "bajaruvchi": o'z steki va

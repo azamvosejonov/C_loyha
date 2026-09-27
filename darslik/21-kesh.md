@@ -4,6 +4,9 @@
 > tamoyilini, keshga mos kod yozishni, TLB'ni va ko'p yadroli tizimdagi "soxta bo'lishish" (false sharing)
 > ni bilasiz. Yadro — tizimning eng ko'p ishlatiladigan kodi; uning tezligi shu bilimga bog'liq.
 
+> **To'liq ishlaydigan misol:** [misollar/21_kesh.c](misollar/21_kesh.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 21.1. Tezlik pog'onalari
 
 CPU juda tez, xotira esa unga nisbatan sekin. Taxminiy raqamlar (zamonaviy kompyuter):

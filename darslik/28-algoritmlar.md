@@ -6,6 +6,9 @@
 > ularning har biri yadroda qayerda ishlatilishini va suhbatdagi masalalarga qanday tayyorlanishni bilasiz.
 > Mashqlar: 13, 16, 17, 19, 21, 22, 32, 42, 46, 47, 48.
 
+> **To'liq ishlaydigan misol:** [misollar/28_algoritmlar.c](misollar/28_algoritmlar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 28.1. Murakkablik: O-belgi
 
 Algoritm tezligini soniyalarda emas, **kirish o'lchami n o'sganda ish qanday o'sishi** bilan baholaymiz:

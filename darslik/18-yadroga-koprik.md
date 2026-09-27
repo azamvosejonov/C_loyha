@@ -4,6 +4,9 @@
 > kompilyatsiya bayroqlarini, linker skriptini va MyOS kodini qayerdan va qanday o'qishni bilasiz.
 > Bu bob darslikni MyOS bilan bog'laydi — bundan keyin siz yadro ichida ishlaysiz.
 
+> **To'liq ishlaydigan misol:** [misollar/18_libcsiz.c](misollar/18_libcsiz.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 18.1. Hosted va freestanding
 
 Siz shu paytgacha yozgan dasturlar — **hosted** muhitda: ostida OS bor, `main` ni kimdir chaqiradi,

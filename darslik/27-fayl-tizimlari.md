@@ -5,6 +5,9 @@
 > FFS g'oyasini va eng muhimi — **tok o'chsa nima bo'ladi** (fsck, journaling) masalasini bilasiz.
 > (OSTEP "Persistence" qismi.) Mashqlar: 25, 26, 37.
 
+> **To'liq ishlaydigan misol:** [misollar/27_fayllar.c](misollar/27_fayllar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 27.1. Qurilma bilan gaplashish
 
 Qurilma (disk, tarmoq kartasi) OS'ga **registrlar** orqali ko'rinadi: holat, buyruq, ma'lumot (16-bob).

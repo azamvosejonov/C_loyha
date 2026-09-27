@@ -4,6 +4,9 @@
 > qurilma registrlarini bit maskalar bilan o'qish/yozishni va bitmap'larni bilasiz — drayver yozish
 > uchun asosiy bilimlar. Mashqlar: 04, 21, 22.
 
+> **To'liq ishlaydigan misol:** [misollar/16_bitlar_apparat.c](misollar/16_bitlar_apparat.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 16.1. Bayt tartibi (endianness)
 
 Ko'p baytli son xotirada qaysi tartibda yoziladi?

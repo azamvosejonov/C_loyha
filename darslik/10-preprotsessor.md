@@ -4,6 +4,9 @@
 > `do { } while (0)` nima uchun kerakligini, `#x` va `a##b` ni, shartli kompilyatsiyani bilasiz.
 > Yadro kodining taxminan 10% i makrolar — ularni o'qiy olishingiz shart. Mashqlar: 23 va barcha `test.h`.
 
+> **To'liq ishlaydigan misol:** [misollar/10_makrolar.c](misollar/10_makrolar.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 10.1. Preprotsessor nima
 
 Kompilyatsiyaning **birinchi** bosqichi (1-bob). U C'ni tushunmaydi — faqat **matnni** almashtiradi.

@@ -5,6 +5,9 @@
 > sahifalash (demand paging), almashtirish algoritmlarini (OPT, FIFO, LRU, Clock), thrashing'ni,
 > copy-on-write va `mmap` ni bilasiz. (OSTEP virtualizatsiya qismi + CS:APP 9-bob.) Mashqlar: 31, 43.
 
+> **To'liq ishlaydigan misol:** [misollar/24_virtual_xotira.c](misollar/24_virtual_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
+> "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
+
 ## 24.1. Nega virtual xotira
 
 Agar har bir dastur fizik xotirani to'g'ridan-to'g'ri ishlatsa:
