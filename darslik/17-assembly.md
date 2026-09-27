@@ -8,6 +8,96 @@
 > **To'liq ishlaydigan misol:** [misollar/17_assembly.c](misollar/17_assembly.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Registrlar — qo'lingizdagi narsalar (17.1).** Oshxonada ishlayotganda eng kerakli narsalar qo'lingizda
+(pichoq, qoshiq) — registrlar. Stol ustidagilar — kesh. Shkafdagilar — RAM. Qo'lda ushlash eng tez,
+lekin qo'l atigi ikkita (x86-64 da 16 ta umumiy registr). Protsessor hisoblashni faqat **registrlarda**
+qiladi: xotiradagi sonni avval registrga olib keladi, keyin qo'shadi.
+
+**`mov`, `add`, `cmp`, `jmp` — ishchining oddiy buyruqlari (17.2).** "Qutidan olib qo'lingga ol" (`mov`),
+"qo'shib qo'y" (`add`), "solishtir" (`cmp`), "agar teng bo'lsa, 5-qadamga o't" (`je`). Har qanday
+murakkab dastur shu kabi o'nlab oddiy buyruqlarga bo'linadi — xuddi retsept oddiy harakatlarga bo'lingandek.
+
+**Chaqirish qoidalari — pochta qoidasi (17.4).** Pochta qat'iy qoidaga ega: indeks — yuqori o'ng
+burchakda, manzil — o'rtada. Hamma shu qoidaga amal qilgani uchun har qanday pochtachi har qanday xatni
+yetkazadi. Funksiya chaqiruvi ham: 1-argument doim `rdi` da, 2-si `rsi` da, natija `rax` da. Shuning uchun
+GCC'da yozilgan funksiyani assembly'dan yoki boshqa tildan chaqirish mumkin.
+
+**Stek kadri — har topshiriq uchun alohida varaq (17.4).** Funksiya chaqirilganda stekda unga "varaq"
+ajratiladi: qaytish manzili (qayerga qaytish kerak), lokal o'zgaruvchilar. Funksiya tugaganda varaq
+yirtib tashlanadi.
+
+**Inline assembly — o'zbekcha gapda bitta inglizcha so'z (17.5).** Ba'zan o'zbekchada aniq so'z yo'q —
+inglizchasini qo'shib yuborasiz. C'da ham ba'zi buyruqlar yo'q (`cpuid`, `rdtsc`, `cli`) — ularni
+`__asm__` bilan qo'shib yozasiz. Faqat kompilyatorga aniq aytish kerak: qaysi registrlarni ishlatdingiz
+va nimani buzdingiz.
+
+### To'liq dastur: son necha bitli
+
+```c
+/* bitlar_asm.c - inline assembly: qo'shish, ko'paytirish va eng katta bitni topish */
+#include <stdio.h>
+
+static long asm_qosh(long a, long b)
+{
+    long natija;
+    __asm__("mov %1, %0\n\t"                    /* natija = a */
+            "add %2, %0"                        /* natija += b */
+            : "=&r"(natija)                     /* chiqish: istalgan registr */
+            : "r"(a), "r"(b));                  /* kirish: istalgan registrlar */
+    return natija;
+}
+
+static long asm_kopaytir(long a, long b)
+{
+    __asm__("imul %1, %0" : "+r"(a) : "r"(b));  /* a *= b ("+" - ham kirish, ham chiqish) */
+    return a;
+}
+
+/* bsr - "bit scan reverse": eng katta 1 bitning raqami (0 ga berilmasin) */
+static int eng_katta_bit(unsigned long x)
+{
+    unsigned long r;
+    __asm__("bsr %1, %0" : "=r"(r) : "rm"(x));
+    return (int)r;
+}
+
+int main(void)
+{
+    printf("asm_qosh(40, 2) = %ld\n", asm_qosh(40, 2));
+    printf("asm_kopaytir(12, 12) = %ld\n", asm_kopaytir(12, 12));
+
+    unsigned long sonlar[] = { 1, 5, 255, 256, 1000000, 4000000000ul };
+    for (int i = 0; i < 6; i++)
+        printf("%10lu -> eng katta bit %2d, demak %2d bitli son\n",
+               sonlar[i], eng_katta_bit(sonlar[i]), eng_katta_bit(sonlar[i]) + 1);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 bitlar_asm.c -o bitlar_asm
+$ ./bitlar_asm
+asm_qosh(40, 2) = 42
+asm_kopaytir(12, 12) = 144
+         1 -> eng katta bit  0, demak  1 bitli son
+         5 -> eng katta bit  2, demak  3 bitli son
+       255 -> eng katta bit  7, demak  8 bitli son
+       256 -> eng katta bit  8, demak  9 bitli son
+   1000000 -> eng katta bit 19, demak 20 bitli son
+4000000000 -> eng katta bit 31, demak 32 bitli son
+$ gcc -O2 -S bitlar_asm.c -o - | grep -m3 "bsr\|imul"
+	imul %rdx, %rdx
+	bsr %rdx, %rcx
+```
+
+Oxirgi buyruq kompilyator yaratgan assembly'dan sizning buyruqlaringizni topadi — ular C kodi ichiga
+aynan siz yozgandek qo'yilgan.
+
+**Sinab ko'ring:** `asm_qosh` ga o'xshash `asm_ayir` yozing (`sub` buyrug'i). `gcc -O0 -S` va `gcc -O2 -S`
+bilan `main` ni solishtiring — `-O2` qancha qisqa?
+
 ## 17.1. Registrlar
 
 CPU ichidagi juda tez "o'zgaruvchilar". x86-64 da 16 ta umumiy 64 bitli registr:

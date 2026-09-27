@@ -7,6 +7,95 @@
 > **To'liq ishlaydigan misol:** [misollar/13_ub.c](misollar/13_ub.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**UB — sug'urta shartnomasidagi istisno (13.1).** Avtomobil sug'urtasida yozilgan: "Mast holda haydaganda
+yuz bergan hodisalar uchun kompaniya **hech qanday** javobgarlikni o'z zimmasiga olmaydi". Bu "kamroq
+to'laymiz" degani emas — **umuman hech narsa kafolatlanmaydi**. C standarti ham shunday: "massiv
+chegarasidan chiqsangiz, ishorali son toshsa, NULL ni o'qisangiz — nima bo'lishi haqida hech narsa
+va'da qilmayman". Dastur ishlashi ham, qulashi ham, jim turib noto'g'ri natija berishi ham mumkin.
+
+**Kompilyator qoidaga ishonadi — yashil chiroqdagi haydovchi (13.2).** Yashil chiroqda haydovchi
+chorrahaga sekinlamasdan kiradi: "qoida bo'yicha boshqalar to'xtagan". Kimdir qizilda o'tsa — halokat.
+Kompilyator ham "dasturchi UB qilmaydi" deb ishonadi va shunga qarab tezlashtiradi. Masalan, `x + 1 < x`
+tekshiruvini "ishorali son toshmaydi — demak bu doim yolg'on" deb **o'chirib tashlaydi**. Sizning
+himoyangiz jimgina yo'qoladi.
+
+**To'g'ri yo'l — ko'prikka chiqishdan oldin yuk og'irligini tekshirish (13.3).** Ko'prik 10 tonnaga
+chidaydi. Yuk mashinasi **ko'prikka chiqqandan keyin** ko'prik buzilganmi deb tekshirish befoyda.
+Toshishni ham **hisoblashdan oldin** tekshirasiz: `if (a > INT_MAX - b)` — "qo'shsam sig'adimi?".
+
+**Sanitizer — videoregistrator (13.4).** Halokat bo'lganda aniq nima bo'lganini ko'rsatadi: qaysi qator,
+qaysi qiymat. Mashinani biroz sekinlashtiradi, lekin o'rganish va sinov paytida bebaho.
+
+**Implementation-defined — mamlakatning yo'l qoidasi (13.6).** Qaysi tomondan yurish kerak: o'ngdanmi,
+chapdanmi? Har bir davlat o'zi belgilaydi, lekin **aniq belgilaydi va hujjatlaydi**. `char` ishorali
+yoki ishorasiz ekani ham shunday — kompilyator tanlaydi va hujjatlaydi. Bu UB emas.
+
+### To'liq dastur: xavfsiz bank o'tkazmasi
+
+```c
+/* otkazma.c - toshishni OLDINDAN tekshirish: uch xil to'g'ri usul */
+#include <limits.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+/* 1-usul: qo'shishdan OLDIN chegarani tekshirish */
+static bool qosh_xavfsiz(int balans, int summa, int *natija)
+{
+    if (summa > 0 && balans > INT_MAX - summa)
+        return false;                           /* sig'maydi */
+    if (summa < 0 && balans < INT_MIN - summa)
+        return false;
+    *natija = balans + summa;
+    return true;
+}
+
+int main(void)
+{
+    int balans = 2000000000;                    /* 2 mlrd - int chegarasiga yaqin */
+    int kelgan[] = { 100000000, 100000000, 100000000 };
+
+    printf("1-usul (oldindan tekshirish):\n");
+    for (int i = 0; i < 3; i++) {
+        int yangi;
+        if (qosh_xavfsiz(balans, kelgan[i], &yangi)) {
+            balans = yangi;
+            printf("  +%d -> balans %d\n", kelgan[i], balans);
+        } else {
+            printf("  +%d RAD ETILDI: hisob chegarasidan oshadi\n", kelgan[i]);
+        }
+    }
+
+    /* 2-usul: kompilyatorning o'rnatilgan funksiyasi (Linux yadrosi check_add_overflow shu) */
+    int natija;
+    if (__builtin_add_overflow(balans, 500000000, &natija))
+        printf("2-usul: %d + 500000000 toshadi - rad etildi\n", balans);
+
+    /* 3-usul: kattaroq tur bilan hisoblash */
+    long long katta = (long long)balans + 500000000;
+    printf("3-usul: long long bilan aniq natija %lld (int ga sig'maydi: %s)\n",
+           katta, katta > INT_MAX ? "ha" : "yo'q");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -fsanitize=undefined otkazma.c -o otkazma
+$ ./otkazma
+1-usul (oldindan tekshirish):
+  +100000000 -> balans 2100000000
+  +100000000 RAD ETILDI: hisob chegarasidan oshadi
+  +100000000 RAD ETILDI: hisob chegarasidan oshadi
+2-usul: 2100000000 + 500000000 toshadi - rad etildi
+3-usul: long long bilan aniq natija 2600000000 (int ga sig'maydi: ha)
+```
+
+`-fsanitize=undefined` bilan yig'ildi, lekin sanitizer bitta ham xabar bermadi: hech qayerda UB yo'q.
+
+**Sinab ko'ring:** `qosh_xavfsiz` ichidagi ikkala `if` ni o'chirib, faqat `*natija = balans + summa;`
+qoldiring. Dasturni `-fsanitize=undefined` bilan ishga tushiring — sanitizer qaysi qatorni ko'rsatadi?
+
 ## 13.1. UB nima
 
 C standarti ba'zi holatlar uchun natijani **aniqlamaydi**: "bunday qilmang — agar qilsangiz, har qanday

@@ -8,6 +8,102 @@
 > **To'liq ishlaydigan misol:** [misollar/30_yadro_moduli/](misollar/30_yadro_moduli/salom_modul.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Yadro — shahar hokimiyati (30.1).** Hokimiyat besh ishni qiladi, yadro ham:
+1. **Resurslarni taqsimlash** — yer uchastkalari (xotira), yo'llardagi navbat (CPU vaqti).
+2. **Himoya** — bir fuqaro boshqasining uyiga kira olmaydi (jarayonlar izolyatsiyasi).
+3. **Xizmatlar** — davlat xizmatlari markazi: ariza berasiz, ular bajaradi (syscall'lar).
+4. **Umumiy infratuzilma** — yo'llar, suv quvurlari (drayverlar, fayl tizimlari, tarmoq).
+5. **Abstraksiya** — fuqaro elektr stantsiyasi qanday ishlashini bilmaydi, faqat rozetkadan foydalanadi
+   (dastur diskning turini bilmaydi, faqat `read` chaqiradi).
+
+**Monolit yadro — bitta katta vazirlik binosi (30.2).** Hamma bo'limlar bir binoda: gaplashish tez
+(oddiy funksiya chaqiruvi). Lekin bitta bo'limda yong'in chiqsa — butun bino yonadi (drayverdagi xato
+butun tizimni qulatadi). Linux — monolit.
+
+**Mikroyadro — alohida binolar (30.2).** Har bir bo'lim o'z binosida, faqat xat (xabar) orqali gaplashadi.
+Bittasi yonsa, boshqalari ishlayveradi — xavfsizroq. Lekin xat yuborish sekinroq. Masalan, seL4, QNX.
+
+**Modul — binoga vaqtinchalik qo'shiladigan bo'lim (30.6).** Yangi xizmat kerak bo'lsa, butun binoni
+qayta qurmaysiz — bo'sh xonaga yangi bo'lim ko'chib kiradi (`insmod`) va keraksiz bo'lganda chiqib ketadi
+(`rmmod`). Linux drayverlarining ko'pi modul.
+
+**Patch yuborish — qonun loyihasi (30.7).** Taklif yozasiz (patch), u pochta ro'yxatida muhokama
+qilinadi, mutaxassislar (maintainer) tanqid qiladi, siz tuzatasiz (v2, v3...), oxirida qabul qilinadi
+va keyingi relizga kiradi. Jarayon sekin, lekin har bir qator ko'p ko'zdan o'tadi.
+
+### To'liq dastur: syscall jadvali (yadroning "xizmatlar markazi")
+
+Haqiqiy yadroda syscall raqami funksiyalar jadvalidan kerakli ishlovchini tanlaydi. Bu yerda xuddi shu
+mexanizm oddiy dasturda — funksiya ko'rsatkichlari massivi bilan.
+
+```c
+/* xizmatlar.c - syscall jadvali: raqam -> ishlovchi funksiya, noma'lum raqamga -ENOSYS */
+#include <errno.h>
+#include <stdio.h>
+
+typedef long (*ishlovchi)(long a, long b);
+
+static long x_getpid(long a, long b) { (void)a; (void)b; return 42; }
+static long x_qosh(long a, long b) { return a + b; }
+static long x_bol(long a, long b)
+{
+    if (b == 0)
+        return -EINVAL;                         /* noto'g'ri argument */
+    return a / b;
+}
+
+/* Linux'da ham shunday: sys_call_table[__NR_xxx] = sys_xxx */
+static const ishlovchi jadval[] = {
+    [0] = x_getpid,
+    [1] = x_qosh,
+    [2] = x_bol,
+};
+static const char *nomlar[] = { "getpid", "qosh", "bol" };
+
+static long syscall_kirish(unsigned long raqam, long a, long b)
+{
+    if (raqam >= sizeof(jadval) / sizeof(jadval[0]) || !jadval[raqam])
+        return -ENOSYS;                         /* bunday xizmat yo'q */
+    return jadval[raqam](a, b);
+}
+
+int main(void)
+{
+    struct { unsigned long raqam; long a, b; } arizalar[] = {
+        { 0, 0, 0 }, { 1, 20, 22 }, { 2, 100, 7 }, { 2, 5, 0 }, { 99, 1, 1 },
+    };
+
+    for (int i = 0; i < 5; i++) {
+        long r = syscall_kirish(arizalar[i].raqam, arizalar[i].a, arizalar[i].b);
+        const char *nom = arizalar[i].raqam < 3 ? nomlar[arizalar[i].raqam] : "?";
+        if (r < 0)
+            printf("syscall %2lu (%-6s) -> xato %ld (%s)\n", arizalar[i].raqam, nom, r,
+                   r == -ENOSYS ? "ENOSYS: bunday xizmat yo'q" : "EINVAL: noto'g'ri argument");
+        else
+            printf("syscall %2lu (%-6s) -> %ld\n", arizalar[i].raqam, nom, r);
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra xizmatlar.c -o xizmatlar
+$ ./xizmatlar
+syscall  0 (getpid) -> 42
+syscall  1 (qosh  ) -> 42
+syscall  2 (bol   ) -> 14
+syscall  2 (bol   ) -> xato -22 (EINVAL: noto'g'ri argument)
+syscall 99 (?     ) -> xato -38 (ENOSYS: bunday xizmat yo'q)
+```
+
+Yadro xatolarni **manfiy** son bilan qaytaradi (`-ENOSYS`, `-EINVAL`). libc esa uni musbat `errno` ga
+aylantirib, funksiyadan −1 qaytaradi (12-bob).
+
+**Sinab ko'ring:** `[3] = x_kopaytir` qo'shing. MyOS'ning haqiqiy jadvalini oching:
+`grep -n "SYS_" kernel/syscall/*.c | head` — xuddi shu tuzilmani taniysizmi?
+
 ## 30.1. Yadro nima qiladi — besh vazifa
 
 1. **CPU'ni bo'lish** — jarayonlar, oqimlar, rejalashtirish (23-bob).

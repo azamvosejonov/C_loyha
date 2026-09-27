@@ -10,6 +10,9 @@
 ## Qanday o'qish kerak
 
 1. **Tartib bilan.** Har bir bob oldingilariga tayanadi.
+   Har bir bob **"Hayotdan misollar"** bo'limi bilan boshlanadi: bobning g'oyalari kundalik hayotdagi
+   narsalar (bankomat, pochta, metro, kinoteatr...) bilan tushuntiriladi va har birida o'ziga xos,
+   to'liq ishlaydigan dastur bor — ekranda nima chiqishi ham yozilgan.
 2. **Har bir misolni qo'lda yozing** (ko'chirmang) va ishga tushiring. Keyin o'zgartirib, nima bo'lishini kuzating.
    Har bir bob uchun **to'liq ishlaydigan dastur** [misollar/](misollar/README.md) papkasida bor (bob boshida
    havolasi). Bobdagi kod parchasini (masalan, faqat `#define N 10`) qanday sinashni ham o'sha yerda o'qing.

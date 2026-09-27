@@ -5,6 +5,43 @@
 > tarjimasi. Kerak bo'lganda qidiring (`Ctrl-F`). Ingliz tilini asta-sekin o'rganish uchun ham eng
 > foydali 300 so'z — shu yerda.
 
+## Hayotdan misollar: so'zlarning asl ma'nosi
+
+Inglizcha atamalarning ko'pi oddiy, kundalik so'zlardan olingan. Asl ma'nosini bilsangiz, atama
+yodda o'z-o'zidan qoladi.
+
+| Atama | So'zma-so'z | Nega shunday atalgan |
+|---|---|---|
+| **kernel** | yong'oq mag'zi | Tizimning ichki, eng muhim qismi. Uni o'rab turgan qism — **shell** (po'choq) |
+| **shell** | po'choq | Yadroni o'rab turgan va foydalanuvchi bilan gaplashadigan qatlam |
+| **boot** | etik | "Pull oneself up by one's bootstraps" — o'zini etigining ipidan tortib ko'tarish. Kompyuter o'zini o'zi ishga tushiradi |
+| **fork** | ayri, vilka; yo'l ayrilishi | Bitta jarayon ikkiga ayriladi — xuddi yo'l ayrilgandek |
+| **pipe** | quvur | Bir tomondan kiradi, boshqa tomondan chiqadi |
+| **thread** | ip | Bitta dastur ichidagi bajarilishning alohida "ipi" |
+| **lock** | qulf | Eshikni qulflash kabi — bir vaqtda bitta kishi |
+| **stack** | taxlam | Likopchalar taxlami |
+| **heap** | uyum | Tartibsiz uyum — bo'sh joy istalgan joydan olinadi |
+| **cache** | yashirin zaxira | Fransuzcha "yashirmoq": tez olish uchun yaqinda yashirib qo'yilgan narsa |
+| **page** | sahifa | Xotira kitob kabi teng sahifalarga bo'lingan |
+| **bus** | avtobus (shina) | Ma'lumotlarni hamma "bekatlarga" tashiydigan umumiy yo'l |
+| **bug** | qo'ng'iz | 1947-yilda Harvard Mark II kompyuterining relesiga haqiqiy kuya qamalib qolgan va u jurnalga yopishtirib qo'yilgan |
+| **patch** | yamoq | Kiyimdagi teshikni yamash kabi — kodning kichik tuzatmasi |
+| **daemon** | ruh, jin (yunoncha: yordamchi ruh) | Ko'rinmasdan, fonda ishlab yuradigan yordamchi dastur |
+| **zombie** | tirik o'lik | Jarayon tugagan (o'lgan), lekin hali ro'yxatda "yuribdi" |
+| **orphan** | yetim | Otasi tugagan jarayon — uni `init` "asrab oladi" |
+| **spin** | aylanmoq | Qulf bo'shashini aylanib-aylanib kutish |
+| **dump** | to'kib tashlamoq | Xotiraning hammasini faylga "to'kib" tashlash (core dump) |
+| **flush** | yuvib yubormoq | Bufer ichidagini bir yo'la chiqarib yuborish |
+| **hook** | ilgak | Boshqa kod "ilinishi" mumkin bo'lgan joy |
+| **handler** | ishlovchi, boshqaruvchi | Hodisa kelganda uni "qo'lga oladigan" funksiya |
+| **mount** | minmoq, o'rnatmoq | Diskni katalog daraxtiga "mindirish" |
+| **sandbox** | qumdon | Bolalar faqat qumdon ichida o'ynaydi — tashqariga zarar yo'q |
+| **firmware** | "qattiq" dastur | Apparatga yozib qo'yilgan, kam o'zgaradigan dastur (hard + soft oralig'i) |
+
+**Sinab ko'ring:** 31.2-bo'limdagi atamalardan 10 tasini tanlab, har biri uchun o'zingizning hayotiy
+misolingizni o'ylab toping va daftaringizga yozing. O'zingiz o'ylab topgan o'xshatish boshqasinikidan
+yaxshiroq eslab qolinadi.
+
 ## 31.1. Koddagi qisqartmalar (nomlarda tez-tez uchraydi)
 
 | Qisqartma | To'liq | Ma'nosi |

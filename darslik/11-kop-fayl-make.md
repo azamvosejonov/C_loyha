@@ -7,6 +7,133 @@
 > **To'liq ishlaydigan misol:** [misollar/11_kop_fayl/](misollar/11_kop_fayl/main.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Loyihani fayllarga bo'lish — qurilish brigadalari (11.1).** Uy qurilishida elektriklar, santexniklar va
+suvoqchilar alohida ishlaydi. Har bir brigada faqat o'z ishini biladi va boshqalar bilan **chizma**
+(`.h` fayl) orqali kelishadi: "rozetka shu devorda, 30 sm balandlikda". Bitta brigada ishini qayta
+qilsa, qolganlari qaytadan ishlamaydi.
+
+**`extern` — "u boshqa bo'limda ishlaydi" (11.2).** Katta tashkilotda: "Hisob-kitob bo'yicha Karimova
+opaga murojaat qiling, u 3-qavatda". Siz uni ko'rmagansiz, lekin mavjudligini bilasiz. `extern int soni;`
+— "soni degan o'zgaruvchi bor, lekin boshqa faylda yashaydi". Uni topib ulash — linkerning ishi.
+
+**`static` (fayl darajasida) — oilaviy ish (11.2).** Oila ichidagi gaplar ko'chaga chiqmaydi. `static`
+funksiya faqat o'z faylida ko'rinadi — boshqa fayllar uni chaqira olmaydi va tasodifan bir xil nomli
+funksiya yozib qo'ysa ham, to'qnashuv bo'lmaydi.
+
+**Kutubxonalar — asboblar (11.3).**
+- **Statik kutubxona (`.a`)** — asbobni **sotib olish**: u sizning ustaxonangizda qoladi. Dastur
+  kattaroq bo'ladi, lekin hech kimga bog'liq emas.
+- **Dinamik kutubxona (`.so`)** — mahalladagi **umumiy ijaraxona**: hamma bitta asbobdan
+  foydalanadi. Dastur kichik, lekin ishga tushganda ijaraxona (kutubxona) joyida bo'lishi shart.
+  Asbob yangilansa — hamma birdaniga yangisini oladi.
+
+**Make — aqlli prorab (11.4).** Prorab har kuni ertalab tekshiradi: "Chizma o'zgardimi? O'zgargan bo'lsa,
+unga bog'liq devorlarni qayta qur. O'zgarmagan bo'lsa — tegma". Make ham fayllarning **o'zgartirilgan
+vaqtini** solishtiradi: `.c` fayl `.o` dan yangiroq bo'lsa — qayta kompilyatsiya qiladi, aks holda
+o'tkazib yuboradi. Linux'dagi 30 000 fayldan bittasini o'zgartirsangiz, bir necha soniyada yig'iladi.
+
+### To'liq dastur: ob-havo stantsiyasi (3 fayl + Makefile)
+
+1-bobdagi restoran misolidan farqli, bu yerda `static` va `extern` ham bor.
+
+```c
+/* harorat.h - chizma: tashqi dunyo uchun nima bor */
+#pragma once
+
+double selsiydan_farengeytga(double c);
+double ortacha(const double *qiymatlar, int soni);
+extern int olchovlar_soni;                      /* e'lon: o'zgaruvchi harorat.c da yashaydi */
+```
+
+```c
+/* harorat.c - brigadaning ichki ishi */
+#include "harorat.h"
+
+int olchovlar_soni = 0;                         /* ta'rif: xotira shu yerda ajratiladi */
+
+static double yaxlitla(double x)                /* static: faqat shu fayl uchun */
+{
+    return (double)(long)(x * 10 + (x >= 0 ? 0.5 : -0.5)) / 10;
+}
+
+double selsiydan_farengeytga(double c)
+{
+    olchovlar_soni++;
+    return yaxlitla(c * 9 / 5 + 32);
+}
+
+double ortacha(const double *q, int n)
+{
+    double s = 0;
+    for (int i = 0; i < n; i++)
+        s += q[i];
+    return yaxlitla(s / n);
+}
+```
+
+```c
+/* stantsiya.c - asosiy dastur */
+#include <stdio.h>
+#include "harorat.h"
+
+int main(void)
+{
+    double kun[] = { 18.5, 22.0, 27.3, 24.1 };
+    for (int i = 0; i < 4; i++)
+        printf("%5.1f C = %5.1f F\n", kun[i], selsiydan_farengeytga(kun[i]));
+    printf("O'rtacha: %.1f C\n", ortacha(kun, 4));
+    printf("Konvertatsiyalar soni: %d\n", olchovlar_soni);
+    return 0;
+}
+```
+
+```make
+# Makefile - prorab uchun reja
+CFLAGS := -Wall -Wextra
+
+stantsiya: stantsiya.o harorat.o
+	$(CC) $^ -o $@
+
+stantsiya.o: stantsiya.c harorat.h
+harorat.o: harorat.c harorat.h
+
+clean:
+	rm -f stantsiya *.o
+```
+
+```console
+$ make
+cc -Wall -Wextra   -c -o stantsiya.o stantsiya.c
+cc -Wall -Wextra   -c -o harorat.o harorat.c
+cc stantsiya.o harorat.o -o stantsiya
+$ ./stantsiya
+ 18.5 C =  65.3 F
+ 22.0 C =  71.6 F
+ 27.3 C =  81.1 F
+ 24.1 C =  75.4 F
+O'rtacha: 23.0 C
+Konvertatsiyalar soni: 4
+$ make
+make: 'stantsiya' is up to date.
+$ touch harorat.c && make
+cc -Wall -Wextra   -c -o harorat.o harorat.c
+cc stantsiya.o harorat.o -o stantsiya
+$ nm harorat.o | grep -i "yaxlitla\|olchovlar\|selsiy"
+0000000000000000 B olchovlar_soni
+000000000000005f T selsiydan_farengeytga
+0000000000000000 t yaxlitla
+```
+
+Ikkinchi `make` hech narsa qilmadi — hech narsa o'zgarmagan. `touch harorat.c` (faylni "o'zgartirilgan"
+deb belgilash) dan keyin esa faqat `harorat.o` qayta yig'ildi va qayta bog'landi — `stantsiya.o` ga
+tegilmadi. `nm` da: `T` — tashqariga ochiq funksiya, `t` (kichik harf) — `static`, `D` — ta'rif
+qilingan global o'zgaruvchi.
+
+**Sinab ko'ring:** `stantsiya.c` da `yaxlitla(1.26)` ni chaqiring — linker nima deydi va nega?
+`harorat.c` dagi `int olchovlar_soni = 0;` ni o'chiring — xato qaysi bosqichda chiqadi?
+
 ## 11.1. Loyihani fayllarga bo'lish
 
 Qoidalar (MyOS va Linux shunday tuzilgan):

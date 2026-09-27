@@ -7,6 +7,107 @@
 > **To'liq ishlaydigan misol:** [misollar/18_libcsiz.c](misollar/18_libcsiz.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Hosted va freestanding — mehmonxona va cho'ldagi chodir (18.1).** Oddiy dastur — **mehmonxonada**
+yashaydi: suv, elektr, oshxona, kir yuvish — hammasi tayyor (libc, operatsion tizim). Yadro esa **cho'lda
+chodir tikadi**: suvni o'zi topadi, olovni o'zi yoqadi. `printf` yo'q, `malloc` yo'q, hatto `strlen`
+ham yo'q — hammasini o'zingiz yozasiz. Chunki yadroning o'zi boshqalarga "mehmonxona" bo'ladi.
+
+**Kompilyatsiya bayroqlari — cho'l uchun jihozlar (18.2).** `-ffreestanding` — "mehmonxona yo'q,
+hech narsani tayyor deb o'ylama". `-nostdlib` — "libc'ni olib kelma". `-mno-red-zone`, `-mno-sse` —
+yadroga xos cheklovlar: uzilish istalgan paytda kelishi mumkin, shuning uchun ba'zi qulayliklardan voz kechiladi.
+
+**Linker skripti — qurilish bosh rejasi (18.3).** Oddiy dasturda linker binoni o'zi joylashtiradi.
+Yadro uchun esa siz aytasiz: "poydevor 1 MB manzildan boshlansin, avval kod qavati (`.text`), keyin
+o'zgarmaslar (`.rodata`), keyin ma'lumotlar (`.data`)". Yuklovchi (GRUB) yadroni aynan shu reja bo'yicha
+xotiraga qo'yadi.
+
+**Birinchi C funksiyasigacha — bo'sh uyga ko'chib kirish (18.4).** C kodi ishlashi uchun stek kerak,
+`.bss` tozalangan bo'lishi kerak. Yangi uyga ko'chganda avval eshikni o'rnatasiz, chiroqni ulaysiz —
+keyin mebel olib kirasiz. Yadroda bu ishni kichik assembly kodi (`_start`) qiladi va shundan keyingina
+`kernel_main()` ni chaqiradi.
+
+**`panic` — samolyotdagi favqulodda qo'nish (18.6).** Yadro davom etib bo'lmaydigan xatoni ko'rsa, eng
+xavfsiz yo'l — hamma narsani to'xtatish va nima bo'lganini ekranga yozish. Bir jarayonni o'ldirish mumkin,
+yadroning o'zini — yo'q.
+
+### To'liq dastur: libc'siz yashash
+
+Bu dastur libc'ni umuman ishlatmaydi: `strlen`, sonni matnga aylantirish va ekranga chiqarishni o'zi
+qiladi — xuddi yadro kabi. (Faqat x86-64 Linux.)
+
+```c
+/* chodir.c - libc'siz: o'z strlen, o'z utoa, to'g'ridan-to'g'ri syscall */
+typedef unsigned long size_t;
+
+static long sys_write(int fd, const void *buf, size_t n)
+{
+    long r;
+    __asm__ volatile("syscall" : "=a"(r) : "a"(1L), "D"((long)fd), "S"(buf), "d"(n)
+                     : "rcx", "r11", "memory");
+    return r;
+}
+
+static void sys_exit(int kod)
+{
+    __asm__ volatile("syscall" : : "a"(60L), "D"((long)kod));
+    for (;;) { }                                /* bu yerga hech qachon kelmaydi */
+}
+
+static size_t mening_strlen(const char *s)
+{
+    size_t n = 0;
+    while (s[n])
+        n++;
+    return n;
+}
+
+static void yoz(const char *s) { sys_write(1, s, mening_strlen(s)); }
+
+/* Sonni matnga: raqamlarni oxiridan boshlab bufer oxiriga yozamiz */
+static void yoz_son(unsigned long x)
+{
+    char buf[21];
+    int i = 20;
+    buf[i] = '\0';
+    do {
+        buf[--i] = (char)('0' + x % 10);
+        x /= 10;
+    } while (x);
+    yoz(&buf[i]);
+}
+
+void _start(void)
+{
+    yoz("Salom, libc'siz dunyo!\n");
+    yoz("2 + 3 = ");
+    yoz_son(2 + 3);
+    yoz("\n1 kunda soniyalar: ");
+    yoz_son(24ul * 60 * 60);
+    yoz("\n");
+    sys_exit(0);
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -ffreestanding -nostdlib -static -fno-stack-protector chodir.c -o chodir
+$ ./chodir
+Salom, libc'siz dunyo!
+2 + 3 = 5
+1 kunda soniyalar: 86400
+$ ls -l chodir | awk '{print "hajmi:", $5, "bayt"}'
+hajmi: 9320 bayt
+$ nm chodir | grep -c " U " || true
+0
+```
+
+Dastur bir necha kilobayt, tashqaridan kerak bo'lgan belgilar (`U`) esa 0 ta — u hech kimga bog'liq emas.
+Oddiy `gcc salom.c` bilan yig'ilgan dastur esa libc'dan o'nlab funksiyani so'raydi.
+
+**Sinab ko'ring:** `yoz_son` ga manfiy sonlarni ham qo'llaydigan `yoz_int(long x)` yozing.
+`-nostdlib` ni olib tashlab yig'ing — linker nima deydi (ikkita `_start`)?
+
 ## 18.1. Hosted va freestanding
 
 Siz shu paytgacha yozgan dasturlar — **hosted** muhitda: ostida OS bor, `main` ni kimdir chaqiradi,

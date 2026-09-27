@@ -7,6 +7,102 @@
 > **To'liq ishlaydigan misol:** [misollar/05_funksiyalar.c](misollar/05_funksiyalar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Funksiya — kir yuvish mashinasi (5.1).** Ichiga kir va kukun solasiz (argumentlar), tugmani bosasiz
+(chaqiruv), toza kir olasiz (qaytish qiymati). Mashina ichida nima bo'layotganini bilishingiz shart
+emas. Bitta mashinadan har kuni foydalanasiz — kodni ham bir marta yozib, ko'p marta chaqirasiz.
+
+**`void` — hech narsa bermaydigan yoki olmaydigan mashina (5.2).** Qo'ng'iroq tugmasi hech narsa olmaydi
+va hech narsa qaytarmaydi — faqat jiringlaydi: `void jiringla(void)`.
+
+**Nusxa bo'yicha uzatish — hujjat nusxasi (5.4).** Idoraga pasportingizning **ksero nusxasini** berasiz.
+Ular nusxaga nima yozsa ham, sizning pasportingiz o'zgarmaydi. C funksiyaga oddiy o'zgaruvchi berganda
+ham faqat **nusxa** beriladi. Asl nusxani o'zgartirish uchun esa — **manzilni** berasiz (7-bob): "pasport
+mana shu tortmada, borib o'zgartiring".
+
+**Qaytish qiymati — kvitansiya (5.5).** Pul o'tkazdingiz — kvitansiya olasiz: "muvaffaqiyatli" yoki
+"xato: hisobda mablag' yo'q". Yadroda funksiyalar shunday: 0 — muvaffaqiyat, manfiy son — xato kodi.
+Kvitansiyani o'qimay tashlab yuborish — eng ko'p uchraydigan xato.
+
+**`static` lokal — turniket hisoblagichi (5.6).** Metro turniketidan har kim o'tganda hisoblagich
+bittaga oshadi va **keyingi odam kelganda ham eslab qoladi**. Oddiy lokal o'zgaruvchi esa har chaqiruvda
+noldan boshlanadi — xuddi har bir yo'lovchi uchun yangi turniket qo'yilgandek.
+
+**Stek — likopchalar ustuni (5.7).** Yangi likopcha doim ustiga qo'yiladi va doim ustidan olinadi.
+`main` → `a()` → `b()` chaqirilsa, `b` ning likopchasi eng ustida. `b` tugashi bilan uning likopchasi
+olinadi va `a` davom etadi. Likopchalar juda ko'payib, shiftga yetsa — **stack overflow**.
+
+**Rekursiya — matryoshka (5.8).** Katta qo'g'irchoqni ochsangiz, ichidan kichigi chiqadi, uning ichidan
+yana kichigi... Eng kichigini ochib bo'lmaydi — bu **to'xtash sharti**. To'xtash sharti bo'lmasa,
+matryoshka hech qachon tugamaydi — dastur stack overflow bilan qulaydi.
+
+### To'liq dastur: do'kon kassasi
+
+```c
+/* kassa.c - funksiyalar: qiymat qaytarish, chiqish parametrlari, static, rekursiya */
+#include <stdio.h>
+
+/* Narx: soni x narx, chegirma foizda. Natijani QAYTARADI. */
+static long hisobla(long narx, int soni, int chegirma_foiz)
+{
+    long jami = narx * soni;
+    return jami - jami * chegirma_foiz / 100;
+}
+
+/* Qaytim: nechta 10 000 lik va nechta 1 000 lik. Ikki natija - CHIQISH PARAMETRLARI orqali. */
+static void qaytim_ber(long qaytim, int *on_minglik, int *minglik)
+{
+    *on_minglik = (int)(qaytim / 10000);
+    *minglik = (int)(qaytim % 10000 / 1000);
+}
+
+/* Har chaqiruvda chek raqami oshadi - static tufayli ESLAB QOLADI */
+static int yangi_chek(void)
+{
+    static int raqam = 100;
+    return ++raqam;
+}
+
+/* Rekursiya: n kun davomida har kuni narx 10% oshsa */
+static long narx_n_kundan_keyin(long narx, int n)
+{
+    if (n == 0)
+        return narx;                            /* to'xtash sharti - eng kichik matryoshka */
+    return narx_n_kundan_keyin(narx + narx / 10, n - 1);
+}
+
+int main(void)
+{
+    long jami = hisobla(12000, 3, 10);          /* 3 ta non, 10% chegirma */
+    printf("Chek #%d: jami %ld so'm\n", yangi_chek(), jami);
+
+    long berildi = 50000;
+    int on, bir;
+    qaytim_ber(berildi - jami, &on, &bir);
+    printf("  berildi %ld, qaytim %ld: %d x 10 000 + %d x 1 000\n", berildi, berildi - jami, on, bir);
+
+    printf("Chek #%d: jami %ld so'm\n", yangi_chek(), hisobla(25000, 2, 0));
+    printf("Chek #%d: jami %ld so'm\n", yangi_chek(), hisobla(7000, 10, 5));
+
+    printf("10 000 so'mlik narx 3 kundan keyin: %ld so'm\n", narx_n_kundan_keyin(10000, 3));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra kassa.c -o kassa
+$ ./kassa
+Chek #101: jami 32400 so'm
+  berildi 50000, qaytim 17600: 1 x 10 000 + 7 x 1 000
+Chek #102: jami 50000 so'm
+Chek #103: jami 66500 so'm
+10 000 so'mlik narx 3 kundan keyin: 13310 so'm
+```
+
+**Sinab ko'ring:** `yangi_chek` dagi `static` ni o'chiring — chek raqamlari qanday bo'ladi?
+`narx_n_kundan_keyin` dagi `if (n == 0)` ni o'chiring va dasturni ishga tushiring — nima bo'ladi (5.7)?
+
 ## 5.1. Funksiyaning tuzilishi
 
 ```c

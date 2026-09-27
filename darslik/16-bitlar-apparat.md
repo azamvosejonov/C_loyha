@@ -7,6 +7,117 @@
 > **To'liq ishlaydigan misol:** [misollar/16_bitlar_apparat.c](misollar/16_bitlar_apparat.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Endianness — sanani yozish tartibi (16.1).** Bir sanani ikki xil yozish mumkin: `27.09.2026` (kun
+birinchi) va `2026-09-27` (yil birinchi). Sana bir xil, tartib boshqa. Agar yozuvchi va o'quvchi
+tartibni kelishmasa — 9-oyning 27-kuni o'rniga 27-oy chiqadi. Kompyuterda ham: x86 son baytlarini
+**kichigidan** boshlab yozadi (little-endian), tarmoq protokollari esa **kattasidan** (big-endian).
+Tarmoqdan kelgan sonni o'qishda tartibni aylantirish kerak.
+
+**Registr va bit maskalar — elektr shchiti (16.2).** Uyning elektr shchitida bir qator avtomatlar bor:
+biri oshxona, biri konditsioner... Qurilma registri ham shunday — bitta 32 bitli son, har bir bit
+yoki bitlar guruhi — alohida sozlama. Bittasini o'zgartirish uchun: avval hozirgi holatni o'qiysiz,
+kerakli avtomatni o'zgartirasiz, qolganlariga tegmasdan qaytarib yozasiz (o'qi-o'zgartir-yoz).
+
+**`volatile` — pochta qutisi (16.3).** Kecha pochta qutingiz bo'sh edi. Bugun "kecha bo'sh edi — demak
+bugun ham bo'sh" deb qaramasangiz, xatni o'tkazib yuborasiz. Kompilyator ham "bu o'zgaruvchini hech kim
+o'zgartirmadi" deb eski qiymatni ishlatishi mumkin. Qurilma registrini esa **qurilma o'zi** o'zgartiradi.
+`volatile` — "har safar borib, qutiga qarab chiq".
+
+**MMIO — pult tugmalari xotira ko'rinishida (16.4).** Qurilma o'z registrlarini xotira manzillari
+sifatida ko'rsatadi. Siz oddiy xotiraga yozgandek yozasiz, lekin aslida qurilmaning tugmasini bosasiz.
+
+**Vaqt chegarasi bilan kutish — kuryer (16.5).** Kuryerni kutyapsiz, lekin **cheksiz** emas: "30
+daqiqada kelmasa — qo'ng'iroq qilaman". Qurilma buzilgan bo'lishi mumkin — `while (!tayyor)` cheksiz
+sikl butun tizimni qotiradi. Doim hisoblagich qo'ying.
+
+**Bitmap — kinoteatr o'rindiqlari sxemasi (16.6).** Kassa ekranida har bir o'rindiq — bitta katakcha:
+band yoki bo'sh. 64 o'rindiqli zal uchun bitta 64 bitli son yetadi! Yadroda xuddi shunday: qaysi xotira
+sahifalari bo'sh, qaysi disk bloklari band, qaysi jarayon raqamlari ishlatilgan.
+
+### To'liq dastur: kinoteatr kassasi
+
+```c
+/* kinoteatr.c - bitmap, bit maskalar va bayt tartibi */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#define ORINLAR 64
+static uint64_t zal = 0;                        /* 1 bit = 1 o'rindiq: 1 - band */
+
+static int band_qil(int orin)
+{
+    if (zal & (1ull << orin))
+        return -1;                              /* allaqachon band */
+    zal |= 1ull << orin;
+    return 0;
+}
+
+static int birinchi_bosh(void)
+{
+    if (zal == UINT64_MAX)
+        return -1;                              /* zal to'la */
+    return __builtin_ctzll(~zal);               /* eng kichik 0 bitning raqami */
+}
+
+static void sxema(void)
+{
+    for (int qator = 0; qator < 8; qator++) {
+        printf("  %d-qator: ", qator + 1);
+        for (int o = 0; o < 8; o++)
+            putchar((zal >> (qator * 8 + o)) & 1 ? 'X' : '.');
+        putchar('\n');
+    }
+}
+
+int main(void)
+{
+    int sotildi[] = { 0, 1, 2, 5, 8, 9, 27, 28 };
+    for (int i = 0; i < 8; i++)
+        band_qil(sotildi[i]);
+    printf("5-o'rindiqni qayta sotish: %s\n", band_qil(5) == 0 ? "sotildi" : "RAD - band");
+
+    printf("Zal sxemasi (X - band):\n");
+    sxema();
+    printf("Band: %d ta, bo'sh: %d ta, birinchi bo'sh o'rindiq: %d\n",
+           __builtin_popcountll(zal), ORINLAR - __builtin_popcountll(zal), birinchi_bosh());
+
+    /* Sana baytlari: 2026-09-27 ni bitta sonda saqlash */
+    uint32_t sana = 0x07EA091B;                 /* 0x07EA = 2026, 0x09 = 9, 0x1B = 27 */
+    uint8_t b[4];
+    memcpy(b, &sana, 4);
+    printf("\nSana soni 0x%08X xotirada: %02X %02X %02X %02X (kichik bayt birinchi)\n",
+           sana, b[0], b[1], b[2], b[3]);
+    printf("Maskalar bilan ajratish: yil %u, oy %u, kun %u\n",
+           sana >> 16, (sana >> 8) & 0xFF, sana & 0xFF);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra kinoteatr.c -o kinoteatr
+$ ./kinoteatr
+5-o'rindiqni qayta sotish: RAD - band
+Zal sxemasi (X - band):
+  1-qator: XXX..X..
+  2-qator: XX......
+  3-qator: ........
+  4-qator: ...XX...
+  5-qator: ........
+  6-qator: ........
+  7-qator: ........
+  8-qator: ........
+Band: 8 ta, bo'sh: 56 ta, birinchi bo'sh o'rindiq: 3
+
+Sana soni 0x07EA091B xotirada: 1B 09 EA 07 (kichik bayt birinchi)
+Maskalar bilan ajratish: yil 2026, oy 9, kun 27
+```
+
+**Sinab ko'ring:** 3-o'rindiqni sotib, `birinchi_bosh()` qanday o'zgarishini kuzating. Barcha 64
+o'rindiqni sotuvchi sikl yozing — `birinchi_bosh()` endi nima qaytaradi?
+
 ## 16.1. Bayt tartibi (endianness)
 
 Ko'p baytli son xotirada qaysi tartibda yoziladi?

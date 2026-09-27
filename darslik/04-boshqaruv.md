@@ -6,6 +6,114 @@
 > **To'liq ishlaydigan misol:** [misollar/04_boshqaruv.c](misollar/04_boshqaruv.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**`if` / `else` — eshikdagi qo'riqchi (4.1).** "Chiptangiz bormi? Bo'lsa — kiring, bo'lmasa — kassaga
+boring." Bitta shart, ikki yo'l. `else if` zanjiri — ko'p eshikli yo'lak: birinchi mos kelgan eshikdan
+kirasiz, qolganlariga qaramaysiz.
+
+**`while` — choynak qaynashini kutish (4.2).** "Suv qaynamaguncha — kut." Avval tekshirasiz, keyin
+kutasiz. Agar suv allaqachon qaynagan bo'lsa, umuman kutmaysiz — `while` tanasi bir marta ham
+bajarilmasligi mumkin.
+
+**`do ... while` — ovqatni tatib ko'rish (4.3).** Tuz yetarlimi — bilish uchun **avval tatib ko'rasiz**,
+keyin qaror qilasiz: "yetmasa — tuz qo'shib, yana tatib ko'r". Tana kamida bir marta bajariladi.
+PIN kod so'rash ham shunday: kamida bir marta so'raladi.
+
+**`for` — zinapoyadan chiqish (4.4).** "1-qavatdan boshla; 9-qavatgacha; har safar bitta yuqoriga."
+Qayerdan boshlash, qachon to'xtash va qanday qadam — hammasi bitta qatorda.
+
+**`break` — kalitni topdingiz (4.5).** Kalitni cho'ntaklardan qidiryapsiz. Ikkinchi cho'ntakda topdingiz —
+qolganlarini tekshirmaysiz: `break`.
+
+**`continue` — chirigan olmani o'tkazib yuborish (4.5).** Savatdagi olmalarni saralaysiz. Chirigani
+chiqsa — uni tashlab, **keyingisiga** o'tasiz. Sikl to'xtamaydi, faqat shu qadam qolganini tashlab ketadi.
+
+**`switch` — liftning tugmalari (4.6).** Qaysi tugma bosilsa, lift o'sha qavatga boradi. `case` —
+tugmalar, `default` — "bunday qavat yo'q". `break` ni unutish — lift kerakli qavatda to'xtamay, keyingisiga
+ham chiqib ketgani kabi.
+
+**`goto` yadroda — uydan chiqishdagi tartib (4.7).** Uydan chiqishda: avval gazni o'chirasiz, keyin
+chiroqni, oxirida eshikni qulflaysiz. Agar gazni o'chirayotganda muammo chiqsa ham, chiroq va eshikni
+baribir yopish kerak. Yadrodagi `goto xato_chiqish;` aynan shu: qayerda xato bo'lmasin, olingan
+resurslar teskari tartibda qaytariladi.
+
+### To'liq dastur: bankomat
+
+Foydalanuvchi o'rniga buyruqlar oldindan massivda yozilgan — dastur har safar bir xil ishlaydi.
+
+```c
+/* bankomat.c - if, while, do-while, for, switch, break, continue */
+#include <stdio.h>
+
+int main(void)
+{
+    const int togri_pin = 1234;
+    int urinishlar[] = { 1111, 4321, 1234 };      /* foydalanuvchi kiritgan PIN'lar */
+    int urinish = 0, pin;
+
+    do {                                          /* kamida bir marta so'raladi */
+        pin = urinishlar[urinish++];
+        if (pin != togri_pin)
+            printf("PIN %d noto'g'ri\n", pin);
+    } while (pin != togri_pin && urinish < 3);
+
+    if (pin != togri_pin) {
+        printf("Karta bloklandi\n");
+        return 1;
+    }
+    printf("PIN to'g'ri (%d-urinishda)\n\n", urinish);
+
+    long balans = 1000000;
+    char buyruqlar[] = { 'b', 'y', 'y', 'x', 'b', 'q' };   /* b-balans, y-yechish, x-noma'lum, q-chiqish */
+
+    for (int i = 0; i < 6; i++) {
+        char b = buyruqlar[i];
+        if (b == 'x') {
+            printf("'%c': noma'lum tugma, o'tkazib yuborildi\n", b);
+            continue;                             /* keyingi buyruqqa */
+        }
+        switch (b) {
+        case 'b':
+            printf("Balans: %ld so'm\n", balans);
+            break;
+        case 'y':
+            if (balans >= 700000) {
+                balans -= 700000;
+                printf("700 000 so'm berildi\n");
+            } else {
+                printf("Mablag' yetarli emas\n");
+            }
+            break;
+        case 'q':
+            printf("Kartangizni oling. Xayr!\n");
+            break;
+        }
+        if (b == 'q')
+            break;                                /* sikldan butunlay chiqish */
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra bankomat.c -o bankomat
+$ ./bankomat
+PIN 1111 noto'g'ri
+PIN 4321 noto'g'ri
+PIN to'g'ri (3-urinishda)
+
+Balans: 1000000 so'm
+700 000 so'm berildi
+Mablag' yetarli emas
+'x': noma'lum tugma, o'tkazib yuborildi
+Balans: 300000 so'm
+Kartangizni oling. Xayr!
+```
+
+**Sinab ko'ring:** `urinishlar` massivini `{ 1, 2, 3 }` qiling — karta bloklanadimi? `case 'b':` dagi
+`break;` ni o'chiring — balansni so'raganda nima bo'ladi va nega?
+
 ## 4.1. `if` / `else`
 
 ```c

@@ -7,6 +7,121 @@
 > **To'liq ishlaydigan misol:** [misollar/29_xatoli.c](misollar/29_xatoli.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Debug — detektiv ishi (29.1).** Detektiv tasodifiy odamlarni hibsga olmaydi. U **dalillarni** yig'adi,
+**gipoteza** quradi ("qotil bog' eshigidan kirgan"), uni **tekshiradi** va noto'g'ri bo'lsa — yangisini
+quradi. Xatoni qidirish ham shunday: kodni tasodifan o'zgartirish emas, balki "xato shu funksiyada,
+chunki..." deb taxmin qilib, uni tajriba bilan tasdiqlash yoki rad etish.
+
+**`printf` — non ushoqlari (29.2).** Ertakdagi bolalar o'rmonda adashmaslik uchun yo'lga non ushoqlari
+tashlab ketgan. Dasturda "shu yerga keldim, x = 5" degan izlar qoldirasiz va dastur qaysi yo'ldan
+o'tganini ko'rasiz. Oddiy, lekin hali ham eng ko'p ishlatiladigan usul.
+
+**gdb — vaqtni to'xtatish (29.3).** Dunyoni "pauza" qilib, har bir odamning cho'ntagini tekshirish
+mumkin bo'lsa-chi? `break` — "shu joyga kelganda to'xtat", `print` — cho'ntakni tekshirish, `next` —
+bitta qadam oldinga, `bt` — "bu yerga qanday kelding?" (chaqiruvlar zanjiri).
+
+**Watchpoint — xonadagi signalizatsiya (29.3).** "Kim bu seyfga tegsa — darhol xabar ber". `watch x` —
+`x` qayerda o'zgarsa, gdb dasturni aynan o'sha qatorda to'xtatadi. "Bu o'zgaruvchini kim buzyapti?"
+degan savolga eng tez javob.
+
+**Sanitizer — aeroport rentgeni (29.4).** Har bir yukni tekshiradi va taqiqlangan narsani darhol, aniq
+joyi bilan ko'rsatadi. Biroz sekinlashtiradi, lekin xatoni sodir bo'lgan zahoti ushlaydi — ancha keyin
+boshqa joyda emas.
+
+**Valgrind — sinchkov inspektor (29.5).** Dasturni qayta kompilyatsiya qilmasdan tekshiradi, lekin juda
+sekin (20–50 barobar).
+
+**strace — telefon suhbatlari yozuvi (29.6).** Dastur yadro bilan nima gaplashyapti: qaysi faylni ochdi,
+nima o'qidi, qayerda xato oldi. Dastur "fayl topilmadi" deb qulasa, strace **qaysi** faylni izlaganini ko'rsatadi.
+
+**perf — fitnes-soat (29.8).** Kun davomida qadamlar, yurak urishi. perf ham dastur vaqti qaysi
+funksiyalarga ketayotganini o'lchaydi. Taxmin qilmang — o'lchang.
+
+**Ikkiga bo'lib qidirish — kitobdagi xatoni topish (29.10).** 1000 sahifali qo'lyozmada qayerdadir
+xato bor. 500-sahifani tekshirasiz — xato undan oldinmi yoki keyinmi? 10 qadamda topasiz. `git bisect`
+xuddi shunday: 1000 ta commit ichidan xatoni kiritganini 10 qadamda topadi.
+
+### To'liq dastur: iz qoldiruvchi ikkilik qidiruv
+
+`-DDEBUG` bilan yig'ilsa — non ushoqlarini qoldiradi, usiz — jim ishlaydi. `assert` esa kutilmagan
+holatni darhol to'xtatadi.
+
+```c
+/* izlar.c - DEBUG izlari va assert: dastur qaysi yo'ldan o'tganini ko'rish */
+#include <assert.h>
+#include <stdio.h>
+
+#ifdef DEBUG
+#define IZ(...) fprintf(stderr, "  [iz] " __VA_ARGS__)
+#else
+/* if (0): chiqarilmaydi, lekin kompilyator argumentlarni baribir tekshiradi
+ * (Linux'dagi no_printk ham shunday). Shuning uchun "ishlatilmagan o'zgaruvchi" ogohlantirishi yo'q. */
+#define IZ(...) do { if (0) fprintf(stderr, __VA_ARGS__); } while (0)
+#endif
+
+static int qidir(const int *a, int n, int x)
+{
+    int chap = 0, ong = n - 1, qadam = 0;
+    while (chap <= ong) {
+        int orta = chap + (ong - chap) / 2;
+        IZ("%d-qadam: chap=%d ong=%d orta=%d a[orta]=%d\n", ++qadam, chap, ong, orta, a[orta]);
+        assert(orta >= 0 && orta < n);          /* chegaradan chiqsak - darhol to'xtaymiz */
+        if (a[orta] == x)
+            return orta;
+        if (a[orta] < x)
+            chap = orta + 1;
+        else
+            ong = orta - 1;
+    }
+    return -1;
+}
+
+int main(void)
+{
+    int narxlar[] = { 1500, 3000, 4200, 5000, 7800, 9900, 12000, 15000, 21000, 30000 };
+    int n = sizeof(narxlar) / sizeof(narxlar[0]);
+    int izlanganlar[] = { 12000, 1500, 8000 };
+
+    for (int i = 0; i < 3; i++) {
+        int j = qidir(narxlar, n, izlanganlar[i]);
+        if (j >= 0)
+            printf("%d so'm: %d-o'rinda\n", izlanganlar[i], j);
+        else
+            printf("%d so'm: topilmadi\n", izlanganlar[i]);
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g izlar.c -o izlar
+$ ./izlar
+12000 so'm: 6-o'rinda
+1500 so'm: 0-o'rinda
+8000 so'm: topilmadi
+$ gcc -Wall -Wextra -g -DDEBUG izlar.c -o izlar_debug
+$ ./izlar_debug 2>&1 | head -6
+  [iz] 1-qadam: chap=0 ong=9 orta=4 a[orta]=7800
+  [iz] 2-qadam: chap=5 ong=9 orta=7 a[orta]=15000
+  [iz] 3-qadam: chap=5 ong=6 orta=5 a[orta]=9900
+  [iz] 4-qadam: chap=6 ong=6 orta=6 a[orta]=12000
+  [iz] 1-qadam: chap=0 ong=9 orta=4 a[orta]=7800
+  [iz] 2-qadam: chap=0 ong=3 orta=1 a[orta]=3000
+$ gdb -q -batch -ex 'break qidir' -ex run -ex 'print n' -ex 'print x' -ex bt ./izlar 2>&1 | grep -E '^\$|^#'
+$1 = 10
+$2 = 12000
+#0  qidir (a=0x7fffffffc8f0, n=10, x=12000) at izlar.c:15
+#1  0x000055555555530c in main () at izlar.c:37
+```
+
+Oxirgi buyruq: gdb `qidir` funksiyasida to'xtadi, argumentlarni ko'rsatdi va `bt` bilan "bu yerga
+`main` dan keldik" degan zanjirni chiqardi.
+
+**Sinab ko'ring:** `ong = orta - 1;` ni `ong = orta;` qiling va 8000 ni qidiring — dastur nega to'xtamaydi?
+`-DDEBUG` bilan izlarni o'qib, sababini toping. (Ctrl+C bilan to'xtating.)
+
 ## 29.1. Debug usuli — asbobdan oldin fikr
 
 1. **Takrorlang.** Xatoni har safar chiqadigan qiling (kirish, buyruq, qadamlar). Takrorlanmaydigan xato

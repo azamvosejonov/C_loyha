@@ -8,6 +8,128 @@
 > **To'liq ishlaydigan misol:** [misollar/25_malloc_ichi.c](misollar/25_malloc_ichi.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Allocator — avtoturargoh qo'riqchisi (25.1).** Turargohga har xil mashinalar keladi: kichik, o'rta,
+avtobus. Qo'riqchi har biriga joy ko'rsatadi (`malloc`) va ketganda joyni bo'sh deb belgilaydi (`free`).
+Mashinani joyidan surib bo'lmaydi — dasturdagi ko'rsatkichlar uning manziliga bog'langan.
+
+**Fragmentatsiya — bo'sh joylar bor, lekin avtobusga yetmaydi (25.2).** Turargohda 6 ta bo'sh joy bor,
+lekin ular tarqoq: 2 ta bu yerda, 1 ta u yerda, 3 ta narida. 5 joy kerak bo'ladigan avtobus sig'maydi —
+**tashqi fragmentatsiya**. **Ichki fragmentatsiya** — kichik mashinaga katta joy berilgani: joy band,
+lekin yarmi ishlatilmayapti.
+
+**Joylashtirish siyosatlari (25.4).**
+- **First fit** — birinchi sig'adigan joy. Tez, lekin boshida mayda bo'laklar to'planadi.
+- **Best fit** — eng mos (eng kichik sig'adigan) joy. Katta joylarni saqlaydi, lekin qidirish uzoq.
+- **Next fit** — oxirgi qoldirilgan joydan davom etib qidirish.
+
+**Birlashtirish — qo'shni bo'sh joylar (25.5).** Yonma-yon ikki mashina ketdi. Ikkita kichik bo'sh joy
+emas — bitta katta joy bo'ldi. Allocator buni sezishi uchun har bir blokning **chegara tegi** bor —
+qo'shni blok bo'sh yoki band ekanini tez bilish uchun.
+
+**Buddy tizimi — shokolad plitkasi (25.8).** 16 bo'lakli plitkadan 3 bo'lak kerak. Yarmiga bo'lasiz
+(8 + 8), yana yarmiga (4 + 4) — 4 bo'lak olasiz (3 dan katta eng kichik 2 ning darajasi). Qaytarilganda
+"juftingiz" (buddy) ham bo'sh bo'lsa — yana birlashadi. Hisoblash juda tez, lekin 3 o'rniga 4 beriladi
+(ichki fragmentatsiya).
+
+**Slab — tuxum kartoni (25.9).** Tuxum uchun maxsus karton: har bir uyacha aynan bitta tuxum o'lchamida.
+Qidirish yo'q, bo'laklash yo'q — bo'sh uyachani olasiz. Yadroda bir xil o'lchamdagi obyektlar (jarayon
+tuzilmasi, inode) juda ko'p yaratiladi — ularning har biri uchun alohida "karton" (kesh).
+
+### To'liq dastur: avtoturargoh (first fit va fragmentatsiya)
+
+```c
+/* turargoh.c - first fit ajratish, bo'shatish va tashqi fragmentatsiya */
+#include <stdio.h>
+#include <string.h>
+
+#define JOYLAR 20
+static char joy[JOYLAR + 1];                    /* '.' - bo'sh, harf - mashina */
+
+static int ajrat(char mashina, int kerak)       /* first fit */
+{
+    for (int i = 0; i + kerak <= JOYLAR; i++) {
+        int bosh = 1;
+        for (int j = i; j < i + kerak; j++)
+            if (joy[j] != '.') {
+                bosh = 0;
+                break;
+            }
+        if (bosh) {
+            memset(&joy[i], mashina, kerak);
+            return i;
+        }
+    }
+    return -1;
+}
+
+static void bosh_qil(char mashina)
+{
+    for (int i = 0; i < JOYLAR; i++)
+        if (joy[i] == mashina)
+            joy[i] = '.';
+}
+
+static void holat(const char *izoh)
+{
+    int bosh = 0, eng_uzun = 0, joriy = 0;
+    for (int i = 0; i < JOYLAR; i++) {
+        joriy = joy[i] == '.' ? joriy + 1 : 0;
+        bosh += joy[i] == '.';
+        if (joriy > eng_uzun)
+            eng_uzun = joriy;
+    }
+    printf("%-24s [%s]  bo'sh: %2d, eng uzun bo'sh qator: %2d\n", izoh, joy, bosh, eng_uzun);
+}
+
+int main(void)
+{
+    memset(joy, '.', JOYLAR);
+    holat("Boshida:");
+    ajrat('A', 2);
+    ajrat('B', 3);
+    ajrat('C', 3);
+    ajrat('D', 2);
+    ajrat('E', 3);
+    ajrat('F', 2);
+    ajrat('I', 5);
+    holat("7 mashina keldi:");
+
+    bosh_qil('B');
+    bosh_qil('D');
+    bosh_qil('F');
+    holat("B, D, F ketdi:");
+
+    int r = ajrat('G', 6);
+    printf("6 joyli avtobus G: %s\n", r < 0 ? "SIG'MADI (fragmentatsiya!)" : "joylashdi");
+
+    r = ajrat('H', 2);
+    holat("2 joyli H keldi:");
+    printf("H %d-joyga qo'yildi - birinchi sig'adigan joy (first fit)\n", r);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra turargoh.c -o turargoh
+$ ./turargoh
+Boshida:                 [....................]  bo'sh: 20, eng uzun bo'sh qator: 20
+7 mashina keldi:         [AABBBCCCDDEEEFFIIIII]  bo'sh:  0, eng uzun bo'sh qator:  0
+B, D, F ketdi:           [AA...CCC..EEE..IIIII]  bo'sh:  7, eng uzun bo'sh qator:  3
+6 joyli avtobus G: SIG'MADI (fragmentatsiya!)
+2 joyli H keldi:         [AAHH.CCC..EEE..IIIII]  bo'sh:  5, eng uzun bo'sh qator:  2
+H 2-joyga qo'yildi - birinchi sig'adigan joy (first fit)
+```
+
+B, D, F ketgandan keyin jami 7 ta bo'sh joy bor, lekin avtobus sig'madi: bo'sh joylar uch bo'lakka
+bo'lingan (3 + 2 + 2). H esa birinchi sig'adigan 3 joylik bo'shliqqa qo'yildi va 1 joylik foydasiz
+bo'lak qoldi.
+
+**Sinab ko'ring:** `ajrat` ni **best fit** qiling: barcha bo'sh qatorlardan `kerak` ga sig'adigan eng
+qisqasini tanlang. H endi qayerga qo'yiladi va foydasiz bo'lak qoladimi? Avtobusdan oldin
+`bosh_qil('E')` qo'shing — D, E, F joylari birlashib 7 joy bo'ladi. Avtobus endi sig'adimi?
+
 ## 25.1. Vazifa va cheklovlar
 
 Allocator katta xotira hududini (heap) oladi va so'rovlarga bo'laklab beradi. Cheklovlari:

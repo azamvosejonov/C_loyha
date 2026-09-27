@@ -7,6 +7,128 @@
 > **To'liq ishlaydigan misol:** [misollar/09_struct.c](misollar/09_struct.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**`struct` — texpasport (9.1).** Avtomobil texpasportida bir nechta ma'lumot bor: davlat raqami, rusumi,
+yili, rangi. Ular alohida qog'ozlarda emas — **bitta hujjatda**. `struct mashina` ham shunday: bir nechta
+turli maydon, bitta nom ostida. Hujjatni nusxalash mumkin (`b = a;`) — hamma maydonlar birga ko'chadi.
+
+**Tekislash va to'ldiruvchi — kitob javoni (9.2).** Javonda kichik va katta kitoblar bor. Qoida: katta
+kitob faqat maxsus bo'linma **boshidan** qo'yiladi (protsessor 4 baytlik sonni 4 ga bo'linadigan manzildan
+tez o'qiydi). Kichik kitobdan keyin katta kitob kelsa, orada bo'sh joy qoladi — bu **padding**. Kitoblarni
+kattadan kichikka qarab tersangiz, bo'sh joy kamayadi.
+
+**`packed` — chamadonni zich taxlash (9.3).** Samolyotga chiqishda har bir santimetr hisobda: bo'sh joy
+qoldirmay taxlaysiz. Olish biroz noqulay (sekinroq), lekin joy tejaladi. Disk va tarmoq formatlarida
+aynan shunday: har bir bayt standartda qat'iy belgilangan.
+
+**`union` — transformer divan (9.5).** Kunduzi divan, kechasi karavot — lekin **bir vaqtda faqat
+bittasi**, joy esa bitta. `union` da ham barcha maydonlar bitta xotirani bo'lishadi. Qaysi rejimda
+ekanini alohida belgi (`enum`) bilan yozib qo'yish kerak — aks holda divanda uxlayotgan odamga
+mehmon o'tirib qoladi.
+
+**`enum` — svetofor ranglari (9.6).** Svetoforda faqat uchta holat bor: qizil, sariq, yashil.
+"0, 1, 2" deb yozish o'rniga nom beriladi: `QIZIL, SARIQ, YASHIL`. Kod o'qilishi oson bo'ladi va
+`switch` da biror holatni unutsangiz, kompilyator ogohlantiradi.
+
+**`typedef` — laqab (9.7).** "Abdurahmon Abdullayevich" o'rniga "Rahmon aka" — bitta odam, qisqa nom.
+
+**Opaque tur — televizor pulti (9.8).** Pultda tugmalar bor (funksiyalar), lekin televizor ichidagi
+platani ko'rmaysiz va unga tegolmaysiz. Ishlab chiqaruvchi ichini o'zgartirsa ham, pult ishlayveradi.
+`FILE *` aynan shunday: siz `fopen`, `fprintf` tugmalarini bosasiz, `FILE` ichida nima borligini bilmaysiz.
+
+### To'liq dastur: avtomobil ro'yxatga olish
+
+```c
+/* avto.c - struct, enum, union, padding, struct nusxasi */
+#include <stddef.h>
+#include <stdio.h>
+
+enum yoqilgi { BENZIN, GAZ, ELEKTR };
+static const char *yoqilgi_nomi[] = { "benzin", "gaz", "elektr" };
+
+enum tolov_turi { NAQD, KARTA };
+struct tolov {
+    enum tolov_turi tur;                        /* divan hozir qaysi rejimda */
+    union {
+        long summa;                             /* NAQD bo'lsa */
+        char karta[20];                         /* KARTA bo'lsa */
+    } u;
+};
+
+struct mashina {
+    char raqam[12];
+    char rusum[16];
+    int yil;
+    enum yoqilgi yoqilgi;
+};
+
+/* Maydonlar tartibi hajmga ta'sir qiladi */
+struct yomon { char a; long b; char c; };       /* 1 + 7 bo'sh + 8 + 1 + 7 bo'sh = 24 */
+struct yaxshi { long b; char a; char c; };      /* 8 + 1 + 1 + 6 bo'sh = 16 */
+
+static void korsat(const struct mashina *m)
+{
+    printf("  %-10s %-8s %d-yil, %s\n", m->raqam, m->rusum, m->yil, yoqilgi_nomi[m->yoqilgi]);
+}
+
+static void tolov_korsat(const struct tolov *t)
+{
+    switch (t->tur) {
+    case NAQD:
+        printf("  to'lov: naqd %ld so'm\n", t->u.summa);
+        break;
+    case KARTA:
+        printf("  to'lov: karta %s\n", t->u.karta);
+        break;
+    }
+}
+
+int main(void)
+{
+    struct mashina garaj[] = {
+        { "01A777AA", "Cobalt", 2021, GAZ },
+        { "10B123CD", "Tracker", 2023, BENZIN },
+        { "30Z555ZZ", "BYD", 2025, ELEKTR },
+    };
+    printf("Ro'yxatdagi mashinalar:\n");
+    for (size_t i = 0; i < sizeof(garaj) / sizeof(garaj[0]); i++)
+        korsat(&garaj[i]);
+
+    struct mashina nusxa = garaj[0];            /* butun hujjat nusxalandi */
+    nusxa.yil = 1999;
+    printf("Nusxa o'zgardi: %d, asli: %d\n", nusxa.yil, garaj[0].yil);
+
+    struct tolov t1 = { NAQD, { .summa = 150000 } };
+    struct tolov t2 = { KARTA, { .karta = "8600 **** **** 1234" } };
+    tolov_korsat(&t1);
+    tolov_korsat(&t2);
+
+    printf("sizeof(struct yomon) = %zu, sizeof(struct yaxshi) = %zu\n",
+           sizeof(struct yomon), sizeof(struct yaxshi));
+    printf("struct mashina: %zu bayt, yil maydoni %zu-baytdan boshlanadi\n",
+           sizeof(struct mashina), offsetof(struct mashina, yil));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra avto.c -o avto
+$ ./avto
+Ro'yxatdagi mashinalar:
+  01A777AA   Cobalt   2021-yil, gaz
+  10B123CD   Tracker  2023-yil, benzin
+  30Z555ZZ   BYD      2025-yil, elektr
+Nusxa o'zgardi: 1999, asli: 2021
+  to'lov: naqd 150000 so'm
+  to'lov: karta 8600 **** **** 1234
+sizeof(struct yomon) = 24, sizeof(struct yaxshi) = 16
+struct mashina: 36 bayt, yil maydoni 28-baytdan boshlanadi
+```
+
+**Sinab ko'ring:** `enum yoqilgi` ga `GIBRID` qo'shing (va `yoqilgi_nomi` ga "gibrid"). `tolov_korsat`
+dagi `case KARTA:` ni o'chiring — `-Wall` qanday ogohlantirish beradi?
+
 ## 9.1. `struct` — bir nechta qiymat bitta nom ostida
 
 ```c

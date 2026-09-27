@@ -7,6 +7,117 @@
 > **To'liq ishlaydigan misol:** [misollar/21_kesh.c](misollar/21_kesh.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Tezlik pog'onalari — kitob qayerda turibdi (21.1).** Siz insho yozyapsiz va kitob kerak:
+- **Registr** — kitob qo'lingizda ochiq turibdi (0 soniya).
+- **L1 kesh** — stol ustida (1 soniya).
+- **L2/L3 kesh** — xonadagi javonda (10 soniya).
+- **RAM** — shahar kutubxonasida (~2 daqiqa).
+- **SSD** — boshqa shahardagi arxivda (~bir kun).
+- **Qattiq disk** — chet eldan pochta orqali (~bir necha oy).
+
+Protsessor uchun RAM'ga borish — xuddi kutubxonaga borib kelishdek. Kesh shu yo'lni qisqartiradi.
+
+**Lokallik — kitobning keyingi sahifasi (21.2).** Kitobning 50-sahifasini o'qigan bo'lsangiz, katta
+ehtimol bilan keyin 51-sahifani o'qiysiz (**fazoviy lokallik**). Bugun ishlatgan lug'atingizni ertaga yana
+ishlatasiz (**vaqt lokalligi**). Kesh aynan shunga garov o'ynaydi: yaqinda kerak bo'lgan narsa va uning
+qo'shnilari yana kerak bo'ladi.
+
+**Kesh qatori — kitobni emas, butun qutini olib kelish (21.3).** Kutubxonaga borganda bitta sahifani
+emas, butun kitobni olasiz. Protsessor ham 1 baytni emas, 64 baytlik **qatorni** olib keladi. Keyingi
+63 bayt bepul keladi — agar ular kerak bo'lsa.
+
+**Massivni qator bo'yicha aylanish — kitobni ketma-ket o'qish (21.7).** Kitobni sahifama-sahifa o'qish
+tez. Har kitobdan bittadan sahifa o'qib, keyingi kitobga o'tish (ustun bo'yicha aylanish) — har safar
+kutubxonaga borish bilan barobar.
+
+**Struct'lar massivi va alohida massivlar — ombor (21.7).** Omborda har bir mahsulot qutisida nomi,
+rasmi, tavsifi va narxi bor. Faqat **narxlar yig'indisi** kerak bo'lsa, har bir katta qutini ochish
+kerak. Narxlar alohida ro'yxatda bo'lsa — bitta varaqni o'qish kifoya. Kesh uchun ham shunday: faqat
+kerakli maydonlar zich joylashsa, har bir 64 baytlik qatordan to'liq foydalaniladi.
+
+**False sharing — bitta daftarga ikki kishi yozishi (21.5).** Ikki xodim bitta daftarning **turli**
+qatorlariga yozadi, lekin daftar bitta — har safar uni bir-biriga uzatishga to'g'ri keladi. Ular bir-biriga
+xalaqit bermaydi deb o'ylaydi, aslida vaqtning ko'pi uzatishga ketadi. Yechim: har biriga alohida daftar.
+
+**TLB — telefondagi "tez-tez qo'ng'iroq qilinganlar" (21.6).** Virtual manzilni fizik manzilga tarjima
+qilish sekin (24-bob). Protsessor oxirgi tarjimalarni kichik ro'yxatda saqlaydi — xuddi telefon tez-tez
+kerak bo'ladigan raqamlarni eng tepada ko'rsatgandek.
+
+### To'liq dastur: ombor hisoboti
+
+Bir million mahsulot narxlarining yig'indisi — ikki xil joylashuvda. Vaqtlar kompyuterga qarab farq qiladi.
+
+```c
+/* ombor.c - struct'lar massivi va alohida massiv: kesh farqi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define N 1000000
+
+struct mahsulot {                               /* 64 bayt: bitta kesh qatori */
+    char nom[40];
+    long narx;
+    long soni;
+    long ombor_raqami;
+};
+
+static double hozir(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
+}
+
+int main(void)
+{
+    struct mahsulot *qutilar = malloc(N * sizeof(*qutilar));   /* 64 MB */
+    long *narxlar = malloc(N * sizeof(*narxlar));              /* 8 MB */
+    if (!qutilar || !narxlar)
+        return 1;
+    for (long i = 0; i < N; i++) {
+        qutilar[i].narx = narxlar[i] = i % 1000;
+        qutilar[i].soni = 1;
+    }
+
+    long s1 = 0, s2 = 0;
+    double t0 = hozir();
+    for (int takror = 0; takror < 10; takror++)
+        for (long i = 0; i < N; i++)
+            s1 += qutilar[i].narx;              /* har bir narx - alohida kesh qatorida */
+    double t1 = hozir();
+    for (int takror = 0; takror < 10; takror++)
+        for (long i = 0; i < N; i++)
+            s2 += narxlar[i];                   /* bitta kesh qatorida 8 ta narx */
+    double t2 = hozir();
+
+    printf("sizeof(struct mahsulot) = %zu bayt\n", sizeof(struct mahsulot));
+    printf("Har bir qutini ochib:   yig'indi %ld, %.3f s\n", s1, t1 - t0);
+    printf("Alohida narxlar ro'yxati: yig'indi %ld, %.3f s\n", s2, t2 - t1);
+    printf("Farq: taxminan %.0f barobar\n", (t1 - t0) / (t2 - t1));
+    free(qutilar);
+    free(narxlar);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 ombor.c -o ombor
+$ ./ombor
+sizeof(struct mahsulot) = 64 bayt
+Har bir qutini ochib:   yig'indi 4995000000, 0.028 s
+Alohida narxlar ro'yxati: yig'indi 4995000000, 0.004 s
+Farq: taxminan 8 barobar
+```
+
+Ikkala sikl bir xil ishni qiladi va bir xil yig'indini beradi. Farq faqat ma'lumot xotirada qanday
+joylashganida: birinchi holatda xotiradan 8 barobar ko'p bayt olib kelinadi.
+
+**Sinab ko'ring:** `char nom[40]` ni `char nom[8]` qiling (struct 32 bayt bo'ladi) — farq qanday
+o'zgaradi? `perf stat -e cache-misses ./ombor` bilan kesh xatolarini sanang (29-bob).
+
 ## 21.1. Tezlik pog'onalari
 
 CPU juda tez, xotira esa unga nisbatan sekin. Taxminiy raqamlar (zamonaviy kompyuter):

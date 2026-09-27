@@ -7,6 +7,87 @@
 > **To'liq ishlaydigan misol:** [misollar/06_satrlar.c](misollar/06_satrlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Massiv — poyezd vagonlari (6.1).** Poyezdda vagonlar ketma-ket ulangan va raqamlangan. Faqat C'da
+raqamlash **0 dan** boshlanadi: 5 vagonli poyezdda vagonlar 0, 1, 2, 3, 4. Vagonlar bir xil o'lchamda
+va bir-biriga yopishgan — shuning uchun 3-vagon qayerdaligini hisoblash oson: "boshidan 3 vagon uzunligi".
+
+**Chegaradan chiqish — 5 qavatli uyda 6-qavat tugmasi (6.2).** Python'da bunday tugmani bossangiz,
+lift "bunday qavat yo'q" deydi (`IndexError`). C'da lift hech narsa demaydi — to'g'ridan-to'g'ri
+tomga, yoki qo'shni binoning kvartirasiga olib chiqadi. Siz boshqa birovning xotirasiga yozasiz va
+xato ancha keyin, butunlay boshqa joyda chiqadi. C'ning eng xavfli xatosi — shu.
+
+**Ikki o'lchamli massiv — kinoteatr zali (6.3).** Qator va o'rin: `zal[3][7]` — 3-qator, 7-o'rin.
+Xotirada esa qatorlar bitta uzun chiziqda ketma-ket turadi: 0-qatorning hamma o'rinlari, keyin 1-qator...
+
+**Satr — ip ustidagi munchoqlar va tugun (6.4).** Satr — harflar ketma-ketligi, oxirida esa **tugun** —
+`'\0'`. Tugunsiz munchoqlar sochilib ketadi: `printf` harflarni tugunni topguncha o'qiydi, topmasa —
+xotira bo'ylab keyin nima bo'lsa, hammasini o'qib ketaveradi. `"salom"` 5 harf, lekin 6 bayt joy oladi.
+
+**`strlen` — munchoqlarni sanash (6.5).** Uzunlik hech qayerda yozilmagan — har safar boshidan tugungacha
+sanaladi. Shuning uchun uzun satrda sikl ichida `strlen` chaqirish sekin.
+
+**Bufer to'lishi — chelakka ko'p suv (6.8).** 10 litrlik chelakka 15 litr quysangiz, 5 litr polga
+to'kiladi. `strcpy` chelak o'lchamini bilmaydi — quyib ketaveradi. `snprintf(buf, sizeof(buf), ...)`
+esa chelak o'lchamini biladi va ortig'ini quymaydi.
+
+**`strcmp` va `==` — ikki kitob (6.8).** Qo'lingizda ikki nusxa "O'tkan kunlar" bor. Matni bir xilmi?
+Ha (`strcmp` = 0). Bu **bitta** kitobmi? Yo'q (`==` manzillarni solishtiradi — ular har xil).
+
+### To'liq dastur: SMS va haftalik ob-havo
+
+```c
+/* sms.c - satrlar, bufer o'lchami va ikki o'lchamli massiv */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    /* SMS: 30 belgili ekran (29 harf + '\0') */
+    char sms[30];
+    /* volatile: haqiqiy dasturda ism va matn foydalanuvchidan keladi, oldindan noma'lum.
+     * Usiz kompilyator satr sig'masligini oldindan ko'rib, ogohlantirish beradi. */
+    const char *volatile ism = "Dilnoza";
+    const char *volatile matn = "Ertaga soat 9 da uchrashamiz.";
+    int n = snprintf(sms, sizeof(sms), "Salom %s! %s", ism, matn);
+    printf("Ekranda: \"%s\"\n", sms);
+    printf("Xabar %d belgi, ekranga %zu tasi sig'di\n", n, strlen(sms));
+
+    /* Satr ichida qidirish */
+    const char *xabar = "Kod: 4821. Hech kimga aytmang!";
+    const char *topildi = strstr(xabar, "Kod: ");
+    if (topildi)
+        printf("Tasdiqlash kodi: %.4s\n", topildi + 5);
+
+    /* Hafta x (ertalab, kechqurun) - ikki o'lchamli massiv */
+    const char *kunlar[7] = { "Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya" };
+    int harorat[7][2] = { { 12, 20 }, { 10, 18 }, { 14, 25 }, { 15, 27 },
+                          { 11, 19 }, { 9, 16 }, { 13, 22 } };
+    int eng_issiq = 0;
+    for (int kun = 0; kun < 7; kun++) {
+        printf("%s: %2d..%2d  ", kunlar[kun], harorat[kun][0], harorat[kun][1]);
+        if (harorat[kun][1] > harorat[eng_issiq][1])
+            eng_issiq = kun;
+    }
+    printf("\nEng issiq kun: %s (%d gradus)\n", kunlar[eng_issiq], harorat[eng_issiq][1]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra sms.c -o sms
+$ ./sms
+Ekranda: "Salom Dilnoza! Ertaga soat 9 "
+Xabar 44 belgi, ekranga 29 tasi sig'di
+Tasdiqlash kodi: 4821
+Du: 12..20  Se: 10..18  Ch: 14..25  Pa: 15..27  Ju: 11..19  Sh:  9..16  Ya: 13..22  
+Eng issiq kun: Pa (27 gradus)
+```
+
+**Sinab ko'ring:** `char sms[30]` ni `char sms[100]` qiling. `harorat[kun][1]` ni `harorat[kun][2]` qilib,
+`-fsanitize=address` bilan yig'ing — sanitizer nima deydi (6.2)?
+
 ## 6.1. Massiv
 
 ```c

@@ -7,6 +7,107 @@
 > **To'liq ishlaydigan misol:** [misollar/07_korsatkichlar.c](misollar/07_korsatkichlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Ko'rsatkich — manzil yozilgan qog'oz (7.1).** Do'stingizga uyingizni ko'rsatmoqchisiz. Uyni ko'tarib
+olib bormaysiz — qog'ozga **manzilni** yozib berasiz: "Navoiy ko'chasi, 15-uy". Qog'oz kichik, uy katta.
+- `int *p` — "manzil yoziladigan qog'oz" (bu qog'ozda `int` turadigan uyning manzili bo'ladi).
+- `&x` — "x ning manzilini ayt" — qog'ozga yozish uchun.
+- `*p` — "qog'ozdagi manzilga bor va ichiga qara (yoki o'zgartir)".
+
+**Nega kerak (7.2).** Usta uyingizni ta'mirlashi kerak. Unga uyingizning **fotosuratini** (nusxa, 5-bob)
+bersangiz, u suratni bo'yaydi — uyingiz o'zgarmaydi. **Manzilni** bersangiz — borib, haqiqiy uyni ta'mirlaydi.
+Funksiya chaqiruvchining o'zgaruvchisini o'zgartirishi uchun ham shunday: manzil beriladi.
+
+**`NULL` — bo'sh konvert (7.3).** Manzil yozilmagan konvert. Uni pochtachiga bersangiz, u hech qayerga
+bora olmaydi. `NULL` ko'rsatkich orqali o'qishga urinish — dastur darhol qulaydi (Segmentation fault).
+Shuning uchun konvertni ishlatishdan oldin tekshiring: `if (p != NULL)`.
+
+**Ko'rsatkich arifmetikasi — ko'chadagi uylar (7.4).** `p + 1` — "keyingi uy". Agar uylar 4 metr
+enlikda bo'lsa (`int` — 4 bayt), keyingi uy 4 metr naridagi uy. `char` uylari 1 metr — `p + 1` 1 metr
+nari. Kompilyator uy enini o'zi biladi, siz faqat "nechta uy" deysiz.
+
+**`->` — manzilga borib, aniq xonaga kirish (7.5).** `p->oshxona` — "`p` dagi manzilga bor va
+oshxonaga kir". Bu `(*p).oshxona` ning qisqa yozuvi.
+
+**`int **` — manzillar daftarining manzili (7.8).** Siz do'stingizga "manzillar daftarim javonda
+turibdi" deysiz. U avval daftarni topadi, keyin daftardan kerakli manzilni o'qiydi, keyin o'sha uyga boradi.
+Ikki marta "borish" — `**pp`.
+
+**Funksiya ko'rsatkichi — telefon raqami (7.9).** Raqamni saqlab qo'yasiz va kerak paytda qo'ng'iroq
+qilasiz. Raqamni boshqasiga almashtirsangiz — boshqa odam javob beradi. Yadroda drayverlar aynan shunday:
+"o'qish kerak bo'lsa — mana bu raqamga qo'ng'iroq qil".
+
+**Osilib qolgan ko'rsatkich — ko'chib ketgan odamning eski manzili (7.11).** Do'stingiz ko'chib
+ketdi, siz esa eski manzilga xat yuborasiz. U yerda endi boshqa odam yashaydi — xatingizni u oladi.
+`free` qilingan xotiraga ko'rsatkich orqali yozish aynan shunday.
+
+### To'liq dastur: pochta xizmati
+
+```c
+/* pochta.c - manzillar: &, *, ->, NULL, arifmetika, funksiya ko'rsatkichi */
+#include <stdio.h>
+
+struct uy {
+    int raqam;
+    int xatlar;                                 /* qutidagi xatlar soni */
+};
+
+/* Manzil orqali - haqiqiy uyning qutisiga xat tashlanadi */
+static void xat_tashla(struct uy *u, int soni)
+{
+    if (u == NULL) {                            /* bo'sh konvert */
+        printf("  manzil yo'q - xat qaytarildi\n");
+        return;
+    }
+    u->xatlar += soni;
+}
+
+static void oddiy(struct uy *u) { xat_tashla(u, 1); printf("  oddiy pochta: %d-uyga 1 xat\n", u->raqam); }
+static void tezkor(struct uy *u) { xat_tashla(u, 3); printf("  tezkor pochta: %d-uyga 3 xat\n", u->raqam); }
+
+int main(void)
+{
+    struct uy kocha[4] = { { 1, 0 }, { 3, 0 }, { 5, 0 }, { 7, 0 } };
+
+    struct uy *p = &kocha[0];                   /* qog'ozga 1-uyning manzili yozildi */
+    xat_tashla(p, 2);
+    p = p + 2;                                  /* 2 ta uy nariga */
+    xat_tashla(p, 1);
+    printf("p endi %d-uyni ko'rsatadi\n", p->raqam);
+
+    xat_tashla(NULL, 1);
+
+    void (*xizmat)(struct uy *) = oddiy;        /* telefon raqami saqlandi */
+    xizmat(&kocha[1]);
+    xizmat = tezkor;                            /* raqam almashdi - boshqa xizmat javob beradi */
+    xizmat(&kocha[3]);
+
+    printf("Ko'chadagi qutilar:\n");
+    for (struct uy *u = kocha; u < kocha + 4; u++)
+        printf("  %d-uy: %d ta xat\n", u->raqam, u->xatlar);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra pochta.c -o pochta
+$ ./pochta
+p endi 5-uyni ko'rsatadi
+  manzil yo'q - xat qaytarildi
+  oddiy pochta: 3-uyga 1 xat
+  tezkor pochta: 7-uyga 3 xat
+Ko'chadagi qutilar:
+  1-uy: 2 ta xat
+  3-uy: 1 ta xat
+  5-uy: 1 ta xat
+  7-uy: 3 ta xat
+```
+
+**Sinab ko'ring:** `p = p + 2;` ni `p = p + 5;` qilib, `-fsanitize=address` bilan yig'ing — 5 ta uy
+nariga borsak, ko'chada uy bormi? `xat_tashla` ni `struct uy u` (yulduzsiz, nusxa) qabul qiladigan qilib
+yozsangiz, qutilar nega bo'sh qoladi?
+
 ## 7.1. Ko'rsatkich — manzilni saqlaydigan o'zgaruvchi
 
 Xotira — raqamlangan baytlar qatori (0-bob). Har bir o'zgaruvchi qaysidir **manzilda** turadi.

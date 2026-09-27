@@ -8,6 +8,117 @@
 > **To'liq ishlaydigan misol:** [misollar/23_jarayonlar.c](misollar/23_jarayonlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Jarayon — kompyuter klubidagi o'yinchi (23.1).** Klubda bitta kompyuter (bitta CPU yadrosi) va o'nta
+o'yinchi bor. Har biri navbat bilan bir necha daqiqa o'ynaydi. Almashishlar juda tez bo'lsa, har biri
+"kompyuter faqat meniki" deb o'ylaydi. Jarayon — aynan shu: har bir dastur o'zini butun protsessorga
+ega deb his qiladi.
+
+**Jarayon holatlari — poliklinikadagi bemor (23.2).**
+- **Tayyor (ready)** — navbatda o'tiribdi, shifokor bo'shashini kutyapti.
+- **Ishlayapti (running)** — shifokor qabulida.
+- **Bloklangan (blocked)** — tahlil topshirdi, natijani kutyapti. Uni chaqirishdan foyda yo'q — natija
+  kelmaguncha u baribir hech narsa qila olmaydi. Natija kelsa — yana navbatga (ready) o'tadi.
+
+**PCB — bemorning kartasi (23.3).** Shifokor bemorni qayta chaqirganda, uning kartasini ochadi: oxirgi
+tashxis, dorilar. Yadro ham har bir jarayonning "kartasini" saqlaydi: registrlar, ochiq fayllar,
+xotira xaritasi, holati.
+
+**Kontekst almashish — o'qituvchining sinfdan sinfga o'tishi (23.4).** O'qituvchi 5-A dan 5-B ga
+o'tishdan oldin jurnalga qayerda to'xtaganini yozib qo'yadi. Qaytib kelganda aynan shu joydan davom
+etadi. Yadro ham jarayonni almashtirishdan oldin uning barcha registrlarini saqlaydi va keyingisinikini
+tiklaydi. Bu tez, lekin bepul emas — o'qituvchi har 10 soniyada sinf almashtirsa, dars o'tishga vaqt qolmaydi.
+
+**Rejalashtirish algoritmlari (23.6).**
+- **FCFS** — oddiy navbat: kim birinchi kelsa. 100 ta mahsulotli arava oldinda bo'lsa, bitta non
+  ko'targan odam uzoq kutadi.
+- **SJF** — "10 tagacha mahsulot" kassasi: qisqa ishlar oldin. O'rtacha kutish kamayadi.
+- **Round Robin** — bolalar arg'imchoqda navbat bilan: har biriga 1 daqiqa, keyin navbat oxiriga.
+  Hech kim abadiy kutmaydi.
+- **Ustuvorlik** — tez yordam mashinasi: navbatsiz o'tadi.
+- **Linux CFS** — "eng kam o'ynagan bola keyingi uchadi": har bir jarayonning olgan vaqti hisoblab
+  boriladi, eng kam olgani tanlanadi.
+
+### To'liq dastur: rejalashtiruvchi simulyatori
+
+Uchta jarayon bir vaqtda keldi. FCFS va Round Robin'da kim qachon ishlashini va qancha kutishini hisoblaymiz.
+
+```c
+/* rejalashtiruvchi.c - FCFS va Round Robin: vaqt chizig'i va o'rtacha kutish */
+#include <stdio.h>
+
+#define J 3
+
+static const char *nom[J] = { "A", "B", "C" };
+static const int kerak[J] = { 8, 2, 4 };        /* har biriga kerakli CPU vaqti */
+
+static void fcfs(void)
+{
+    int vaqt = 0, jami_kutish = 0;
+    printf("FCFS:        |");
+    for (int i = 0; i < J; i++) {
+        jami_kutish += vaqt;                    /* shu paytgacha navbatda turdi */
+        for (int t = 0; t < kerak[i]; t++)
+            printf("%s", nom[i]);
+        vaqt += kerak[i];
+    }
+    printf("|  o'rtacha kutish: %.2f\n", (double)jami_kutish / J);
+}
+
+static void round_robin(int kvant)
+{
+    int qoldi[J], tugadi[J], vaqt = 0, tugaganlar = 0;
+    for (int i = 0; i < J; i++)
+        qoldi[i] = kerak[i];
+    printf("RR (kvant %d): |", kvant);
+    while (tugaganlar < J) {
+        for (int i = 0; i < J; i++) {
+            if (qoldi[i] == 0)
+                continue;
+            int ish = qoldi[i] < kvant ? qoldi[i] : kvant;
+            for (int t = 0; t < ish; t++)
+                printf("%s", nom[i]);
+            vaqt += ish;
+            qoldi[i] -= ish;
+            if (qoldi[i] == 0) {
+                tugadi[i] = vaqt;
+                tugaganlar++;
+            }
+        }
+    }
+    int jami_kutish = 0;
+    for (int i = 0; i < J; i++)
+        jami_kutish += tugadi[i] - kerak[i];    /* kutish = tugash vaqti - ishlagan vaqti */
+    printf("|  o'rtacha kutish: %.2f\n", (double)jami_kutish / J);
+}
+
+int main(void)
+{
+    printf("Jarayonlar: A=%d, B=%d, C=%d vaqt birligi\n", kerak[0], kerak[1], kerak[2]);
+    fcfs();
+    round_robin(2);
+    round_robin(1);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra rejalashtiruvchi.c -o rejalashtiruvchi
+$ ./rejalashtiruvchi
+Jarayonlar: A=8, B=2, C=4 vaqt birligi
+FCFS:        |AAAAAAAABBCCCC|  o'rtacha kutish: 6.00
+RR (kvant 2): |AABBCCAACCAAAA|  o'rtacha kutish: 4.67
+RR (kvant 1): |ABCABCACACAAAA|  o'rtacha kutish: 5.00
+```
+
+Har bir harf — bitta vaqt birligida kim ishlagani. FCFS'da qisqa B uzun A ni kutib qoldi. Round Robin'da
+B tez tugadi va o'rtacha kutish kamaydi. Lekin kvant juda kichik bo'lsa (1), almashishlar ko'payadi —
+haqiqiy tizimda har bir almashish vaqt oladi.
+
+**Sinab ko'ring:** `kerak` massivini `{ 2, 4, 8 }` qiling (qisqasi birinchi) — FCFS natijasi qanday
+o'zgaradi? Bu aynan SJF. `kerak` ga to'rtinchi jarayon qo'shing (`J` ni ham o'zgartiring).
+
 ## 23.1. Jarayon — "virtual CPU"
 
 Kompyuterda 4–8 ta yadro bor, lekin yuzlab dastur "bir vaqtda" ishlaydi. OS har bir dasturga

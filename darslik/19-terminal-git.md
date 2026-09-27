@@ -8,6 +8,86 @@
 > **To'liq ishlaydigan misol:** [misollar/19_terminal.sh](misollar/19_terminal.sh) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Terminal — SMS bilan boshqarish (19.1).** Grafik oynalar — televizor pultidagi tugmalar: qulay, lekin
+faqat ishlab chiqaruvchi qo'ygan tugmalar bor. Terminal — aniq buyruqlar yozish: "fayllar ichidan
+'xato' so'zi bor qatorlarni top, sanab, eng ko'pini ko'rsat". Buni tugmalar bilan qilib bo'lmaydi.
+Serverlarda va yadro ishida esa oyna umuman yo'q — faqat terminal.
+
+**Fayl tizimi — shkaf, tortma va papka (19.2).** `/` — butun shkaf, `/home/ali` — Alining tortmasi,
+`/home/ali/loyiha` — tortmadagi papka. `pwd` — "men qaysi tortmadaman?", `cd` — boshqa tortmaga o'tish,
+`ls` — "bu tortmada nima bor?". `..` — bir daraja yuqori.
+
+**Quvur `|` — konveyer lentasi (19.5).** Zavoddagi lenta: birinchi stanok detalni kesadi, ikkinchisi
+teshadi, uchinchisi bo'yaydi. `cat log | grep xato | wc -l` — birinchi buyruq faylni o'qiydi, ikkinchisi
+xatolarni ajratadi, uchinchisi sanaydi. Har bir buyruq kichik, lekin lenta bilan ulansa — kuchli.
+
+**Git commit — o'yindagi saqlash nuqtasi (19.6).** Kompyuter o'yinida qiyin joydan oldin "saqlaysiz".
+Yutqazsangiz — shu joydan qayta boshlaysiz. `git commit` ham loyihangizning butun holatini saqlaydi.
+Keyin istalgan saqlash nuqtasiga qaytish mumkin. Qancha ko'p saqlasangiz — shuncha kam narsa yo'qotasiz.
+
+**`git diff` — "ikki rasm orasidagi farqni top" (19.6).** Bolalar jurnallaridagi o'yin: ikki rasm
+deyarli bir xil, 7 ta farqni toping. `git diff` buni siz uchun qiladi: qaysi qator qo'shildi (`+`),
+qaysi biri o'chirildi (`-`).
+
+**Branch — qoralama daftar (19.6).** Asosiy ishni buzmasdan, yangi g'oyani alohida qoralamada sinab
+ko'rasiz. Yaxshi chiqsa — asosiyga ko'chirasiz (merge), yomon chiqsa — qoralamani tashlab yuborasiz.
+
+### To'liq skript: kundalik va vaqt mashinasi
+
+Bu skript vaqtinchalik papkada ishlaydi va hech narsani buzmaydi. Har bir buyruqni keyin o'zingiz
+qo'lda takrorlang.
+
+```sh
+# kundalik.sh - terminal va git: saqlash, farq, tarix, qaytish
+set -e
+cd "$(mktemp -d)"
+git init -q
+git config user.name "O'quvchi"
+git config user.email "oquvchi@example.com"
+
+echo "1-kun: C tilini boshladim" > kundalik.txt
+git add kundalik.txt
+git commit -q -m "1-kun"
+
+echo "2-kun: ko'rsatkichlarni o'rgandim" >> kundalik.txt
+git commit -q -am "2-kun"
+
+echo "3-kun: hamma narsani o'chirib yubordim :(" > kundalik.txt
+echo "--- git diff: nima o'zgardi?"
+git diff | grep '^[-+][^-+]'
+
+echo "--- Xatoni bekor qilish: oxirgi saqlangan holatga qaytish"
+git checkout -- kundalik.txt
+cat kundalik.txt
+
+echo "--- Tarix (saqlash nuqtalari)"
+git log --format='%s'
+
+echo "--- Konveyer: nechta qatorda 'kun' so'zi bor?"
+grep kun kundalik.txt | wc -l
+```
+
+```console
+$ sh kundalik.sh
+--- git diff: nima o'zgardi?
+-1-kun: C tilini boshladim
+-2-kun: ko'rsatkichlarni o'rgandim
++3-kun: hamma narsani o'chirib yubordim :(
+--- Xatoni bekor qilish: oxirgi saqlangan holatga qaytish
+1-kun: C tilini boshladim
+2-kun: ko'rsatkichlarni o'rgandim
+--- Tarix (saqlash nuqtalari)
+2-kun
+1-kun
+--- Konveyer: nechta qatorda 'kun' so'zi bor?
+2
+```
+
+**Sinab ko'ring:** skriptdagi buyruqlarni o'z papkangizda birma-bir qo'lda yozing. `git log --oneline`
+bilan tarixni ko'ring va `git show HEAD~1` bilan 1-kundagi saqlash nuqtasini oching.
+
 ## 19.1. Nega terminal
 
 Grafik oyna (sichqoncha bilan bosish) qulay, lekin dasturchi uchun terminal kuchliroq:

@@ -6,6 +6,72 @@
 > **To'liq ishlaydigan misol:** [misollar/00_salom.c](misollar/00_salom.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+Bu bobning asosiy g'oyalari kundalik hayotdagi narsalar orqali. Avval shuni o'qing — keyingi
+bo'limlardagi texnik tafsilotlar ancha oson tushuniladi.
+
+**Kompyuter — ish stolidagi xodim (0.1).** Tasavvur qiling: bir xodim stol ustida ishlaydi.
+- **Protsessor (CPU)** — xodimning o'zi. U juda tez, lekin juda oddiy ishlarni qila oladi: "ikki sonni qo'sh",
+  "bu sonni u yerga yoz", "agar nol bo'lsa, 5-qadamga o't".
+- **Operativ xotira (RAM)** — stol usti. Hozir ishlayotgan qog'ozlar shu yerda. Tez qo'l yetadi, lekin
+  chiroq o'chsa (kompyuter o'chsa) stol tozalanadi.
+- **Disk** — arxiv shkafi. Hamma narsa saqlanib qoladi, lekin undan qog'oz olib kelish sekin.
+- **Dastur** — xodimga berilgan ko'rsatmalar ro'yxati. Xodim ro'yxatni tepadan pastga, qadamma-qadam bajaradi.
+
+**Kompilyator — kitob tarjimoni (0.2, 0.3).** Python — **sinxron tarjimon**: siz har safar dasturni
+ishga tushirganingizda, u har bir qatorni o'sha zahoti tarjima qiladi. Qulay, lekin sekin. C esa
+**kitob tarjimoni**: kitob (dastur) bir marta to'liq tarjima qilinadi (`gcc`) va keyin istalgancha
+tez o'qiladi (`./dastur`). Tarjima paytida xato topilsa, kitob umuman chiqmaydi — shuning uchun C
+xatolarni ishga tushirishdan **oldin** aytadi.
+
+**`#include <stdio.h>` — ma'lumotnomani stolga qo'yish (0.5).** Siz `printf` ni o'zingiz yozmaysiz.
+U tayyor, faqat kompilyatorga "printf degan narsa bor, u shunday ishlatiladi" deb aytish kerak. Bu —
+kerakli ma'lumotnomani ish boshlashdan oldin stolga qo'yib qo'yish.
+
+**`main` — uyning kirish eshigi (0.5).** Uyda o'nlab xona bo'lishi mumkin, lekin mehmon doim eshikdan
+kiradi. Dasturda ham funksiyalar ko'p bo'lishi mumkin, lekin bajarilish doim `main` dan boshlanadi.
+
+**`return 0;` — ishni topshirish (0.5).** Xodim ishni tugatib, rahbarga "hammasi joyida" (0) yoki "muammo
+bo'ldi" (0 emas) deb xabar beradi. Terminal bu xabarni `echo $?` bilan ko'rsatadi.
+
+**`;` — gap oxiridagi nuqta.** O'zbek tilida gap nuqta bilan tugaydi. C'da har bir buyruq `;` bilan
+tugaydi. Nuqtani unutsangiz, kompilyator ikki gapni bitta deb o'qiydi va tushunmaydi.
+
+### To'liq dastur: yoshni hisoblash
+
+Birinchi dasturdan keyingi qadam: o'zgaruvchilar, hisoblash va `printf` ning turli formatlari.
+
+```c
+/* yosh.c - tug'ilgan yildan yoshni hisoblash */
+#include <stdio.h>
+
+int main(void)
+{
+    int joriy_yil = 2026;
+    int tugilgan_yil = 2001;
+    int yosh = joriy_yil - tugilgan_yil;
+
+    printf("Siz %d yoshdasiz.\n", yosh);
+    printf("Bu taxminan %d oy yoki %d kun.\n", yosh * 12, yosh * 365);
+    printf("100 yoshga %d yil qoldi.\n", 100 - yosh);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra yosh.c -o yosh
+$ ./yosh
+Siz 25 yoshdasiz.
+Bu taxminan 300 oy yoki 9125 kun.
+100 yoshga 75 yil qoldi.
+$ echo "chiqish kodi: $?"
+chiqish kodi: 0
+```
+
+**Sinab ko'ring:** `tugilgan_yil` ni o'zingiznikiga o'zgartiring. `return 0;` ni `return 3;` qilib,
+`echo $?` nima ko'rsatishini tekshiring. `;` lardan birini o'chirib, kompilyator xatosini o'qing.
+
 ## 0.1. Kompyuter aslida nima qiladi
 
 Kompyuterni juda soddalashtirib tasavvur qilsak, unda ikkita asosiy qism bor:

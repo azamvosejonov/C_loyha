@@ -8,6 +8,134 @@
 > **To'liq ishlaydigan misol:** [misollar/27_fayllar.c](misollar/27_fayllar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Qurilma bilan gaplashish — kuryer xizmati (27.1).** Diskdan ma'lumot so'rash — kuryer chaqirishga
+o'xshaydi: buyurtma berasiz va kutasiz. Kutish vaqtida boshqa ish qilasiz (protsessor boshqa jarayonni
+ishlatadi). Kuryer kelganda qo'ng'iroq qiladi — bu **uzilish** (interrupt). Har daqiqada eshikka chiqib
+qarash esa — **polling**.
+
+**Disk — ulkan kutubxona binosi (27.2).** Qattiq diskda kitob izlash uchun kutubxonachi zinapoyadan
+kerakli qavatga chiqadi (seek) va javon aylanib kelishini kutadi (rotation). Ketma-ket joylashgan
+kitoblarni olish tez, tarqoqlarni — juda sekin. SSD'da harakatlanadigan qism yo'q, lekin u ham bloklar
+bilan ishlaydi.
+
+**Inode — kutubxona katalog kartochkasi (27.3).** Har bir kitob uchun kartochka: hajmi, qachon
+qo'shilgan, kim o'qishi mumkin va **sahifalari qaysi javonlarda**. Kitobning **nomi** esa kartochkada yo'q!
+Nom — katalogda.
+
+**Katalog — mundarija (27.3).** Mundarijada faqat "nom → kartochka raqami" yozilgan. `ls -i` aynan
+shu raqamlarni ko'rsatadi.
+
+**Qattiq havola — bitta kitobga ikki nom (27.3).** Mundarijaning ikki joyida bir xil kartochka raqami:
+"Sariq devni minib" va "Hoshimjon sarguzashtlari" — aslida bitta kitob. Kartochkada "nomlar soni: 2"
+yozilgan. Bitta nomni o'chirsangiz, kitob yo'qolmaydi — nomlar soni 0 bo'lgandagina.
+
+**Ramziy havola — yo'llanma qog'oz (27.3).** "Bu kitobni 'Sariq devni minib' nomi bilan qidiring" degan
+qog'oz. O'sha kitob o'chirilsa, qog'oz qoladi, lekin hech qayerga olib bormaydi ("osilib qolgan" havola).
+
+**Tok o'chsa — jurnal (27.6).** Bank xodimi pul o'tkazishdan oldin daftarga yozadi: "A hisobdan 100 ni
+B ga o'tkazaman". Keyin o'tkazadi, keyin "bajarildi" deb belgilaydi. Chiroq o'chib qolsa, daftarni o'qib,
+ishni oxiriga yetkazadi yoki bekor qiladi. Fayl tizimining jurnali (ext4, NTFS) aynan shunday.
+
+**`rename` bilan saqlash — e'lonni almashtirish (27.6).** Devordagi e'lonni yangilash uchun eskisini
+yirtib, yangisini yozishni boshlamaysiz (shu orada kimdir bo'sh devorni ko'radi). Yangisini oldindan tayyorlab,
+**bitta harakat** bilan almashtirasiz. `rename` ham atomik: fayl yo eski, yo yangi — hech qachon yarim.
+
+### To'liq dastur: kundalik saqlovchi
+
+```c
+/* saqlovchi.c - atomik saqlash (tmp + fsync + rename), havolalar va inode */
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/* Faylni xavfsiz saqlash: hech qachon yarim yozilgan holatda qolmaydi */
+static int xavfsiz_saqla(const char *nom, const char *matn)
+{
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", nom);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0)
+        return -1;
+    size_t n = strlen(matn);
+    if (write(fd, matn, n) != (ssize_t)n || fsync(fd) != 0) {   /* fsync - haqiqatan diskka */
+        close(fd);
+        unlink(tmp);
+        return -1;
+    }
+    close(fd);
+    return rename(tmp, nom);                    /* bitta harakat: eski -> yangi */
+}
+
+static void korsat(const char *nom)
+{
+    struct stat st;
+    if (lstat(nom, &st) != 0) {
+        printf("  %-14s yo'q\n", nom);
+        return;
+    }
+    printf("  %-14s nomlar soni %ld, hajm %2ld bayt%s\n", nom, (long)st.st_nlink, (long)st.st_size,
+           S_ISLNK(st.st_mode) ? " (yo'llanma qog'oz)" : "");
+}
+
+int main(void)
+{
+    for (int kun = 1; kun <= 3; kun++) {
+        char matn[64];
+        snprintf(matn, sizeof(matn), "%d-kun: hammasi yaxshi\n", kun);
+        if (xavfsiz_saqla("kundalik.txt", matn) != 0)
+            perror("saqlash");
+    }
+
+    unlink("zaxira.txt");
+    unlink("yollanma.txt");
+    if (link("kundalik.txt", "zaxira.txt") != 0)          /* bitta kitobga ikkinchi nom */
+        perror("link");
+    if (symlink("kundalik.txt", "yollanma.txt") != 0)     /* yo'llanma qog'oz */
+        perror("symlink");
+
+    struct stat a, b;
+    stat("kundalik.txt", &a);
+    stat("zaxira.txt", &b);
+    printf("Uch marta saqlandi. Havolalar yaratildi:\n");
+    korsat("kundalik.txt");
+    korsat("zaxira.txt");
+    korsat("yollanma.txt");
+    printf("kundalik.txt va zaxira.txt bitta inode'mi: %s\n", a.st_ino == b.st_ino ? "ha" : "yo'q");
+
+    unlink("kundalik.txt");                     /* asl nomni o'chiramiz */
+    printf("\nkundalik.txt o'chirildi:\n");
+    korsat("zaxira.txt");
+    printf("  yollanma.txt orqali ochish: %s\n",
+           open("yollanma.txt", O_RDONLY) < 0 ? "bo'lmadi - yo'llanma hech qayerga olib bormaydi" : "bo'ldi");
+
+    unlink("zaxira.txt");
+    unlink("yollanma.txt");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra saqlovchi.c -o saqlovchi
+$ ./saqlovchi
+Uch marta saqlandi. Havolalar yaratildi:
+  kundalik.txt   nomlar soni 2, hajm 22 bayt
+  zaxira.txt     nomlar soni 2, hajm 22 bayt
+  yollanma.txt   nomlar soni 1, hajm 12 bayt (yo'llanma qog'oz)
+kundalik.txt va zaxira.txt bitta inode'mi: ha
+
+kundalik.txt o'chirildi:
+  zaxira.txt     nomlar soni 1, hajm 22 bayt
+  yollanma.txt orqali ochish: bo'lmadi - yo'llanma hech qayerga olib bormaydi
+```
+
+**Sinab ko'ring:** terminalda: `echo salom > a; ln a b; ln -s a c; ls -li a b c` — inode raqamlarini
+solishtiring. `xavfsiz_saqla` ichida `rename` dan oldin `return -1;` qo'yib, eski kundalik buzilmay
+qolishini tekshiring.
+
 ## 27.1. Qurilma bilan gaplashish
 
 Qurilma (disk, tarmoq kartasi) OS'ga **registrlar** orqali ko'rinadi: holat, buyruq, ma'lumot (16-bob).

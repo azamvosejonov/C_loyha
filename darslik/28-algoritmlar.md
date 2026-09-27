@@ -9,6 +9,116 @@
 > **To'liq ishlaydigan misol:** [misollar/28_algoritmlar.c](misollar/28_algoritmlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**O-belgi — ish qanchalik tez o'sadi (28.1).**
+- **O(1)** — garderob: raqamcha bo'yicha paltoni darhol topasiz. 10 ta palto bo'lsa ham, 10 000 ta bo'lsa ham.
+- **O(log n)** — lug'atda so'z qidirish: o'rtasini ochasiz, "S" dan oldinmi-keyinmi, yana yarmini...
+  Million so'zli lug'atda ~20 qadam.
+- **O(n)** — tartibsiz qog'ozlar uyumida bitta hujjatni qidirish: har birini ko'rib chiqasiz.
+- **O(n log n)** — kartalarni yaxshi usul bilan saralash.
+- **O(n²)** — sinfdagi har bir o'quvchi har biri bilan qo'l berib ko'rishishi: 30 kishi — 435 ta qo'l
+  berish, 300 kishi — 44 850 ta. Odam 10 barobar ko'payganda ish 100 barobar ko'payadi.
+
+**Stek va navbat (28.2).** Stek — likopchalar ustuni (oxirgi qo'yilgan birinchi olinadi). Navbat —
+do'kon kassasi (birinchi kelgan birinchi ketadi).
+
+**Bog'langan ro'yxat — xazina qidirish o'yini (28.2).** Har bir yozuvda keyingi yozuv qayerdaligi
+yozilgan. 5-yozuvga yetish uchun 1, 2, 3, 4 dan o'tish kerak — to'g'ridan-to'g'ri borib bo'lmaydi.
+Lekin o'rtaga yangi yozuv qo'shish oson: faqat ikkita "keyingisi" ni o'zgartirasiz.
+
+**Xesh jadval — garderob (28.3).** Paltoni ilmoqqa ilasiz, raqamcha olasiz. Xesh funksiya — kalitdan
+(ismdan) ilmoq raqamini hisoblaydi. Ikki kalit bitta ilmoqqa tushsa (to'qnashuv) — bir ilmoqqa ikkita
+palto ilinadi (zanjir).
+
+**Daraxt — oila shajarasi yoki tashkilot tuzilmasi (28.6).** Direktor → bo'lim boshliqlari → xodimlar.
+Ikkilik qidiruv daraxti — har bir tugunda "kichiklar chapda, kattalar o'ngda" qoidasi. Muvozanatlangan
+daraxt (AVL, qizil-qora) shoxlar bir tomonga og'ib ketmasligini ta'minlaydi.
+
+**Graf va BFS — metro xaritasi (28.7).** Bekatlar — tugunlar, yo'llar — qirralar. "Eng kam bekat bilan
+qanday yetaman?" savoliga BFS javob beradi: avval 1 bekatlik masofadagilarni, keyin 2 bekatlik... —
+suvga tashlangan toshdan tarqalgan to'lqinlar kabi.
+
+### To'liq dastur: Toshkent metrosi
+
+Metro tarmog'ining bir qismi (soddalashtirilgan). BFS bilan eng kam bekatli yo'lni topamiz.
+
+```c
+/* metro.c - graf, navbat va BFS: eng qisqa yo'l (bekatlar soni bo'yicha) */
+#include <stdio.h>
+#include <string.h>
+
+#define B 10
+static const char *bekat[B] = {
+    "Chilonzor", "Novza", "Mustaqillik maydoni", "Amir Temur xiyoboni", "Paxtakor",
+    "Alisher Navoiy", "Toshkent", "Oybek", "Kosmonavtlar", "Yunus Rajabiy",
+};
+static int yol[B][B];                           /* qo'shnilik matritsasi: 1 - to'g'ridan-to'g'ri yo'l */
+
+static void ula(int a, int b) { yol[a][b] = yol[b][a] = 1; }
+
+static void eng_qisqa(int dan, int ga)
+{
+    int oldingi[B], navbat[B], bosh = 0, oxir = 0;
+    memset(oldingi, -1, sizeof(oldingi));
+    oldingi[dan] = dan;
+    navbat[oxir++] = dan;
+    while (bosh < oxir) {                       /* navbat bo'sh bo'lmaguncha */
+        int u = navbat[bosh++];
+        for (int v = 0; v < B; v++)
+            if (yol[u][v] && oldingi[v] == -1) {
+                oldingi[v] = u;                 /* v ga u orqali keldik */
+                navbat[oxir++] = v;
+            }
+    }
+
+    int yol_teskari[B], n = 0;                  /* oxiridan boshiga qarab tiklash */
+    for (int v = ga; v != dan; v = oldingi[v])
+        yol_teskari[n++] = v;
+    yol_teskari[n++] = dan;
+    printf("%s -> %s: %d bekat\n  ", bekat[dan], bekat[ga], n - 1);
+    for (int i = n - 1; i >= 0; i--)
+        printf("%s%s", bekat[yol_teskari[i]], i ? " -> " : "\n");
+}
+
+int main(void)
+{
+    ula(0, 1);                                  /* Chilonzor liniyasi */
+    ula(1, 2);
+    ula(2, 3);
+    ula(3, 4);
+    ula(4, 5);                                  /* Paxtakor <-> Alisher Navoiy (o'tish) */
+    ula(5, 7);                                  /* Alisher Navoiy -> Oybek */
+    ula(3, 9);                                  /* Amir Temur <-> Yunus Rajabiy (o'tish) */
+    ula(7, 8);                                  /* Oybek -> Kosmonavtlar */
+    ula(8, 6);                                  /* Kosmonavtlar -> Toshkent */
+    ula(9, 6);                                  /* Yunus Rajabiy -> Toshkent */
+
+    eng_qisqa(0, 6);                            /* Chilonzor -> Toshkent vokzali */
+    eng_qisqa(0, 7);
+    eng_qisqa(4, 9);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra metro.c -o metro
+$ ./metro
+Chilonzor -> Toshkent: 5 bekat
+  Chilonzor -> Novza -> Mustaqillik maydoni -> Amir Temur xiyoboni -> Yunus Rajabiy -> Toshkent
+Chilonzor -> Oybek: 6 bekat
+  Chilonzor -> Novza -> Mustaqillik maydoni -> Amir Temur xiyoboni -> Paxtakor -> Alisher Navoiy -> Oybek
+Paxtakor -> Yunus Rajabiy: 2 bekat
+  Paxtakor -> Amir Temur xiyoboni -> Yunus Rajabiy
+```
+
+BFS Chilonzordan Toshkentgacha ikki yo'lni ko'rdi: Yunus Rajabiy orqali va Oybek orqali. Birinchisi
+qisqaroq bo'lgani uchun u tanlandi — BFS bekatlarni masofasi bo'yicha qatlam-qatlam ochadi.
+
+**Sinab ko'ring:** `ula(9, 6);` ni o'chiring — endi yo'l qaysi bekatlar orqali o'tadi? Bekatlar soni
+`B` ni 1000 ga oshirsak, qo'shnilik matritsasi necha bayt egallaydi? Nega katta graflarda qo'shnilar
+ro'yxati ishlatiladi?
+
 ## 28.1. Murakkablik: O-belgi
 
 Algoritm tezligini soniyalarda emas, **kirish o'lchami n o'sganda ish qanday o'sishi** bilan baholaymiz:

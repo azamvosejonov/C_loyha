@@ -8,6 +8,112 @@
 > **To'liq ishlaydigan misol:** [misollar/24_virtual_xotira.c](misollar/24_virtual_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Virtual manzil — mehmonxona xona raqami (24.1).** Kalitingizda "305" deb yozilgan. Xona binoning qaysi
+qanotida, qaysi qavatda ekanini bilishingiz shart emas — qabulxona biladi. Boshqa mehmonxonada ham
+"305" xona bo'lishi mumkin — ular bir-biriga xalaqit bermaydi. Har bir jarayonning manzillari ham
+shunday: ikkala dasturda `0x400000` manzil bor, lekin ular RAM'ning **turli** joylariga to'g'ri keladi.
+Bir jarayon boshqasining xotirasiga umuman yeta olmaydi — bu himoya.
+
+**Sahifa jadvali — qabulxona jurnali (24.3).** Jurnalda yozilgan: "305-xona → Sharqiy qanot, 3-qavat,
+12-eshik". Protsessor har bir manzilni sahifa jadvali orqali tarjima qiladi. Xotira 4 KB lik
+**sahifalarga** bo'lingan — xuddi mehmonxona xonalarga bo'lingandek. Manzilning yuqori qismi —
+xona raqami (sahifa), pastki qismi — xona ichidagi joy (siljish).
+
+**Page fault — kutubxonada kitob javonda yo'q (24.4).** Kutubxonachidan kitob so'radingiz — javonda yo'q.
+Bu xato emas: kutubxonachi omborga borib, kitobni olib keladi va sizga beradi. Siz faqat biroz kutasiz.
+Page fault ham shunday: sahifa hali xotirada yo'q — yadro uni tayyorlaydi (nol bilan to'ldiradi yoki
+diskdan o'qiydi) va dastur hech narsani sezmay davom etadi. Faqat haqiqatan ruxsat etilmagan manzil
+bo'lsa — Segmentation fault.
+
+**Talab bo'yicha sahifalash — mebelni kerak bo'lganda olib kelish (24.5).** Yangi uyga ko'chdingiz
+va 100 xonali saroy "ijaraga oldingiz" (`mmap` 100 MB). Hamma xonaga birdaniga mebel olib kelinmaydi —
+qaysi xonaga birinchi marta kirsangiz, o'shanga olib kelinadi. Kirmagan xonalar hech narsaga tushmaydi.
+
+**Swap — garaj (24.5).** Uyda joy qolmasa, kam ishlatiladigan narsalarni garajga olib chiqasiz. Kerak
+bo'lsa — qaytib olib kelasiz (sekin). Garajga borib-kelish juda ko'payib ketsa, ish umuman oldinga
+siljimaydi — bu **thrashing** (24.7).
+
+**Copy-on-write — umumiy darslik (24.8).** Aka-uka bitta darslikdan o'qiydi — nusxa shart emas. Uka
+kitobga nimadir **yozmoqchi** bo'lsa, faqat o'sha sahifaning nusxasini oladi va o'z nusxasiga yozadi.
+`fork` aynan shunday: bola otaning barcha sahifalarini bo'lishadi, faqat yozilgan sahifa nusxalanadi.
+Shuning uchun 1 GB xotirali jarayonni `fork` qilish bir zumda bo'ladi.
+
+### To'liq dastur: manzil tarjimasi simulyatori
+
+Kichik o'yinchoq kompyuter: 16 bitli virtual manzil, 256 baytlik sahifalar. Protsessor har bir manzil
+uchun aynan shu hisobni bajaradi — faqat apparat ichida va 4 KB lik sahifalar bilan.
+
+```c
+/* tarjima.c - virtual manzil -> fizik manzil: sahifa jadvali va page fault */
+#include <stdint.h>
+#include <stdio.h>
+
+#define SAHIFA_HAJMI 256                        /* 8 bit - sahifa ichidagi siljish */
+#define SAHIFALAR 256                           /* 16 bitli manzil: 256 sahifa */
+
+struct yozuv {
+    int bor;                                    /* sahifa xotirada bormi (present) */
+    int ramka;                                  /* fizik xotiradagi ramka raqami */
+    int yozish_mumkin;
+};
+
+static struct yozuv jadval[SAHIFALAR];
+static int keyingi_ramka = 7;                   /* bo'sh ramkalar 7 dan boshlanadi */
+
+static void murojaat(uint16_t vmanzil, int yozish)
+{
+    unsigned sahifa = vmanzil / SAHIFA_HAJMI;   /* yuqori 8 bit */
+    unsigned siljish = vmanzil % SAHIFA_HAJMI;  /* pastki 8 bit */
+    printf("0x%04X (%s): sahifa %3u, siljish %3u -> ", vmanzil, yozish ? "yozish" : "o'qish",
+           sahifa, siljish);
+
+    if (!jadval[sahifa].bor) {
+        printf("PAGE FAULT! yadro ramka %d ajratdi -> ", keyingi_ramka);
+        jadval[sahifa] = (struct yozuv){ 1, keyingi_ramka++, 1 };
+    }
+    if (yozish && !jadval[sahifa].yozish_mumkin) {
+        printf("HIMOYA XATOSI (faqat o'qish uchun) -> Segmentation fault\n");
+        return;
+    }
+    unsigned fizik = (unsigned)jadval[sahifa].ramka * SAHIFA_HAJMI + siljish;
+    printf("fizik 0x%05X\n", fizik);
+}
+
+int main(void)
+{
+    jadval[0x12] = (struct yozuv){ 1, 3, 1 };   /* 0x12-sahifa allaqachon 3-ramkada */
+    jadval[0x40] = (struct yozuv){ 1, 5, 0 };   /* kod sahifasi: faqat o'qish */
+
+    murojaat(0x1234, 0);                        /* mavjud sahifa */
+    murojaat(0x12FF, 1);                        /* o'sha sahifa, oxirgi bayti */
+    murojaat(0x8000, 1);                        /* yangi sahifa - page fault */
+    murojaat(0x8010, 0);                        /* endi xotirada - fault yo'q */
+    murojaat(0x4004, 0);                        /* kod sahifasini o'qish - mumkin */
+    murojaat(0x4004, 1);                        /* kod sahifasiga yozish - taqiqlangan */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra tarjima.c -o tarjima
+$ ./tarjima
+0x1234 (o'qish): sahifa  18, siljish  52 -> fizik 0x00334
+0x12FF (yozish): sahifa  18, siljish 255 -> fizik 0x003FF
+0x8000 (yozish): sahifa 128, siljish   0 -> PAGE FAULT! yadro ramka 7 ajratdi -> fizik 0x00700
+0x8010 (o'qish): sahifa 128, siljish  16 -> fizik 0x00710
+0x4004 (o'qish): sahifa  64, siljish   4 -> fizik 0x00504
+0x4004 (yozish): sahifa  64, siljish   4 -> HIMOYA XATOSI (faqat o'qish uchun) -> Segmentation fault
+```
+
+E'tibor bering: `0x1234` va `0x12FF` — bitta sahifa (yuqori bayt `0x12`), shuning uchun bitta ramkaga
+tushdi. `0x8000` ga birinchi murojaatda page fault bo'ldi, ikkinchisida — yo'q.
+
+**Sinab ko'ring:** `SAHIFA_HAJMI` ni 4096 qiling (haqiqiy x86) va `SAHIFALAR` ni 16 — manzillar qanday
+bo'linadi? Sahifa jadvalining o'lchami nega muammo ekanini hisoblang: 48 bitli manzil va 4 KB sahifada
+nechta yozuv kerak (24.3)?
+
 ## 24.1. Nega virtual xotira
 
 Agar har bir dastur fizik xotirani to'g'ridan-to'g'ri ishlatsa:

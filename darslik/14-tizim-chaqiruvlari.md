@@ -8,6 +8,108 @@
 > **To'liq ishlaydigan misol:** [misollar/14_jarayonlar.c](misollar/14_jarayonlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Tizim chaqiruvi — bank kassasining oynasi (14.1).** Bankda seyfga o'zingiz kira olmaysiz. Kassa oynasiga
+kelib, so'rov berasiz: "hisobimdan 100 ming yeching". Kassir (yadro) tekshiradi, seyfga kiradi va
+natijani oynadan beradi. Dastur ham diskka, tarmoqqa, ekranga **to'g'ridan-to'g'ri** tegolmaydi —
+`read`, `write`, `open` orqali yadrodan so'raydi. Oyna — `syscall` buyrug'i.
+
+**Fayl deskriptori — garderob raqamchasi (14.2).** Teatrda paltongizni topshirasiz va raqamcha olasiz: 3.
+Keyin paltoni raqamcha bilan so'raysiz — palto qayerda osilganini bilishingiz shart emas. `open` ham
+raqam qaytaradi (`fd = 3`), keyin `read(3, ...)`, `write(3, ...)`. 0, 1, 2 raqamlari doim band:
+klaviatura, ekran, xatolar ekrani.
+
+**`fork` — egizak (14.4).** `fork` jarayonning **aynan nusxasini** yaratadi: bir xil xotira, bir xil
+ochiq fayllar, hatto kodning bir xil qatorida. Farqi bitta: otaga `fork` bolaning raqamini qaytaradi,
+bolaga esa 0. Shu bilan har biri o'zining kimligini biladi.
+
+**`exec` — aktyorning rolni almashtirishi (14.4).** Aktyor (jarayon, uning raqami — PID) o'sha, lekin
+kiyimi va matni butunlay yangi: endi u boshqa rolni o'ynaydi. `exec` jarayonning kodini boshqa dastur
+bilan almashtiradi. Shell `ls` ni aynan shunday ishga tushiradi: `fork` (egizak) + `exec` (rolni almashtir).
+
+**`wait` — ota-ona bolani maktabdan kutishi (14.4).** Ota bolaning ishini tugatishini kutadi va uning
+natijasini (chiqish kodini) oladi. Kutilmagan, lekin tugagan bola — **zombie**: ishini tugatgan,
+lekin kimdir uning natijasini olmaguncha ro'yxatda turadi.
+
+**`pipe` — pnevmatik quvur (14.5).** Supermarketlarda kassadan hujjatlarni quvur orqali ofisga
+yuboradilar: bir tomondan solinadi, boshqa tomondan chiqadi. `pipe` ham ikki uchli: `fd[1]` ga yozilgan
+narsa `fd[0]` dan o'qiladi. `ls | wc -l` — ikki jarayonni quvur bilan ulash.
+
+**Signal — telefonga kelgan qo'ng'iroq (14.6).** Ishlayotganingizda telefon jiringlaydi — ishni to'xtatib,
+javob berasiz, keyin davom etasiz. Ctrl+C bosilganda dasturga `SIGINT` "qo'ng'irog'i" keladi. Dastur
+unga javob beradigan funksiya o'rnatishi (sigaction) yoki umuman javob bermasligi mumkin (standart
+javob — dastur to'xtaydi).
+
+### To'liq dastur: oilaviy hisob-kitob
+
+Ota uchta bola yaratadi. Har bir bola o'z qismini hisoblab, natijani quvur orqali otaga yuboradi.
+
+```c
+/* oila.c - fork, pipe, wait: ishni bolalarga bo'lib berish */
+#include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int main(void)
+{
+    int quvur[2];
+    if (pipe(quvur) < 0) {
+        perror("pipe");
+        return 1;
+    }
+
+    /* 1..3000 yig'indisi: har bir bola 1000 ta sonni qo'shadi */
+    for (int bola = 0; bola < 3; bola++) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork");
+            return 1;
+        }
+        if (pid == 0) {                         /* BOLA: fork 0 qaytardi */
+            close(quvur[0]);                    /* bola faqat yozadi */
+            long qism = 0;
+            for (long i = bola * 1000 + 1; i <= (bola + 1) * 1000; i++)
+                qism += i;
+            if (write(quvur[1], &qism, sizeof(qism)) != sizeof(qism))
+                _exit(1);
+            _exit(bola + 10);                   /* chiqish kodi - otaga "baho" */
+        }
+    }
+
+    close(quvur[1]);                            /* OTA: faqat o'qiydi */
+    long jami = 0, qism;
+    while (read(quvur[0], &qism, sizeof(qism)) == sizeof(qism))
+        jami += qism;                           /* hamma bola yozish uchini yopgach, read 0 qaytaradi */
+
+    int holat, kodlar = 0;
+    while (wait(&holat) > 0)                    /* har bir bolani kutish (zombie qolmasin) */
+        if (WIFEXITED(holat))
+            kodlar += WEXITSTATUS(holat);
+
+    printf("1..3000 yig'indisi (3 bola hisobladi): %ld\n", jami);
+    printf("Formula bo'yicha: %d\n", 3000 * 3001 / 2);
+    printf("Bolalarning chiqish kodlari yig'indisi: %d (10 + 11 + 12)\n", kodlar);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra oila.c -o oila
+$ ./oila
+1..3000 yig'indisi (3 bola hisobladi): 4501500
+Formula bo'yicha: 4501500
+Bolalarning chiqish kodlari yig'indisi: 33 (10 + 11 + 12)
+$ strace -f -e trace=fork,clone,pipe2,pipe,wait4 ./oila 2>&1 | grep -c "clone\|fork"
+3
+```
+
+Oxirgi buyruq yadroga nechta "jarayon yaratish" so'rovi yuborilganini sanaydi (strace — 29-bob).
+
+**Sinab ko'ring:** `close(quvur[1]);` (otadagi) ni o'chiring — dastur nega abadiy kutib qoladi?
+(Ctrl+C bilan to'xtating.) `while (wait(...))` siklini o'chirib, dastur ishlayotganda boshqa terminalda
+`ps aux | grep defunct` ni bajaring.
+
 ## 14.1. Tizim chaqiruvi (syscall) nima
 
 Oddiy dastur (user rejimi, CPU'ning 3-halqasi) apparatga tega olmaydi: diskni o'qiy olmaydi, ekranga

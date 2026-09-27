@@ -8,6 +8,99 @@
 > **To'liq ishlaydigan misol:** [misollar/20_sonlar.c](misollar/20_sonlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Pozitsion sanoq tizimi — kupyuralar (20.1).** 3 745 so'm — bu 3 ta mingtalik, 7 ta yuztalik, 4 ta
+o'ntalik va 5 ta birtalik. Raqamning **joyi** uning qiymatini belgilaydi. Ikkilik tizimda ham xuddi
+shunday, faqat "kupyuralar" 1, 2, 4, 8, 16... va har biridan ko'pi bilan bitta: `1101` = 8 + 4 + 1 = 13.
+O'n oltilik tizim — ikkilikning qisqa yozuvi: har bir o'n oltilik raqam — to'rtta bit.
+
+**Ikkiga to'ldirish — orqaga aylanadigan hisoblagich (20.3).** Uch xonali hisoblagich 000 dan bitta
+orqaga aylantirilsa — 999 ko'rsatadi. Demak "−1" ni 999 deb kelishish mumkin: 999 + 1 = 000 — to'g'ri!
+8 bitli sonlarda ham: −1 = `11111111`. Shu kelishuv tufayli protsessorga ayirish uchun alohida
+sxema kerak emas — qo'shish sxemasi ishorali sonlar uchun ham ishlaydi.
+
+**Ishora kengayishi — narxni kattaroq blankaga ko'chirish (20.4).** Kichik blankada "−5" yozilgan.
+Katta blankaga ko'chirganda bo'sh katakchalarni to'ldirish kerak: musbat son uchun 0 lar bilan,
+manfiy son uchun — 1 lar bilan (ikkiga to'ldirishda manfiy sonning boshi 1 lardan iborat).
+Aks holda −5 katta musbat songa aylanib qoladi.
+
+**Qirqish — sig'magan raqamlarni kesib tashlash (20.4).** 4 xonali displeyga 12 345 ni yozsangiz,
+faqat oxirgi 4 raqami qoladi: 2345. Katta sonni kichik turga o'tkazganda ham yuqori bitlar kesiladi.
+
+**`float` — ilmiy yozuv va kalkulyator ekrani (20.6).** Kalkulyator ekranida faqat 8–10 raqam sig'adi.
+Juda katta son `6.02e23` ko'rinishida yoziladi: raqamlar (mantissa) va daraja. `float` da ~7 ta aniq
+raqam bor. Shuning uchun 16 777 217 ni `float` da aniq saqlab bo'lmaydi, 0.1 ni esa umuman aniq
+saqlab bo'lmaydi (ikkilikda u cheksiz kasr — o'nlikdagi 1/3 = 0.3333... kabi).
+
+**Qat'iy nuqta — pulni tiyinda sanash (20.7).** Bankda hisob "12 650.55 so'm" deb emas, "1 265 055 tiyin"
+deb saqlanadi — butun son, hech qanday yaxlitlash xatosi yo'q. Yadroda `float` ishlatilmaydi, shuning
+uchun foizlar, vaqt va boshqalar aynan shunday butun sonlar bilan hisoblanadi.
+
+### To'liq dastur: valyuta ayirboshlash shoxobchasi
+
+```c
+/* valyuta.c - float xatosi yig'ilishi va qat'iy nuqtali (tiyinli) hisob */
+#include <stdint.h>
+#include <stdio.h>
+
+int main(void)
+{
+    /* Bir kunda 100 000 ta mijoz, har biridan 0.01 dollar komissiya */
+    float komissiya_f = 0.0f;
+    long komissiya_sent = 0;                    /* sentlarda - butun son */
+    for (int i = 0; i < 100000; i++) {
+        komissiya_f += 0.01f;
+        komissiya_sent += 1;
+    }
+    printf("float bilan:  %.4f dollar\n", komissiya_f);
+    printf("sent bilan:   %ld.%02ld dollar (aniq 1000.00 bo'lishi kerak)\n",
+           komissiya_sent / 100, komissiya_sent % 100);
+
+    /* Kurs: 1 dollar = 12 650.55 so'm -> tiyinda 1 265 055 */
+    const int64_t kurs_tiyin = 1265055;
+    int64_t dollar = 350;
+    int64_t natija = dollar * kurs_tiyin;       /* tiyinda */
+    printf("\n%lld dollar = %lld.%02lld so'm\n", (long long)dollar,
+           (long long)(natija / 100), (long long)(natija % 100));
+
+    /* Ikkilik va o'n oltilik ko'rinish */
+    unsigned summa = 13;
+    printf("\n13 ikkilikda: ");
+    for (int b = 7; b >= 0; b--)
+        putchar((summa >> b) & 1 ? '1' : '0');
+    printf(", o'n oltilikda: 0x%X\n", summa);
+
+    /* Ikkiga to'ldirish va ishora kengayishi */
+    int8_t qarz = -5;
+    printf("-5 baytda: 0x%02X, int ga kengaytirilganda: %d (0x%08X)\n",
+           (uint8_t)qarz, (int)qarz, (unsigned)(int)qarz);
+    printf("12345 ni 8 bitga qirqish: %u\n", (uint8_t)12345);
+    printf("(float)16777217 = %.0f\n", (double)(float)16777217);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra valyuta.c -o valyuta
+$ ./valyuta
+float bilan:  1000.6650 dollar
+sent bilan:   1000.00 dollar (aniq 1000.00 bo'lishi kerak)
+
+350 dollar = 4427692.50 so'm
+
+13 ikkilikda: 00001101, o'n oltilikda: 0xD
+-5 baytda: 0xFB, int ga kengaytirilganda: -5 (0xFFFFFFFB)
+12345 ni 8 bitga qirqish: 57
+(float)16777217 = 16777216
+```
+
+`float` bilan 100 000 ta 0.01 ni qo'shish 1000 dan sezilarli farq qildi — har bir qo'shishdagi
+kichik yaxlitlash xatosi yig'ilib boradi. Sentlar esa doim aniq.
+
+**Sinab ko'ring:** `float` ni `double` ga almashtiring — xato kamayadimi, yo'qoladimi? 12345 ni 8 bitga
+qirqish natijasini qo'lda hisoblang: 12345 % 256.
+
 ## 20.1. Pozitsion sanoq tizimlari
 
 O'nlik: `347 = 3·10² + 4·10¹ + 7·10⁰`. Har bir o'rin — asosning darajasi.

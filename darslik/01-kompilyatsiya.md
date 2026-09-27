@@ -7,6 +7,73 @@
 > **To'liq ishlaydigan misol:** [misollar/01_kompilyatsiya.sh](misollar/01_kompilyatsiya.sh) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**To'rt bosqich — kitob nashriyoti (1.1).** Muallif qo'lyozma yozdi (`salom.c`). Endi u kitob bo'lishi kerak:
+1. **Muharrir** (preprotsessor, `gcc -E`) — qo'lyozmadagi "bu yerga 3-ilovani qo'ying" degan joylarga
+   ilovalarni ko'chirib qo'yadi (`#include`), qisqartmalarni to'liq yozadi (`#define`). Natija — hali ham
+   oddiy matn (`.i`).
+2. **Tarjimon** (kompilyator, `gcc -S`) — matnni protsessor tushunadigan tilga tarjima qiladi. Natija —
+   assembly, bu ham matn, lekin boshqa tilda (`.s`).
+3. **Matbaa** (assembler, `gcc -c`) — tarjimani mashina kodiga "bosib chiqaradi". Natija — alohida bosilgan
+   varaqlar (`.o`). Ularni o'qib bo'lmaydi — ular endi matn emas.
+4. **Muqovachi** (linker) — barcha varaqlarni (sizning `.o` laringiz va tayyor kutubxonalarni) bitta kitobga
+   tikadi. Faqat shundan keyin kitob tayyor: `./dastur`.
+
+Shuning uchun `./salom.i` ishlamaydi: bu hali muharrir qo'lidagi qo'lyozma, kitob emas.
+
+**E'lon va ta'rif — telefon daftari va odamning o'zi (1.2).** Telefon daftarida "Ali — +998 90 ..." deb
+yozilgan (e'lon). Qo'ng'iroq qilish uchun shu yetarli — Alining uyiga borish shart emas. Lekin Ali
+haqiqatan mavjud bo'lishi kerak (ta'rif). Daftarda yozilgan-u, bunday odam yo'q bo'lsa — `undefined
+reference`. Ikkita har xil Ali bir raqamda bo'lsa — `multiple definition`.
+
+**`.h`, `.c`, `.o` — restoran (1.3).** Batafsil — pastdagi 1.3-bo'limda: menyu, oshxona va mijoz misoli.
+
+**`-Wall -Wextra` — imlo tekshiruvchi (1.5).** Word'dagi qizil to'lqinli chiziq kabi: matn baribir
+chop etiladi, lekin "bu yerda xato bo'lishi mumkin" deb ogohlantiradi. Uni o'chirib qo'yish — imloni
+tekshirmasdan kitob chiqarish bilan barobar.
+
+**`-g` va `gdb` — futboldagi VAR (1.6).** Hakam o'yinni to'xtatib, lahzani sekinlashtirib, kadrma-kadr
+ko'radi. `gdb` ham dasturni istalgan qatorda to'xtatadi (`break`), bir qadam yuradi (`next`) va shu
+paytdagi har bir o'zgaruvchining qiymatini ko'rsatadi (`print`). `-g` — kameralarni o'rnatish: usiz
+VAR'da ko'rish uchun yozuv bo'lmaydi.
+
+### To'liq dastur: gdb bilan kadrma-kadr
+
+```c
+/* jamgarma.c - har oy jamg'arma: gdb bilan qadamma-qadam ko'rish uchun */
+#include <stdio.h>
+
+int main(void)
+{
+    int jamgarma = 0;
+    int oylik_qoshish = 500000;
+
+    for (int oy = 1; oy <= 3; oy++) {
+        jamgarma = jamgarma + oylik_qoshish;
+        oylik_qoshish = oylik_qoshish + 100000;     /* har oy 100 ming ko'proq */
+    }
+    printf("3 oyda jamg'arildi: %d so'm\n", jamgarma);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g jamgarma.c -o jamgarma
+$ ./jamgarma
+3 oyda jamg'arildi: 1800000 so'm
+$ gdb -q -batch -ex 'break 11' -ex run -ex 'print oy' -ex 'print jamgarma' -ex continue -ex 'print oy' -ex 'print jamgarma' ./jamgarma 2>&1 | grep '^\$'
+$1 = 1
+$2 = 500000
+$3 = 2
+$4 = 1100000
+```
+
+Oxirgi buyruq gdb'ni avtomatik boshqaradi: 11-qatorda to'xtaydi va `oy`, `jamgarma` ni ko'rsatadi,
+keyin keyingi aylanishga o'tib yana ko'rsatadi. O'zingiz qo'lda qiling: `gdb ./jamgarma`, keyin
+`break 11`, `run`, `print jamgarma`, `next`, `print oylik_qoshish`, `continue`. Har qadamda qiymatni
+**avval taxmin qiling**, keyin `print` bilan tekshiring.
+
 ## 1.1. To'rt bosqich
 
 `gcc salom.c -o salom` aslida to'rtta dasturni ketma-ket ishga tushiradi:

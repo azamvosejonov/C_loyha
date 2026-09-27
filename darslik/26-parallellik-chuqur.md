@@ -8,6 +8,130 @@
 > **To'liq ishlaydigan misol:** [misollar/26_faylasuflar.c](misollar/26_faylasuflar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Qulfga talablar — hojatxona eshigi (26.1).** Yaxshi qulf uchta shartni bajaradi: bir vaqtda faqat
+bitta odam ichkarida (**o'zaro istisno**), hech kim abadiy navbatda qolib ketmaydi (**adolat**), va
+qulflash-ochish tez (**unumdorlik**).
+
+**Oddiy o'zgaruvchi nega yetmaydi (26.2).** Eshikda "band/bo'sh" yozuvi bor. Ikki kishi bir vaqtda qaraydi:
+"bo'sh". Ikkalasi ham yozuvni "band" qiladi va ikkalasi ham kiradi. Qarash va yozish orasida vaqt bor —
+muammo shu oraliqda.
+
+**Test-and-set — bitta harakatda qarash va aylantirish (26.4).** Eshikdagi burama qulf: uni burasangiz,
+bir vaqtning o'zida ham qulflaysiz, ham u oldin ochiq bo'lganmi — sezasiz. Ikki kishi bir vaqtda burolmaydi.
+Protsessorning atomik buyruqlari (`xchg`, `lock cmpxchg`) aynan shunday bo'linmas.
+
+**Aylanish yoki uxlash (26.5).** Lift kelishini kutyapsiz: 5 soniya bo'lsa — tugma yonida turasiz
+(aylanish, spin). 5 daqiqa bo'lsa — o'tirib kitob o'qiysiz, lift kelsa chaqirishadi (uxlash).
+
+**Shart o'zgaruvchisi — shifoxona navbat chiptasi (26.6).** Shifokor bo'shaguncha har daqiqada eshikni
+taqillatib so'ramaysiz. Chipta olib o'tirasiz (`pthread_cond_wait` — uxlaysiz) va raqamingiz chaqirilganda
+(`pthread_cond_signal`) uyg'onasiz.
+
+**Semafor — turargoh kirishidagi tablo "bo'sh joylar: 5" (26.7).** Har kirgan mashina sonni bittaga
+kamaytiradi, chiqqani oshiradi. 0 bo'lsa — shlagbaum yopiq, kutasiz.
+
+**Ishlab chiqaruvchi va iste'molchi — novvoyxona peshtaxtasi (26.8).** Novvoy non yopib, peshtaxtaga
+qo'yadi. Xaridor peshtaxtadan oladi. Peshtaxtaga faqat 3 ta non sig'adi: to'lsa — novvoy kutadi; bo'sh
+bo'lsa — xaridor kutadi. Bu — yadroda eng ko'p uchraydigan naqsh (pipe, klaviatura buferi, disk navbati).
+
+**O'quvchilar-yozuvchilar — muzey (26.8).** Ko'p tomoshabin rasmni birga ko'ra oladi (o'qish). Restavrator
+esa rasm bilan ishlaganda zalda hech kim bo'lmasligi kerak (yozish).
+
+**Deadlock'ning 4 sharti — chorrahadagi 4 mashina (26.9).** To'rt tomondan kelgan mashinalar o'rtada
+tiqildi: har biri o'z joyini egallagan (**o'zaro istisno**), joyini bo'shatmay keyingisini kutyapti
+(**ushlab turib kutish**), hech kimni majburan chiqarib bo'lmaydi (**tortib olish yo'q**), va kutish
+aylana bo'lib yopilgan (**aylanma kutish**). Bittasini buzsangiz — tiqilinch bo'lmaydi.
+
+### To'liq dastur: novvoyxona
+
+Ikki novvoy har biri 5 tadan non yopadi, bitta xaridor 10 ta non oladi. Peshtaxtaga 3 ta non sig'adi.
+
+```c
+/* novvoyxona.c - ishlab chiqaruvchi/iste'molchi: mutex + ikkita shart o'zgaruvchisi */
+#include <pthread.h>
+#include <stdio.h>
+
+#define SIGIM 3
+
+static int peshtaxta[SIGIM];
+static int soni = 0, bosh = 0;                  /* aylanma bufer */
+static int kutdi_novvoy = 0, kutdi_xaridor = 0;
+static pthread_mutex_t kalit = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t joy_bor = PTHREAD_COND_INITIALIZER;   /* "peshtaxtada joy bo'shadi" */
+static pthread_cond_t non_bor = PTHREAD_COND_INITIALIZER;   /* "non qo'yildi" */
+
+static void *novvoy(void *arg)
+{
+    int raqam = (int)(long)arg;
+    for (int i = 0; i < 5; i++) {
+        pthread_mutex_lock(&kalit);
+        while (soni == SIGIM) {                 /* while, if emas: uyg'ongach QAYTA tekshirish */
+            kutdi_novvoy++;
+            pthread_cond_wait(&joy_bor, &kalit);   /* kalitni qo'yib uxlaydi */
+        }
+        peshtaxta[(bosh + soni) % SIGIM] = raqam * 100 + i;
+        soni++;
+        pthread_cond_signal(&non_bor);          /* xaridorni uyg'otish */
+        pthread_mutex_unlock(&kalit);
+    }
+    return NULL;
+}
+
+static void *xaridor(void *arg)
+{
+    long *olindi = arg;
+    for (int i = 0; i < 10; i++) {
+        pthread_mutex_lock(&kalit);
+        while (soni == 0) {
+            kutdi_xaridor++;
+            pthread_cond_wait(&non_bor, &kalit);
+        }
+        (void)peshtaxta[bosh];                  /* nonni olish */
+        bosh = (bosh + 1) % SIGIM;
+        soni--;
+        (*olindi)++;
+        pthread_cond_signal(&joy_bor);          /* novvoyni uyg'otish */
+        pthread_mutex_unlock(&kalit);
+    }
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t n1, n2, x;
+    long olindi = 0;
+    pthread_create(&x, NULL, xaridor, &olindi);
+    pthread_create(&n1, NULL, novvoy, (void *)1L);
+    pthread_create(&n2, NULL, novvoy, (void *)2L);
+    pthread_join(n1, NULL);
+    pthread_join(n2, NULL);
+    pthread_join(x, NULL);
+
+    printf("Xaridor oldi: %ld ta non, peshtaxtada qoldi: %d ta\n", olindi, soni);
+    printf("Kutishlar bo'ldimi: %s\n", kutdi_novvoy + kutdi_xaridor > 0 ? "ha (bu normal)" : "yo'q");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -pthread novvoyxona.c -o novvoyxona
+$ ./novvoyxona
+Xaridor oldi: 10 ta non, peshtaxtada qoldi: 0 ta
+Kutishlar bo'ldimi: ha (bu normal)
+$ gcc -Wall -Wextra -O2 -pthread -fsanitize=thread novvoyxona.c -o novvoyxona_tsan
+$ ./novvoyxona_tsan
+Xaridor oldi: 10 ta non, peshtaxtada qoldi: 0 ta
+Kutishlar bo'ldimi: ha (bu normal)
+```
+
+Oqimlar har safar boshqa tartibda ishlaydi, lekin natija doim bir xil: 10 ta non olindi, 0 ta qoldi.
+ThreadSanitizer poyga topmadi.
+
+**Sinab ko'ring:** `while (soni == SIGIM)` ni `if (soni == SIGIM)` ga almashtiring. Nega bu xavfli
+(ikki novvoy bir signal bilan uyg'onsa nima bo'ladi)? `SIGIM` ni 1 qiling — dastur hali ham to'g'ri ishlaydimi?
+
 ## 26.1. Qulfga talablar
 
 Yaxshi qulf: 1) **o'zaro istisno** — kritik seksiyada bir vaqtda bittadan ko'p oqim yo'q;

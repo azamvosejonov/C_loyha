@@ -8,6 +8,90 @@
 > **To'liq ishlaydigan misol:** [misollar/22_boglash.c](misollar/22_boglash.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**ELF fayl — yuk konteyneri va yuk xati (22.1).** Portga kelgan konteyner ichida yuk bor, eshigida
+esa **yuk xati**: nima bor, qancha, qayerga tushirish kerak. ELF faylning boshida ham sarlavha bor:
+"bu x86-64 uchun dastur, kod shu yerda, ma'lumotlar bu yerda, ishni shu manzildan boshla". Yuklovchi
+(yadrodagi `exec`) shu xatni o'qib, yukni xotiraga tushiradi.
+
+**Bo'limlar — chamadonning bo'linmalari (22.2).**
+- `.text` — **kod**: faqat o'qish va bajarish mumkin, o'zgartirib bo'lmaydi.
+- `.rodata` — **muhrlangan konvertlar**: o'zgarmas satrlar va jadvallar.
+- `.data` — **to'ldirilgan idishlar**: qiymati bor global o'zgaruvchilar. Faylda joy egallaydi.
+- `.bss` — **"bo'sh 10 ta quti kerak" degan yozuv**: nol bilan boshlanadigan o'zgaruvchilar. Faylda
+  faqat o'lchami yoziladi — 1 MB lik nol massiv faylni 1 MB ga kattalashtirmaydi. Qutilarni
+  yuklovchi joyida yaratadi.
+
+**Belgilar — telefon kitobidagi ismlar (22.3).** Har bir funksiya va global o'zgaruvchi — kitobdagi
+yozuv: nom va manzil. `nm` — shu kitobni ko'rsatadi. `U` — "bu odamning raqamini hali bilmayman,
+kimdir berishi kerak".
+
+**Relokatsiya — taklifnomadagi bo'sh joy (22.4).** To'y taklifnomasi oldindan chop etilgan, lekin
+restoran manzili uchun bo'sh joy qoldirilgan: "manzil keyin yoziladi". Kompilyator `printf` ning manzilini
+bilmaydi — `.o` faylda bo'sh joy va "bu yerga printf manzilini yoz" degan eslatma qoldiradi. Linker
+bo'sh joylarni to'ldiradi.
+
+**Statik va dinamik bog'lash — kitobni sotib olish va kutubxonadan olish (22.5).** Statik: kerakli
+kutubxona kodini dasturingiz ichiga **nusxalaysiz** — dastur katta, lekin mustaqil. Dinamik: dastur
+faqat "menga libc kerak" deb yozadi, ishga tushganda umumiy nusxadan foydalanadi — dastur kichik,
+xotirada bitta libc hamma dasturlar uchun.
+
+**PIE — g'ildirakli uy (22.6).** Oddiy uy bitta joyga qurilgan. G'ildirakli uyni istalgan joyga
+qo'yish mumkin — ichidagi hamma narsa ishlayveradi, chunki manzillar "uyning boshidan 5 metr" kabi
+nisbiy yozilgan. Xavfsizlik uchun Linux dasturni har safar boshqa manzilga yuklaydi (ASLR).
+
+### To'liq dastur: .data va .bss ning fayl hajmiga ta'siri
+
+```c
+/* chamadon.c - bo'limlar: bir xil massiv .bss da va .data da */
+#include <stdio.h>
+
+/* Global (static emas): kompilyator uni "ishlatilmaydi" deb olib tashlay olmaydi */
+#ifdef TOLDIRILGAN
+char quti[1000000] = { 1 };                     /* qiymati bor -> .data: faylda 1 MB */
+#else
+char quti[1000000];                             /* nol -> .bss: faylda faqat o'lchami */
+#endif
+
+static const char xabar[] = "chamadon tayyor";  /* .rodata */
+int yuklar_soni = 3;                            /* .data */
+
+int main(void)
+{
+    quti[999999] = 7;
+    printf("%s: %d ta yuk, oxirgi quti = %d\n", xabar, yuklar_soni, quti[999999]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 chamadon.c -o bss_bilan
+$ gcc -Wall -Wextra -O2 -DTOLDIRILGAN chamadon.c -o data_bilan
+$ ./bss_bilan
+chamadon tayyor: 3 ta yuk, oxirgi quti = 7
+$ size bss_bilan data_bilan
+   text	   data	    bss	    dec	    hex	filename
+   1484	    604	1000032	1002120	  f4a88	bss_bilan
+   1484	1000648	      8	1002140	  f4a9c	data_bilan
+$ ls -l bss_bilan data_bilan | awk '{print $9 ": " $5 " bayt"}'
+bss_bilan: 16072 bayt
+data_bilan: 1016112 bayt
+$ nm bss_bilan | grep "quti\|xabar\|yuklar_soni"
+0000000000004040 B quti
+0000000000002030 r xabar
+0000000000004010 D yuklar_soni
+$ nm data_bilan | grep "quti"
+0000000000004040 D quti
+```
+
+`size` natijasida: birinchi dasturda million bayt `bss` ustunida (faylda joy yo'q), ikkinchisida —
+`data` ustunida va fayl ~1 MB ga katta. `nm` da: `B` — `.bss`, `D` — `.data`, `r` — `.rodata` (kichik harf — `static`, faqat shu faylda
+ko'rinadi). Bitta `quti` birinchi dasturda `B`, ikkinchisida `D`.
+
+**Sinab ko'ring:** `readelf -S bss_bilan | grep -A1 "\.bss"` bilan `.bss` bo'limining o'lchamini toping.
+`ldd bss_bilan` — dastur qaysi dinamik kutubxonalarga bog'liq? `-static` bilan yig'ib, hajmini solishtiring.
+
 ## 22.1. Ikki xil ELF: obyekt va bajariladigan
 
 Linux'da (va MyOS'da) hamma dastur fayllari **ELF** (Executable and Linkable Format) formatida:

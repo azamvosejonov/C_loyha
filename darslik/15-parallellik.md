@@ -8,6 +8,97 @@
 > **To'liq ishlaydigan misol:** [misollar/15_oqimlar.c](misollar/15_oqimlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Oqim — bitta ofisdagi xodimlar (15.1).** Jarayon — ofis: o'z xonasi, o'z hujjatlari. Oqimlar — shu
+ofisdagi xodimlar. Ular bitta xonada ishlaydi va **bir xil** shkaf, printer, doskadan foydalanadi
+(umumiy xotira). Bu qulay — hujjatni uzatish shart emas. Lekin xavfli — ikki xodim bir hujjatga bir
+vaqtda yozishi mumkin.
+
+**Poyga holati — bitta hisobdan ikki kishi pul yechishi (15.2).** Hisobda 100 ming bor. Er va xotin ikki
+bankomatdan **bir vaqtda** 80 mingdan yechmoqchi. Ikkala bankomat balansni o'qiydi: "100 ming — yetarli".
+Ikkalasi ham pul beradi va yozadi: "20 ming qoldi". Natija: bank 160 ming berdi, hisobda 20 ming.
+`balans -= summa` bitta amal ko'rinadi, lekin aslida uch qadam: **o'qi, ayir, yoz**. Oqimlar shu
+qadamlar orasida almashib qoladi.
+
+**Mutex — bittalik hojatxonaning kaliti (15.3).** Kalit bitta. Kim olsa — ichkariga kiradi, qolganlar
+navbatda kutadi. Chiqqanda kalitni qaytaradi va keyingisi kiradi. `pthread_mutex_lock` — kalitni olish
+(yoki kutish), `unlock` — qaytarish. Kalit bilan himoyalangan kod — **kritik bo'lim**.
+
+**Deadlock — tor ko'prikda ikki mashina (15.4).** Bir qatorli ko'prikka ikki tomondan mashina kirdi va
+o'rtada yuzma-yuz to'xtadi. Har biri ikkinchisining orqaga qaytishini kutadi — abadiy. Ikki oqim ikki
+qulfni **teskari tartibda** olsa, aynan shunday bo'ladi. Yechim: hamma qulflarni doim bir xil tartibda oladi.
+
+**Atomik amal — turniket (15.5).** Turniket bir vaqtda bitta odamni o'tkazadi va hisoblagichni bittaga
+oshiradi — bu amalni ikkiga bo'lib bo'lmaydi. `atomic_fetch_add` ham: "o'qi-qo'sh-yoz" bitta, bo'linmas
+qadam. Oddiy hisoblagich uchun qulfdan ko'ra ancha yengil.
+
+**Spinlock va mutex — kutishning ikki usuli (15.6).** Svetoforda 10 soniya kutish kerak bo'lsa, motorni
+o'chirmaysiz (spinlock — aylanib kutish, CPU band). Temir yo'l o'tish joyida 10 daqiqa kutish kerak bo'lsa,
+motorni o'chirasiz (mutex — uxlab kutish, CPU boshqalarga beriladi). Yadroda qisqa kutish uchun
+spinlock, uzoq kutish uchun uxlash.
+
+### To'liq dastur: oilaviy bank hisobi
+
+To'rt a'zo bir vaqtda hisobga pul qo'yadi va yechadi. Mutex tufayli natija doim to'g'ri.
+
+```c
+/* hisob.c - poyga holati va uning mutex hamda atomik bilan yechimi */
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdio.h>
+
+static long balans = 1000000;
+static pthread_mutex_t kalit = PTHREAD_MUTEX_INITIALIZER;
+static atomic_long amallar_soni = 0;           /* oddiy hisoblagich - atomik yetarli */
+
+static void *oila_azosi(void *arg)
+{
+    long summa = (long)arg;
+    for (int i = 0; i < 100000; i++) {
+        pthread_mutex_lock(&kalit);             /* kalitni olish */
+        balans += summa;                        /* o'qi - qo'sh - yoz: endi bo'linmas */
+        balans -= summa;
+        pthread_mutex_unlock(&kalit);           /* kalitni qaytarish */
+        atomic_fetch_add(&amallar_soni, 2);
+    }
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t azolar[4];
+    long summalar[4] = { 5000, 12000, 700, 30000 };
+
+    for (int i = 0; i < 4; i++)
+        pthread_create(&azolar[i], NULL, oila_azosi, (void *)summalar[i]);
+    for (int i = 0; i < 4; i++)
+        pthread_join(azolar[i], NULL);          /* hammasi tugashini kutish */
+
+    printf("Amallar soni: %ld\n", atomic_load(&amallar_soni));
+    printf("Balans: %ld (boshida 1000000 edi - har bir qo'yilgan pul yechildi)\n", balans);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -pthread hisob.c -o hisob
+$ ./hisob
+Amallar soni: 800000
+Balans: 1000000 (boshida 1000000 edi - har bir qo'yilgan pul yechildi)
+$ gcc -Wall -Wextra -O2 -pthread -fsanitize=thread hisob.c -o hisob_tsan
+$ ./hisob_tsan
+Amallar soni: 800000
+Balans: 1000000 (boshida 1000000 edi - har bir qo'yilgan pul yechildi)
+```
+
+`-fsanitize=thread` (ThreadSanitizer) poyga holatlarini qidiradi. Hech qanday "WARNING: ThreadSanitizer:
+data race" chiqmadi — poyga yo'q.
+
+**Sinab ko'ring:** `pthread_mutex_lock` va `unlock` qatorlarini o'chiring (izohga oling). Dasturni
+bir necha marta ishga tushiring — balans har safar boshqacha chiqadi. `-fsanitize=thread` bilan yig'ing —
+ThreadSanitizer poygani qaysi qatorda ko'rsatadi?
+
 ## 15.1. Oqim (thread) nima
 
 Jarayon — alohida xotira maydoni. **Oqim** — bitta jarayon ichidagi alohida "bajaruvchi": o'z steki va

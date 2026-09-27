@@ -7,6 +7,90 @@
 > **To'liq ishlaydigan misol:** [misollar/02_turlar.c](misollar/02_turlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**O'zgaruvchi — yorliqli idish (2.1).** Oshxonadagi bankalar: har birida yorliq ("shakar", "tuz") va ichida
+nimadir bor. C'da idishning **o'lchami** ham oldindan belgilanadi va keyin o'zgarmaydi: choy qoshig'iga
+(`char`, 1 bayt) chelak suv sig'maydi. Python'da idish o'zi kattalashib ketadi; C'da — yo'q.
+
+**Boshlang'ich qiymatsiz o'zgaruvchi — ijaraga olingan kvartira (2.2).** Yangi ijaraga olgan
+kvartirangizning tortmalarida oldingi egasidan qolgan narsalar bo'lishi mumkin. `int x;` ham shunday:
+ichida "oldingi egadan qolgan" tasodifiy son turadi. Shuning uchun doim `int x = 0;` deb tozalab oling.
+
+**Turlar — har xil o'lchamdagi idishlar (2.3).** `char` — stakan (−128..127), `short` — chelak,
+`int` — bochka (~±2 mlrd), `long` — sisterna. Idishni ichidagi narsaning **eng katta** bo'lishi mumkin
+bo'lgan hajmiga qarab tanlaysiz: kishining yoshi uchun `char` ham yetadi, dunyo aholisi uchun `int`
+yetmaydi (8 mlrd > 2 mlrd).
+
+**Signed va unsigned — termometr va spidometr (2.4).** Termometrda manfiy son bor (−15 °C) — bu
+**signed**. Mashina spidometrida yoki odamning yoshida manfiy bo'lmaydi — bu **unsigned**. Unsigned
+idishda manfiy uchun joy ajratilmagani sababli, musbat tomonda ikki barobar ko'p joy bor.
+
+**Toshish — eski mashinaning kilometr hisoblagichi (2.5).** 6 xonali hisoblagich 999 999 dan keyin
+000 000 ni ko'rsatadi: mashina yangi bo'lib qolmadi, shunchaki xonalar tugadi. `unsigned` sonlar
+aynan shunday "aylanadi". `signed` (masalan, `int`) toshishi esa undan ham yomon — **aniqlanmagan**
+(13-bob): hisoblagich o'rniga hech kim nima bo'lishini kafolatlamaydi.
+
+**`float` — chizg'ich bilan o'lchash (2.7).** Chizg'ichda millimetrdan kichigini ko'rolmaysiz. `float` ham
+cheklangan aniqlikda o'lchaydi: 0.1 ni aniq saqlay olmaydi, faqat unga juda yaqin sonni. Shuning uchun
+**pulni** hech qachon `float` da saqlamang — tiyinda, butun son bilan saqlang.
+
+**`const` — toshga o'yilgan yozuv (2.10).** Qog'ozdagi yozuvni o'chirib, qayta yozish mumkin; toshga
+o'yilganini — yo'q. `const double PI = 3.14159;` ni keyin o'zgartirmoqchi bo'lsangiz, kompilyator
+to'xtatadi.
+
+**Ko'rinish sohasi — xonadagi narsalar (2.12).** Oshxonadagi pichoqni yotoqxonadan turib olib
+bo'lmaydi. `{ }` ichida e'lon qilingan o'zgaruvchi faqat shu `{ }` ichida mavjud.
+
+### To'liq dastur: hisoblagich, termometr va pul
+
+```c
+/* olchovlar.c - toshish, ishora va pulni to'g'ri saqlash */
+#include <stdint.h>
+#include <stdio.h>
+
+int main(void)
+{
+    /* Kilometr hisoblagichi: 16 bitli, eng katta qiymati 65535 */
+    uint16_t km = 65530;
+    km = km + 10;                               /* 65540 sig'maydi -> aylanadi */
+    printf("Hisoblagich: 65530 + 10 = %u (aylanib ketdi)\n", km);
+
+    /* Termometr: ishorali, manfiy bor */
+    int8_t harorat = -15;
+    printf("Harorat: %d gradus\n", harorat);
+
+    /* Pul: float bilan 0.10 ni 10 marta qo'shish */
+    float balans_f = 0.0f;
+    for (int i = 0; i < 10; i++)
+        balans_f += 0.10f;
+    printf("float bilan: 10 x 0.10 = %.10f (1.0 emas!)\n", balans_f);
+
+    /* Pul: tiyinda, butun son bilan - har doim aniq */
+    long balans_tiyin = 0;
+    for (int i = 0; i < 10; i++)
+        balans_tiyin += 10;                     /* 0.10 so'm = 10 tiyin */
+    printf("tiyin bilan: %ld.%02ld so'm (aniq)\n", balans_tiyin / 100, balans_tiyin % 100);
+
+    printf("Idishlar o'lchami: char %zu, short %zu, int %zu, long %zu bayt\n",
+           sizeof(char), sizeof(short), sizeof(int), sizeof(long));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra olchovlar.c -o olchovlar
+$ ./olchovlar
+Hisoblagich: 65530 + 10 = 4 (aylanib ketdi)
+Harorat: -15 gradus
+float bilan: 10 x 0.10 = 1.0000001192 (1.0 emas!)
+tiyin bilan: 1.00 so'm (aniq)
+Idishlar o'lchami: char 1, short 2, int 4, long 8 bayt
+```
+
+**Sinab ko'ring:** `uint16_t km` ni `uint32_t` qiling — endi aylanadimi? `int8_t harorat = -15;` ni
+`uint8_t` qiling — nima chiqadi va nega (2.4)?
+
 ## 2.1. O'zgaruvchi nima
 
 Python'da o'zgaruvchi — obyektga yopishtirilgan **nom** (yorliq). C'da o'zgaruvchi — xotiradagi

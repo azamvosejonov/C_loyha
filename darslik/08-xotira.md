@@ -7,6 +7,126 @@
 > **To'liq ishlaydigan misol:** [misollar/08_xotira.c](misollar/08_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Uch xil xotira — uch xil joy (8.1, 8.2).**
+- **Stek — ish stoli.** Funksiya ishlayotganda qog'ozlarini stolga yoyadi. Ish tugadi — stol
+  avtomatik tozalanadi. Juda tez, lekin kichik va qisqa muddatli: funksiyadan chiqqandan keyin u
+  yerda hech narsa qolmaydi.
+- **Heap — ijaraga olinadigan ombor.** Katta yoki uzoq saqlanadigan narsalar uchun. O'zingiz
+  so'raysiz (`malloc`), o'zingiz qaytarasiz (`free`). Hech kim siz uchun qaytarmaydi.
+- **Statik xotira — bino devoriga o'rnatilgan shkaf.** Dastur boshidan oxirigacha turadi (global va
+  `static` o'zgaruvchilar).
+
+**`malloc` / `free` — mehmonxona xonasi (8.3).** Qabulxonadan xona so'raysiz (`malloc`) — kalit
+(ko'rsatkich) olasiz. Ketayotganda kalitni qaytarasiz (`free`). Mehmonxonada bo'sh xona qolmasa —
+`malloc` `NULL` qaytaradi, buni doim tekshiring.
+
+**Egalik — kim kalitni qaytaradi (8.4).** Xonani kim olgan bo'lsa, o'sha qaytaradi. Agar do'stingizga
+kalitni berib yuborsangiz, kim qaytarishini aniq kelishib oling. Aks holda yo ikkalangiz ham qaytarmaysiz
+(leak), yo ikkalangiz ham qaytarasiz (double free).
+
+**Xotira xatolari — mehmonxonadagi tartibbuzarliklar (8.5).**
+- **Leak (sizib chiqish)** — xonadan chiqib ketdingiz, kalitni qaytarmadingiz. Xona abadiy band.
+  Serverda har soniyada bitta shunday xona — bir necha kundan keyin mehmonxonada joy qolmaydi.
+- **Use-after-free** — kalitni qaytarib, keyin yashirin nusxasi bilan yana xonaga kirdingiz. U yerda
+  endi boshqa mehmon yashaydi — uning narsalarini buzasiz.
+- **Double free** — bitta kalitni ikki marta qaytarish. Qabulxona chalkashib, bitta xonani ikki
+  mehmonga beradi.
+
+**`realloc` — kattaroq kvartiraga ko'chish (8.3).** Oila kattalashdi — kattaroq kvartira kerak.
+Narsalar yangi joyga ko'chiriladi, eski kvartira bo'shatiladi. **Eski manzil endi yaroqsiz** —
+`realloc` dan keyin faqat yangi ko'rsatkichdan foydalaning.
+
+**Sanitizer va Valgrind — mehmonxona inspektori (8.6).** Har bir kalit berilishi va qaytarilishini
+yozib boradi. Dastur tugaganda "3-xona kaliti qaytarilmadi, 12-qatorda olingan" deb hisobot beradi.
+
+### To'liq dastur: to'y mehmonlari ro'yxati
+
+Mehmonlar soni oldindan noma'lum — ro'yxat kerakli paytda kattalashadi (`realloc`).
+
+```c
+/* mehmonlar.c - malloc, realloc, free: o'sib boradigan ro'yxat */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct royxat {
+    char **ismlar;                              /* har bir ism - alohida ajratilgan satr */
+    int soni;
+    int sigim;                                  /* nechta joy ajratilgan */
+};
+
+static int qosh(struct royxat *r, const char *ism)
+{
+    if (r->soni == r->sigim) {                  /* joy tugadi - kattaroq "kvartira"ga ko'chish */
+        int yangi_sigim = r->sigim ? r->sigim * 2 : 2;
+        char **yangi = realloc(r->ismlar, yangi_sigim * sizeof(char *));
+        if (!yangi)
+            return -1;                          /* eski ro'yxat butun qoladi */
+        r->ismlar = yangi;
+        r->sigim = yangi_sigim;
+        printf("  (joy kengaytirildi: %d ta)\n", r->sigim);
+    }
+    r->ismlar[r->soni] = malloc(strlen(ism) + 1);   /* +1 - '\0' uchun */
+    if (!r->ismlar[r->soni])
+        return -1;
+    strcpy(r->ismlar[r->soni], ism);
+    r->soni++;
+    return 0;
+}
+
+static void ozod_qil(struct royxat *r)
+{
+    for (int i = 0; i < r->soni; i++)
+        free(r->ismlar[i]);                     /* avval har bir ism */
+    free(r->ismlar);                            /* keyin ro'yxatning o'zi */
+    r->ismlar = NULL;                           /* eski kalitni ham yo'q qilamiz */
+    r->soni = r->sigim = 0;
+}
+
+int main(void)
+{
+    struct royxat r = { NULL, 0, 0 };
+    const char *kelganlar[] = { "Aziz", "Malika", "Bobur", "Nigora", "Sardor" };
+
+    for (int i = 0; i < 5; i++) {
+        if (qosh(&r, kelganlar[i]) != 0) {
+            printf("Xotira yetmadi!\n");
+            break;
+        }
+        printf("%s qo'shildi\n", kelganlar[i]);
+    }
+
+    printf("Jami %d mehmon:", r.soni);
+    for (int i = 0; i < r.soni; i++)
+        printf(" %s", r.ismlar[i]);
+    printf("\n");
+
+    ozod_qil(&r);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address mehmonlar.c -o mehmonlar
+$ ./mehmonlar
+  (joy kengaytirildi: 2 ta)
+Aziz qo'shildi
+Malika qo'shildi
+  (joy kengaytirildi: 4 ta)
+Bobur qo'shildi
+Nigora qo'shildi
+  (joy kengaytirildi: 8 ta)
+Sardor qo'shildi
+Jami 5 mehmon: Aziz Malika Bobur Nigora Sardor
+```
+
+Sanitizer hech narsa demadi — demak, har bir kalit qaytarilgan.
+
+**Sinab ko'ring:** `ozod_qil(&r);` ni o'chiring va qayta ishga tushiring — sanitizer "memory leak" deb
+har bir unutilgan xonani ko'rsatadi. `malloc(strlen(ism) + 1)` dan `+ 1` ni o'chiring — nima deydi?
+
 ## 8.1. Jarayon xotirasining xaritasi
 
 Linux'da (va MyOS'da) har bir dastur o'z virtual manzil maydonini ko'radi:

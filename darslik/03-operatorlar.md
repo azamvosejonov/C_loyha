@@ -7,6 +7,97 @@
 > **To'liq ishlaydigan misol:** [misollar/03_bitlar.c](misollar/03_bitlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**`%` (qoldiq) — soat (3.1).** Hozir soat 22:00. 5 soatdan keyin soat nechchi bo'ladi? 27 emas —
+`(22 + 5) % 24 = 3`. Soat 24 ga yetganda boshidan boshlanadi. Hafta kunlari (`% 7`), oylar (`% 12`)
+va aylanma bufer (keyinchalik yadroda) — hammasi shu g'oya.
+
+**Butun bo'lish — olma tarqatish (3.1).** 7 ta olmani 2 bolaga bo'lsangiz, har biriga 3 tadan tegadi
+(`7 / 2 = 3`), 1 ta ortib qoladi (`7 % 2 = 1`). Olmani kesmaysiz — butun sonlar ham kesilmaydi.
+
+**`&&` qisqa tutashuv — eshik va xona (3.3).** "Eshik ochiqmi **VA** ichkarida kimdir bormi?" Eshik
+qulflangan bo'lsa, ichkariga qarab o'tirmaysiz — javob baribir "yo'q". C ham shunday: `p != NULL && p->x > 0`
+da `p` NULL bo'lsa, ikkinchi qism umuman tekshirilmaydi. Aynan shu xususiyat dasturni qulashdan saqlaydi.
+
+**Bitli amallar — uydagi chiroq kalitlari paneli (3.4).** Devorda 8 ta kalit bor, har biri bitta xona
+chirog'i. Bitta bayt — aynan shu panel: har bir bit — bitta kalit.
+- `|` (YOKI) — kalitni **yoqish**, qolganlariga tegmasdan: `panel |= OSHXONA;`
+- `& ~` — kalitni **o'chirish**: `panel &= ~OSHXONA;`
+- `^` — kalitni **almashtirish** (yoniq bo'lsa o'chirish, o'chiq bo'lsa yoqish).
+- `&` — **tekshirish**: `if (panel & OSHXONA)` — "oshxonada chiroq yoniqmi?"
+
+Yadroda qurilmalar bilan aynan shunday gaplashiladi: qurilma registri — kalitlar paneli (16-bob).
+
+**`<<` — nol qo'shish (3.4).** O'nlik sanoqda songa oxiridan nol qo'shsangiz, 10 barobar oshadi (5 → 50).
+Ikkilikda `<<` bitta nol qo'shadi — 2 barobar oshadi: `1 << 3 = 8`.
+
+**`?:` — svetofor (3.7).** "Yashil bo'lsa — yur, aks holda — tur": `harakat = yashil ? "yur" : "tur";`
+Bitta savol, ikki javobdan biri.
+
+**Ustuvorlik — matematikadagi amallar tartibi (3.9).** `2 + 3 * 4` = 14, 20 emas — maktabda o'rgangansiz.
+C'da ham shunday, lekin `&`, `|`, `==` ning tartibi kutilmagan: `x & 1 == 0` aslida `x & (1 == 0)`.
+Qoida: shubha bo'lsa — qavs qo'ying.
+
+### To'liq dastur: aqlli uy
+
+```c
+/* aqlli_uy.c - bitta bayt = 8 ta chiroq kaliti */
+#include <stdio.h>
+
+#define MEHMONXONA (1u << 0)
+#define OSHXONA    (1u << 1)
+#define YOTOQXONA  (1u << 2)
+#define HOVLI      (1u << 3)
+
+static void korsat(const char *izoh, unsigned panel)
+{
+    printf("%-26s", izoh);
+    printf(" mehmonxona:%s", (panel & MEHMONXONA) ? "YONIQ" : "-");
+    printf(" oshxona:%s", (panel & OSHXONA) ? "YONIQ" : "-");
+    printf(" yotoqxona:%s", (panel & YOTOQXONA) ? "YONIQ" : "-");
+    printf(" hovli:%s\n", (panel & HOVLI) ? "YONIQ" : "-");
+}
+
+int main(void)
+{
+    unsigned panel = 0;                              /* hammasi o'chiq */
+    korsat("Boshida:", panel);
+
+    panel |= OSHXONA | MEHMONXONA;                   /* ikkitasini yoqish */
+    korsat("Kechqurun:", panel);
+
+    panel &= ~OSHXONA;                               /* oshxonani o'chirish */
+    panel |= YOTOQXONA;
+    korsat("Yotishdan oldin:", panel);
+
+    panel ^= HOVLI;                                  /* hovli: almashtirish */
+    korsat("Hovli tugmasi bosildi:", panel);
+
+    int soat = 22;
+    printf("\nSoat %d:00 dan 5 soat keyin: %d:00\n", soat, (soat + 5) % 24);
+    printf("7 olma, 2 bola: har biriga %d, ortib qoldi %d\n", 7 / 2, 7 % 2);
+    printf("Yoniq chiroqlar soni: %d\n", __builtin_popcount(panel));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra aqlli_uy.c -o aqlli_uy
+$ ./aqlli_uy
+Boshida:                   mehmonxona:- oshxona:- yotoqxona:- hovli:-
+Kechqurun:                 mehmonxona:YONIQ oshxona:YONIQ yotoqxona:- hovli:-
+Yotishdan oldin:           mehmonxona:YONIQ oshxona:- yotoqxona:YONIQ hovli:-
+Hovli tugmasi bosildi:     mehmonxona:YONIQ oshxona:- yotoqxona:YONIQ hovli:YONIQ
+
+Soat 22:00 dan 5 soat keyin: 3:00
+7 olma, 2 bola: har biriga 3, ortib qoldi 1
+Yoniq chiroqlar soni: 3
+```
+
+**Sinab ko'ring:** `#define GARAJ (1u << 4)` qo'shib, garajni yoqing. `panel ^= HOVLI;` ni ikki marta
+yozing — nima bo'ladi?
+
 ## 3.1. Arifmetika
 
 | Operator | Ma'nosi | E'tibor |

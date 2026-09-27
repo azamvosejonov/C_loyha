@@ -7,6 +7,102 @@
 > **To'liq ishlaydigan misol:** [misollar/10_makrolar.c](misollar/10_makrolar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**Preprotsessor — "Hammasini almashtirish" tugmasi (10.1).** Word'da "Topish va almashtirish" bor:
+"Tosh." so'zini hamma joyda "Toshkent" ga almashtirasiz. Preprotsessor ham shunday — u C'ni
+**tushunmaydi**, faqat matnni almashtiradi. Kompilyator almashtirilgan matnni oladi.
+
+**`#include` — kitobga boshqa sahifalarni yopishtirish (10.2).** "Bu yerga 3-ilovani qo'shing" degan
+joyga ilova sahifalari **so'zma-so'z** ko'chirib qo'yiladi. `#include <stdio.h>` o'rniga 800 ga yaqin
+qator paydo bo'ladi (1-bobda `gcc -E` bilan ko'rgansiz).
+
+**`#define N 10` — shartnoma boshidagi kelishuv (10.3).** Shartnomalarda boshida yoziladi: "Bundan
+buyon 'Ijarachi' deganda 'Aliyev Vali' tushuniladi". Keyin matnda faqat 'Ijarachi' yoziladi. Ijarachi
+almashsa — faqat bitta qatorni o'zgartirasiz. `#define N 10` ham shunday: 10 ni 20 ga o'zgartirish
+uchun faqat bitta qatorni tuzatasiz, massiv o'lchami ham, sikl ham o'zi moslashadi.
+
+**Makro tuzog'i — so'zma-so'z almashtirish (10.4).** "Kvadratni hisoblang: x × x" degan retseptga
+x o'rniga "2 + 3" ni **qavssiz** qo'ysangiz: 2 + 3 × 2 + 3 = 11. Odam buni tushunib qavs qo'yardi,
+preprotsessor — yo'q. Shuning uchun makroda har bir parametr va butun ifoda qavsga olinadi.
+
+**`#ifdef` — kitobning ikki nashri (10.8).** Darslikning o'qituvchi nashrida javoblar bor, o'quvchi
+nashrida yo'q. Matn bitta, faqat ba'zi sahifalar bitta nashrga kiradi. `-DDEBUG` bilan yig'sangiz —
+"o'qituvchi nashri" (qo'shimcha xabarlar bilan), usiz — oddiy nashr.
+
+**`#x` — so'zni qo'shtirnoqqa olish (10.6).** Makro ifodani ham hisoblaydi, ham uning **yozilishini**
+satr sifatida chiqaradi: `TEKSHIR(a > 0)` xato bo'lsa "a > 0 bajarilmadi" deb yoza oladi.
+
+### To'liq dastur: narxlar jadvali
+
+```c
+/* narxlar.c - #define o'zgarmaslar, makro funksiyalar, #x, shartli kompilyatsiya */
+#include <stdio.h>
+
+#define QQS_FOIZ 12                             /* soliq stavkasi o'zgarsa - faqat shu qator */
+#define QQS_BILAN(narx) ((narx) + (narx) * QQS_FOIZ / 100)
+#define SONI(massiv) (sizeof(massiv) / sizeof((massiv)[0]))
+#define TEKSHIR(shart)                                                        \
+    do {                                                                      \
+        if (!(shart))                                                         \
+            printf("  OGOHLANTIRISH: \"%s\" bajarilmadi\n", #shart);          \
+    } while (0)
+
+#ifdef DEBUG
+#define LOG(xabar) printf("  [debug] %s\n", xabar)
+#else
+#define LOG(xabar) do { } while (0)             /* oddiy nashrda - hech narsa */
+#endif
+
+struct mahsulot {
+    const char *nom;
+    long narx;
+};
+
+int main(void)
+{
+    struct mahsulot dokon[] = {
+        { "Non", 4000 }, { "Sut (1 l)", 12000 }, { "Guruch (1 kg)", 18000 }, { "Choy", -500 },
+    };
+
+    LOG("jadval chiqarilmoqda");
+    printf("%-15s %10s %12s\n", "Mahsulot", "Narx", "QQS bilan");
+    for (size_t i = 0; i < SONI(dokon); i++) {
+        printf("%-15s %10ld %12ld\n", dokon[i].nom, dokon[i].narx, QQS_BILAN(dokon[i].narx));
+        TEKSHIR(dokon[i].narx > 0);
+    }
+    printf("Jami %zu ta mahsulot, QQS %d%%\n", SONI(dokon), QQS_FOIZ);
+    LOG("tayyor");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra narxlar.c -o narxlar
+$ ./narxlar
+Mahsulot              Narx    QQS bilan
+Non                   4000         4480
+Sut (1 l)            12000        13440
+Guruch (1 kg)        18000        20160
+Choy                  -500         -560
+  OGOHLANTIRISH: "dokon[i].narx > 0" bajarilmadi
+Jami 4 ta mahsulot, QQS 12%
+$ gcc -Wall -Wextra -DDEBUG narxlar.c -o narxlar_debug
+$ ./narxlar_debug | head -3
+  [debug] jadval chiqarilmoqda
+Mahsulot              Narx    QQS bilan
+Non                   4000         4480
+$ gcc -E narxlar.c | grep 'dokon\[i\].nom'
+        printf("%-15s %10ld %12ld\n", dokon[i].nom, dokon[i].narx, ((dokon[i].narx) + (dokon[i].narx) * 12 / 100));
+```
+
+Oxirgi buyruq `QQS_BILAN(dokon[i].narx)` preprotsessordan keyin nimaga aylanganini ko'rsatadi —
+kompilyator aynan shu matnni oladi.
+
+**Sinab ko'ring:** `QQS_FOIZ` ni 15 qiling — faqat bitta qatorni o'zgartirdingiz. `QQS_BILAN` dan
+qavslarni olib tashlang: `#define QQS_BILAN(narx) narx + narx * QQS_FOIZ / 100` va uni
+`QQS_BILAN(1000) * 2` bilan chaqiring — natija nega noto'g'ri?
+
 ## 10.1. Preprotsessor nima
 
 Kompilyatsiyaning **birinchi** bosqichi (1-bob). U C'ni tushunmaydi — faqat **matnni** almashtiradi.

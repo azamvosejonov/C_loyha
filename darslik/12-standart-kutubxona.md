@@ -7,6 +7,115 @@
 > **To'liq ishlaydigan misol:** [misollar/12_stdlib.c](misollar/12_stdlib.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
+## Hayotdan misollar
+
+**libc — tayyor ehtiyot qismlar do'koni (12.1).** Mashina yig'ayotganda har bir boltni o'zingiz
+yasamaysiz — do'kondan tayyorini olasiz. `printf`, `strlen`, `qsort`, `malloc` — tayyor qismlar. Ularni
+minglab odam yillar davomida sinagan. O'zingiz yozgan `strlen` dan ular tezroq va ishonchliroq.
+
+**`printf` formatlari — blanka katakchalari (12.2).** Davlat blankalarida har bir maydon uchun ma'lum
+sonli katakcha bor. `%5d` — "son uchun 5 ta katakcha, o'ngga tekisla", `%-10s` — "matn uchun 10 ta
+katakcha, chapga tekisla", `%05d` — "bo'sh katakchalarga 0 yoz". Jadvallar shuning uchun tekis chiqadi.
+
+**`FILE *` va buferlash — pochta qutisi (12.3).** Pochtachi har bir xat uchun alohida kelmaydi — xatlar
+qutiga yig'iladi va qutiga to'lganda (yoki belgilangan vaqtda) bir yo'la olib ketiladi. `fprintf` ham
+yozuvni avval xotiradagi buferga qo'yadi, keyin bir yo'la diskka yozadi — bu ming marta tezroq.
+`fflush` — "pochtachini hozir chaqir". `fclose` — oxirgi yig'ilganini ham jo'natib, qutini yopish.
+Dastur qulasa, qutidagi xatlar yo'qoladi.
+
+**`errno` — mashina panelidagi xato kodi (12.4).** Mashina "Check engine" chirog'ini yoqadi — muammo bor.
+Ammo **qanday** muammo — diagnostika kodi aytadi: P0301. `fopen` ham `NULL` qaytaradi (chiroq), sababini
+esa `errno` aytadi: `ENOENT` (fayl yo'q), `EACCES` (ruxsat yo'q). `strerror` — kodni odam tiliga tarjima qiladi.
+
+**`qsort` — kutubxonachi (12.5).** Kutubxonachiga aytasiz: "Kitoblarni tartibla". U so'raydi: "Qanday
+qoida bilan? Muallif bo'yichami, yil bo'yichami?" Siz **solishtirish qoidasini** berasiz (funksiya),
+tartiblash ishini u o'zi qiladi. Qoidani o'zgartirsangiz — tartib o'zgaradi, kutubxonachi o'sha.
+
+**`assert` — uchishdan oldingi tekshiruv ro'yxati (12.6).** Uchuvchi har parvozdan oldin ro'yxat bo'yicha
+tekshiradi: "yoqilg'i bor, g'ildiraklar joyida". Bittasi bajarilmasa — samolyot uchmaydi. `assert(x > 0)`
+ham: shart bajarilmasa, dastur qatorini aytib, darhol to'xtaydi — xato uzoqqa ketmaydi.
+
+### To'liq dastur: imtihon natijalari
+
+```c
+/* imtihon.c - qsort, faylga yozish/o'qish, printf formatlari, errno */
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct talaba {
+    char ism[20];
+    int ball;
+};
+
+/* Solishtirish qoidasi: ball bo'yicha kamayish tartibida, teng bo'lsa - ism bo'yicha */
+static int ball_boyicha(const void *a, const void *b)
+{
+    const struct talaba *x = a, *y = b;
+    if (x->ball != y->ball)
+        return y->ball - x->ball;
+    return strcmp(x->ism, y->ism);
+}
+
+int main(void)
+{
+    struct talaba guruh[] = {
+        { "Jasur", 78 }, { "Madina", 95 }, { "Otabek", 64 }, { "Zarina", 95 }, { "Kamola", 88 },
+    };
+    int n = sizeof(guruh) / sizeof(guruh[0]);
+    qsort(guruh, n, sizeof(guruh[0]), ball_boyicha);
+
+    FILE *f = fopen("natijalar.txt", "w");
+    if (!f) {
+        printf("Faylni ochib bo'lmadi: %s\n", strerror(errno));
+        return 1;
+    }
+    for (int i = 0; i < n; i++)
+        fprintf(f, "%s %d\n", guruh[i].ism, guruh[i].ball);
+    fclose(f);                                  /* bufer diskka yoziladi */
+
+    /* Fayldan qayta o'qib, jadval chiqarish */
+    f = fopen("natijalar.txt", "r");
+    if (!f)
+        return 1;
+    char ism[20];
+    int ball, orin = 0;
+    printf("%-4s %-10s %5s  %s\n", "O'rin", "Ism", "Ball", "Baho");
+    while (fscanf(f, "%19s %d", ism, &ball) == 2) {
+        const char *baho = ball >= 86 ? "a'lo" : ball >= 71 ? "yaxshi" : "qoniqarli";
+        printf("%-5d %-10s %5d  %s\n", ++orin, ism, ball, baho);
+    }
+    fclose(f);
+
+    if (fopen("yoq_papka/fayl.txt", "r") == NULL)
+        printf("\nyoq_papka/fayl.txt: errno = %d (%s)\n", errno, strerror(errno));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra imtihon.c -o imtihon
+$ ./imtihon
+O'rin Ism         Ball  Baho
+1     Madina        95  a'lo
+2     Zarina        95  a'lo
+3     Kamola        88  a'lo
+4     Jasur         78  yaxshi
+5     Otabek        64  qoniqarli
+
+yoq_papka/fayl.txt: errno = 2 (No such file or directory)
+$ cat natijalar.txt
+Madina 95
+Zarina 95
+Kamola 88
+Jasur 78
+Otabek 64
+```
+
+**Sinab ko'ring:** `ball_boyicha` ni o'zgartirib, ism bo'yicha alifbo tartibida saralang. `fclose(f);`
+(birinchisini) o'chirib, o'rniga `abort();` qo'ying — `natijalar.txt` da nima qoladi?
+
 ## 12.1. libc nima
 
 C tilining o'zi juda kichik: kalit so'zlar va operatorlar. `printf`, `malloc`, `strlen`, `fopen` — bular

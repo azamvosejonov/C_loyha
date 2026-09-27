@@ -333,6 +333,7 @@ lab-check:
 	@tools/lab.py selfcheck
 	@tools/mashq.py selfcheck
 	@sh darslik/misollar/tekshir.sh
+	@tools/darslik_kod.py
 
 clean:
 	rm -rf $(BUILD)
