@@ -126,6 +126,142 @@ gcc -Wall -c main.c               # -> main.o
 gcc main.o matematika.o -o dastur # bog'lash
 ```
 
+### Bu `class` emasmi?
+
+Yo'q. C'da `class` umuman yo'q. Bu uch fayl Python'dagi **modulga** o'xshaydi:
+
+```python
+# matematika.py
+def kvadrat(x):
+    return x * x
+
+# main.py
+from matematika import kvadrat
+print(kvadrat(7))
+```
+
+Python'da bitta `matematika.py` yetadi. C'da esa u **ikkiga** bo'linadi:
+
+| Python | C | Nima bor ichida |
+|---|---|---|
+| `matematika.py` dagi `def kvadrat(x):` qatori | `matematika.h` | Faqat **e'lon**: "shunday funksiya bor, `int` oladi, `int` qaytaradi" |
+| `matematika.py` dagi funksiya tanasi | `matematika.c` | **Ta'rif**: funksiya aslida nima qiladi |
+| `from matematika import kvadrat` | `#include "matematika.h"` | Boshqa fayldagi funksiyani ishlatishga ruxsat |
+| `python main.py` (hammasi o'zi) | 3 ta `gcc` buyrug'i | Tarjima va birlashtirishni o'zingiz buyurasiz |
+
+### Hayotdagi misol: restoran
+
+- **`matematika.h` — menyu.** Unda "Osh — 30 000 so'm" deb yozilgan. Oshning qanday pishirilishi
+  menyuda yo'q. Menyu faqat **nima bor** va **nima berib, nima olishingizni** aytadi.
+  `int kvadrat(int x);` ham shunday: "`kvadrat` degan taom bor, unga `int` berasiz, `int` olasiz".
+- **`matematika.c` — oshxona.** Oshpaz oshni aynan qanday pishirishni biladi: `return x * x;`.
+  Oshxona ham o'zining menyusini o'qiydi (`#include "matematika.h"`). Aks holda menyuda "Osh" deb
+  yozilgan-u, oshxona "Lag'mon" pishirib qo'yishi mumkin. Kompilyator shu nomuvofiqlikni ushlaydi.
+- **`main.c` — mijoz.** U menyuni o'qiydi (`#include "matematika.h"`) va buyurtma beradi:
+  `kvadrat(7)`. Mijoz oshxonaga kirmaydi, osh qanday pishishini bilishi ham shart emas.
+- **`#pragma once`** — bitta stolga menyuni ikki marta qo'ymaslik. Katta dasturda bitta `.h` bir
+  necha yo'l bilan qayta-qayta `#include` bo'lib qolishi mumkin. Bu qator uni faqat bir marta qo'shadi.
+- **`gcc -c matematika.c`** — oshxona taomni tayyorlab, idishga solib qo'ydi (`matematika.o`).
+  Lekin bu hali restoran emas — hech kimga berilmagan.
+- **`gcc -c main.c`** — ofitsiant buyurtmani yozib oldi (`main.o`). Unda "kvadrat kerak" deb yozilgan,
+  lekin taom qayerdaligi hali noma'lum — buyurtma varag'ida bo'sh joy qoldirilgan.
+- **`gcc main.o matematika.o -o dastur`** (bog'lash, linker) — ofitsiant buyurtmani oshxonadagi
+  taomga olib boradi: bo'sh joylarni to'ldiradi. Natija — ishlaydigan restoran, ya'ni `dastur`.
+
+`printf` ham aynan shunday ishlaydi: `stdio.h` — menyu, `printf` ning o'zi (oshxonasi) esa tizimdagi
+tayyor C kutubxonasida (libc) turadi. Linker uni o'zi topib ulaydi, siz sezmaysiz ham.
+
+**Nega bunchalik murakkab?** Kichik dasturda bu ortiqcha tuyuladi. Lekin Linux yadrosida ~30 000 ta
+`.c` fayl bor va minglab odam ular ustida ishlaydi. Bitta oshpaz retseptni o'zgartirsa, faqat
+o'sha oshxona qaytadan ishlaydi (`matematika.c` → `matematika.o`), qolgan 29 999 tasi tegilmaydi.
+Mijozlar esa menyu o'zgarmaguncha hech narsani sezmaydi.
+
+### Qadamma-qadam o'zingiz bajaring
+
+```bash
+mkdir ~/matematika && cd ~/matematika
+nano matematika.h      # yuqoridagi 3 qatorni yozing, Ctrl+O, Enter, Ctrl+X
+nano matematika.c      # 3 qator
+nano main.c            # 4 qator
+ls                     # main.c  matematika.c  matematika.h
+```
+
+**1-qadam.** Oshxona ishlaydi:
+
+```text
+$ gcc -Wall -c matematika.c
+$ ls
+main.c  matematika.c  matematika.h  matematika.o      <- yangi fayl paydo bo'ldi
+$ nm matematika.o
+0000000000000000 T kvadrat          <- T: "kvadrat SHU YERDA bor (tayyor taom)"
+```
+
+**2-qadam.** Buyurtma yoziladi:
+
+```text
+$ gcc -Wall -c main.c
+$ nm main.o
+                 U kvadrat          <- U: "kvadrat KERAK, lekin bu yerda yo'q (bo'sh joy)"
+0000000000000000 T main
+                 U printf           <- printf ham kerak - uni libc beradi
+```
+
+`.o` fayllar hali dastur emas: `./matematika.o` qilsangiz ishlamaydi. Ular — yarim tayyor qismlar.
+
+**3-qadam.** Bog'lash: `U kvadrat` bo'sh joyi `T kvadrat` bilan to'ldiriladi:
+
+```text
+$ gcc main.o matematika.o -o dastur
+$ ./dastur
+49
+```
+
+### Ataylab buzib ko'ring — har bir xato nimani anglatadi
+
+Bu xatolarni hozir bir marta o'z ko'zingiz bilan ko'rsangiz, keyin katta loyihada darhol taniysiz.
+
+**a) Oshxonani unutish** — bog'lashda `matematika.o` ni yozmang:
+
+```text
+$ gcc main.o -o dastur
+main.c:(.text+0xe): undefined reference to `kvadrat'
+collect2: error: ld returned 1 exit status
+```
+
+`ld` — linker. "Buyurtmada `kvadrat` bor, lekin hech bir oshxonada bu taom yo'q."
+
+**b) Menyusiz buyurtma** — `main.c` dan `#include "matematika.h"` ni o'chiring:
+
+```text
+$ gcc -Wall -c main.c
+main.c:2:33: warning: implicit declaration of function 'kvadrat'
+```
+
+Kompilyator: "`kvadrat` haqida hech narsa bilmayman — nima berib, nima olishini taxmin qilaman."
+Taxmin noto'g'ri bo'lsa, dastur jim turib noto'g'ri ishlaydi. Shuning uchun bu ogohlantirishni
+doim xato deb hisoblang (yangi GCC 14 uni allaqachon xato deb chiqaradi).
+
+**c) Menyu va oshxona mos emas** — `matematika.c` da `int kvadrat` ni `long kvadrat` qiling:
+
+```text
+$ gcc -Wall -c matematika.c
+matematika.c:2:6: error: conflicting types for 'kvadrat'; have 'long int(int)'
+```
+
+Oshxona o'z menyusini o'qigani (`#include "matematika.h"`) aynan shu xatoni ushladi.
+
+**d) Ikki oshxonada bir xil taom** — yana bir `boshqa.c` fayl yozib, unda ham `int kvadrat(int x)`
+ta'rifini qoldiring va uchala `.o` ni bog'lang:
+
+```text
+$ gcc main.o matematika.o boshqa.o -o dastur
+multiple definition of `kvadrat'; matematika.o:matematika.c:(.text+0x0): first defined here
+```
+
+Linker qaysi oshxonadan olishni bilmaydi. Ta'rif butun dasturda **aynan bitta** bo'lishi shart.
+
+To'liqroq namuna (`static`, `extern`, Makefile bilan): [misollar/11_kop_fayl/](misollar/11_kop_fayl/main.c).
+
 **Mashqlardagi tuzilma aynan shunday:** `mashq.h` — e'lonlar, `yechim.c` — siz yozadigan ta'riflar,
 `test.c` — ularni chaqiradigan kod. Tekshiruvchi `gcc yechim.c test.c` qiladi.
 
