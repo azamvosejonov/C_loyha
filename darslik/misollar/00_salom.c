@@ -25,7 +25,7 @@ int main(void)
     }
 
     for (int i = 0; i < N; i++) {
-        printf("massiv[%d] = %d", i, massiv[i]);
+        printf("massiv[%d] = %d\n", i, massiv[i]);
     }
     return 0;
 }
