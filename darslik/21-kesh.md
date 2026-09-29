@@ -262,4 +262,155 @@ Qo'shimcha tajriba (natijani o'zingiz o'lchang): 4096×4096 `int` matritsani qat
 ustunma-ustun yig'ing, `clock()` bilan vaqtni solishtiring (`-O2`). Keyin 8 ta oqim bilan 21.5-dagi
 ikkala `struct hisoblagich` variantini sinang.
 
+<!-- loyiha:boshi -->
+## Loyiha: to'g'ridan-to'g'ri xaritalangan kesh simulyatori
+
+**Maqsad:** keshni **ichidan** tushunish: manzil qanday `tag | indeks | siljish` ga bo'linadi, qachon "urish" (hit)
+va qachon "xato" (miss) bo'ladi. Massivni qator bo'yicha aylanish nega ustun bo'yicha aylanishdan tez ekanini **son bilan**
+ko'rasiz.
+**Bobdan ishlatiladi:** kesh qatori, indeks/tag, lokallik, konflikt xatolari (21.2–21.4).
+
+**Talab:** kesh 8 qatordan iborat, har qator 16 bayt (jami 128 bayt). Xotira manziliga murojaat kelganda:
+1. `qator_raqami = manzil / 16`,
+2. `indeks = qator_raqami % 8` (keshning qaysi joyiga tushadi),
+3. `tag = qator_raqami / 8` (o'sha joyga tushishi mumkin bo'lgan boshqa qatorlardan farqlovchi).
+
+Shu joyda **haqiqiy** qator bor va `tag` mos bo'lsa — **urish**; aks holda **xato**: qator keshga yuklanadi (eskisi siqib chiqariladi).
+**Ma'lumotlar:** `struct qator { int haqiqiy; uint32_t tag; }` massivi, `urish`/`xato` sanagichlari.
+
+```c
+/* kesh.c - to'g'ridan-to'g'ri xaritalangan kesh simulyatori */
+#include <stdint.h>
+#include <stdio.h>
+
+#define QATOR_BAYT 16
+#define QATORLAR 8
+
+struct qator {
+    int haqiqiy;
+    uint32_t tag;
+};
+
+static struct qator kesh[QATORLAR];
+static long urish, xato;
+
+static void tozala(void)
+{
+    for (int i = 0; i < QATORLAR; i++)
+        kesh[i].haqiqiy = 0;
+    urish = xato = 0;
+}
+
+static void murojaat(uint32_t manzil)
+{
+    uint32_t qator_raqami = manzil / QATOR_BAYT;
+    uint32_t indeks = qator_raqami % QATORLAR;
+    uint32_t tag = qator_raqami / QATORLAR;
+    if (kesh[indeks].haqiqiy && kesh[indeks].tag == tag) {
+        urish++;
+        return;
+    }
+    xato++;                                     /* keshda yo'q: xotiradan olib kelamiz */
+    kesh[indeks].haqiqiy = 1;
+    kesh[indeks].tag = tag;
+}
+
+static void hisobot(const char *nom)
+{
+    long jami = urish + xato;
+    printf("%-30s urish %3ld, xato %3ld  (urish %5.1f%%)\n", nom, urish, xato, 100.0 * urish / jami);
+}
+
+int main(void)
+{
+    tozala();
+    for (int i = 0; i < 64; i++)                /* 64 ta int, ketma-ket: manzil = i * 4 */
+        murojaat((uint32_t)i * 4);
+    hisobot("ketma-ket 64 ta int");
+
+    tozala();
+    for (int k = 0; k < 32; k++) {              /* 0 va 128 bir xil indeksga tushadi, tag boshqa */
+        murojaat(0);
+        murojaat(128);
+    }
+    hisobot("0 va 128 galma-gal (konflikt)");
+
+    tozala();
+    for (int i = 0; i < 8; i++)                 /* 8x8 int matritsa, QATOR bo'yicha */
+        for (int j = 0; j < 8; j++)
+            murojaat((uint32_t)(i * 8 + j) * 4);
+    hisobot("matritsa 8x8, qator bo'yicha");
+
+    tozala();
+    for (int j = 0; j < 8; j++)                 /* xuddi shu matritsa, USTUN bo'yicha */
+        for (int i = 0; i < 8; i++)
+            murojaat((uint32_t)(i * 8 + j) * 4);
+    hisobot("matritsa 8x8, ustun bo'yicha");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g kesh.c -o kesh
+$ ./kesh
+ketma-ket 64 ta int            urish  48, xato  16  (urish  75.0%)
+0 va 128 galma-gal (konflikt)  urish   0, xato  64  (urish   0.0%)
+matritsa 8x8, qator bo'yicha   urish  48, xato  16  (urish  75.0%)
+matritsa 8x8, ustun bo'yicha   urish   0, xato  64  (urish   0.0%)
+```
+
+Ketma-ket murojaatda har 16 baytlik qatordagi 4 ta `int` dan **birinchisi** xato, qolgan **uchtasi** bepul — urish 75%.
+Konflikt holatida keshda joy bor-u, ikki manzil **bitta** joyni talashadi: har safar bir-birini siqib chiqaradi — urish 0%.
+Ustun bo'yicha yurishda qadam 32 bayt: har murojaat yangi qator.
+
+**Kengaytiring:** `QATORLAR` ni 16 qiling — qaysi natijalar o'zgaradi? `0` va `128` konflikti yo'qoladimi? (`128/16 = 8`, `8 % 16 = 8` — endi boshqa indeks.)
+
+## Mustaqil loyiha: 2 yo'lli to'plamli LRU kesh ★★★
+
+**Vazifa:** yuqoridagi simulyatorni **assotsiativ** kesh bilan almashtiring. Konflikt xatolarini kamaytirish uchun har bir indeksda
+bitta emas, **bir nechta qator** ("yo'l") bor; xato bo'lganda **eng uzoq ishlatilmagan** (LRU) yo'l almashtiriladi.
+Fayl: `kesh2.c`.
+
+**Parametrlar:** qator 16 bayt; **to'plamlar** soni 4; yo'llar soni `Y` (1 yoki 2). Kesh sig'imi = 16 × 4 × Y.
+- `qator_raqami = manzil / 16`; `to'plam = qator_raqami % 4`; `tag = qator_raqami / 4`.
+- Murojaat: to'plamdagi barcha `Y` ta yo'lni tekshiring. Mos `tag` bo'lsa — urish (bu yo'lning "oxirgi ishlatilgan vaqti"ni yangilang).
+- Xato: avval **bo'sh** yo'lni qidiring; bo'sh yo'q bo'lsa — **oxirgi ishlatilgan vaqti eng kichik** (LRU) yo'lni almashtiring.
+- "Vaqt" — umumiy murojaatlar hisoblagichi.
+
+`Y = 1` da bu — to'g'ridan-to'g'ri xaritalangan kesh.
+
+**Uchta sinov** (barchasi `xotira manzili = bayt`):
+
+| Nom | Murojaatlar | Yo'llar |
+|---|---|---|
+| **A** | 64 ta `int`, ketma-ket (`i·4`) | 2 |
+| **B** | `0` va `128` galma-gal, 10 marta (jami 20 murojaat) | 1, keyin 2 |
+| **C** | 16×16 `int` matritsa (`manzil = (i·16 + j)·4`): avval **qator**, keyin **ustun** bo'yicha (256 murojaatdan) | 2 |
+
+**Chiqish shakli aniq:**
+
+**Kutilgan natija** (`darslik/loyihalar/21_kesh_sim/kutilgan.txt`):
+
+```text
+A: ketma-ket 64 ta int             2 yo'l: xato  16, urish  48 ( 75.0%)
+B: 0 va 128 galma-gal              1 yo'l: xato  20, urish   0 (  0.0%)
+B: 0 va 128 galma-gal              2 yo'l: xato   2, urish  18 ( 90.0%)
+C: matritsa 16x16, qator bo'yicha  2 yo'l: xato  64, urish 192 ( 75.0%)
+C: matritsa 16x16, ustun bo'yicha  2 yo'l: xato 256, urish   0 (  0.0%)
+```
+
+**Maslahat** (yechim emas):
+- Har yo'l uchun: `haqiqiy`, `tag`, `oxirgi_vaqt`. To'plam — shu tuzilmalar massivi (`kesh[4][2]`).
+- B sinovda: `Y=1` da `0` va `128` bitta to'plamda o'z joyi uchun kurashadi (hammasi xato); `Y=2` da ikkalasi ham sig'adi (faqat 2 ta birinchi xato).
+- C sinovi: ustun bo'yicha yurishda hamma qatorlar **bitta to'plamga** tushadi (nega? `qadam = 64 bayt = 4 qator`, `4 % 4 = 0`) — 2 yo'l ham qutqarmaydi. Bu — real dasturlarda
+  ikkining darajali qadamning yomon ta'siri.
+- Natijani foizda `%5.1f` bilan chiqaring: `100.0 * urish / jami`.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined kesh2.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/21_kesh_sim/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [22-bob. Bog'lash (linking) chuqur](22-boglash.md)

@@ -346,4 +346,188 @@ Chunki xato ochilgan kodda. GCC `note: in expansion of macro 'X'` bilan qaysi ma
 - **23** — `container_of` va `offsetof`.
 - `kernel/lib/common.h` va `kernel/lib/list.h` ni o'qing — har bir makroni o'zingiz ochib yozing.
 
+<!-- loyiha:boshi -->
+## Loyiha: mini test kutubxonasi
+
+**Maqsad:** makrolar bilan o'z test tizimingizni yozish: xato bo'lsa **fayl nomi va qator raqami** ko'rsatilsin,
+o'tgan/yiqilgan testlar sanalsin. Yadro va boshqa tizim loyihalarida testlar aynan shunday makrolar bilan yoziladi
+(mashqlardagi `test.h` ham).
+**Bobdan ishlatiladi:** `#define`, `do { } while (0)`, `#x` (stringlash), `__FILE__`, `__LINE__`.
+
+**Talab:** `TEKSHIR_TENG(haqiqat, kutilgan)` — teng bo'lsa `otdi++`, bo'lmasa xato xabarini chiqaradi.
+`TEKSHIR_ROST(shart)` — shart rost bo'lishi kerak. Oxirida hisobot.
+**Nega makro (funksiya emas)?** `__LINE__` funksiya ichida funksiyaning qatorini beradi, makro esa
+**chaqirilgan** joyning qatorini beradi. `#haqiqat` ifodaning matnini satr qilib beradi.
+
+```c
+/* testlar.c - mini test kutubxonasi */
+#include <stdio.h>
+
+static int otdi, yiqildi;
+
+#define TEKSHIR_TENG(haqiqat, kutilgan)                                                 \
+    do {                                                                                \
+        long _h = (haqiqat), _k = (kutilgan);                                           \
+        if (_h == _k) {                                                                 \
+            otdi++;                                                                     \
+        } else {                                                                        \
+            yiqildi++;                                                                  \
+            printf("  XATO %s:%d: %s = %ld, kutilgan %ld\n", __FILE__, __LINE__, #haqiqat, _h, _k); \
+        }                                                                               \
+    } while (0)
+
+#define TEKSHIR_ROST(shart)                                                             \
+    do {                                                                                \
+        if (shart) {                                                                    \
+            otdi++;                                                                     \
+        } else {                                                                        \
+            yiqildi++;                                                                  \
+            printf("  XATO %s:%d: '%s' rost emas\n", __FILE__, __LINE__, #shart);       \
+        }                                                                               \
+    } while (0)
+
+/* sinaladigan funksiyalar */
+static int modul(int x) { return x < 0 ? -x : x; }
+static int eng_katta3(int a, int b, int c)
+{
+    int m = a;
+    if (b > m) m = b;
+    if (c > m) m = c;
+    return m;
+}
+static int tub_mi(int n)
+{
+    if (n < 2) return 0;
+    for (int d = 2; d * d <= n; d++)
+        if (n % d == 0) return 0;
+    return 1;
+}
+
+int main(void)
+{
+    printf("modul:\n");
+    TEKSHIR_TENG(modul(-5), 5);
+    TEKSHIR_TENG(modul(7), 7);
+    TEKSHIR_TENG(modul(0), 0);
+
+    printf("eng_katta3:\n");
+    TEKSHIR_TENG(eng_katta3(1, 9, 4), 9);
+    TEKSHIR_TENG(eng_katta3(-3, -1, -2), -1);
+    TEKSHIR_TENG(eng_katta3(5, 5, 5), 4);       /* ATAYLAB XATO: kutilgan noto'g'ri */
+
+    printf("tub_mi:\n");
+    TEKSHIR_ROST(tub_mi(13));
+    TEKSHIR_ROST(!tub_mi(15));
+    TEKSHIR_ROST(tub_mi(1));                    /* ATAYLAB XATO: 1 tub emas */
+
+    printf("\nnatija: %d o'tdi, %d yiqildi\n", otdi, yiqildi);
+    return yiqildi != 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g testlar.c -o testlar
+$ ./testlar; echo "chiqish kodi: $?"
+modul:
+eng_katta3:
+  XATO testlar.c:54: eng_katta3(5, 5, 5) = 5, kutilgan 4
+tub_mi:
+  XATO testlar.c:59: 'tub_mi(1)' rost emas
+
+natija: 7 o'tdi, 2 yiqildi
+chiqish kodi: 1
+```
+
+Chiqish kodi 1 — CI tizimlari (GitHub Actions ham) shu kod bo'yicha "test yiqildi" deb belgilaydi.
+`_h`, `_k` — makro ichidagi lokal o'zgaruvchilar: argument ifodasi (`i++` kabi) faqat **bir marta** hisoblanadi (10.4-bo'lim tuzog'i).
+
+**Kengaytiring:** `TEKSHIR_MATN(a, b)` (`strcmp` bilan) qo'shing. Yiqilgan testlar ro'yxatini oxirida qayta chiqaring.
+
+## Mustaqil loyiha: log tizimi va bit makrolari ★★☆
+
+**Vazifa:** kompilyatsiya vaqtida sozlanadigan log tizimini va yadroda ko'p uchraydigan yordamchi makrolarni yozing.
+Hammasi **bitta fayl**: `makro.c`. Hech qanday funksiya kerak emas (faqat `main`).
+
+**1. Log darajalari.** `LOG_DARAJA` (0..4) buyruq qatoridan beriladi: `gcc -DLOG_DARAJA=2 ...`
+(berilmasa 3 bo'lsin: `#ifndef`). Makrolar:
+
+| Makro | Chiqishi | Qachon kodga kiradi |
+|---|---|---|
+| `LOG_XATO(...)` | `[XATO] <matn>` | daraja ≥ 1 |
+| `LOG_OGOH(...)` | `[OGOH] <matn>` | daraja ≥ 2 |
+| `LOG_INFO(...)` | `[INFO] <matn>` | daraja ≥ 3 |
+| `LOG_DEBUG(...)` | `[DEBUG] <matn>` | daraja ≥ 4 |
+
+`...` — `printf` formati va argumentlari: `LOG_INFO("son = %d", 5)`. Daraja yetmasa makro **hech narsaga
+aylanmasin** (`do { } while (0)`), kod ham qolmasin. Buning uchun `#if LOG_DARAJA >= 2` kabi shartli kompilyatsiya.
+Prefiks bilan matnni bitta `printf` ga birlashtiring; oxirida `\n`. (`__VA_ARGS__` — 10.4.)
+
+**2. Bit makrolari:**
+- `BIT(n)` — `1UL << n`;
+- `MASKA(yuqori, past)` — `past` dan `yuqori` gacha (ikkalasi ham kiradi) bitlari 1 bo'lgan maska (Linux'da `GENMASK`);
+- `ARRAY_SIZE(a)`;
+- `MIN(a, b)` va `MAX(a, b)` — argument **faqat bir marta** hisoblansin (GCC `({ ... })` va `__typeof__` yordamida).
+
+**3. `main`** quyidagi tartibda ishlasin:
+1. Har to'rt darajadagi log makrosini chaqiradi (mos xabarlar bilan: `xato yuz berdi`, `ogohlantirish`, `ma'lumot: 42`, `tuzatish: 7`),
+2. `BIT(5)` = 32, `BIT(0)`, `MASKA(7, 4)` = 240 (`0xF0`), `MASKA(31, 0)`,
+3. `int t[] = {4, 8, 15, 16, 23, 42}` uchun `ARRAY_SIZE`,
+4. `int i = 5; int m = MIN(i++, 10);` — `m` va `i` ni chiqaring (funksiya kabi bir marta hisoblanishini ko'rsatadi).
+
+Format aniq — natija `-DLOG_DARAJA=2` bilan (`darslik/loyihalar/10_log_makro/kutilgan.txt`):
+
+```text
+[XATO] xato yuz berdi
+[OGOH] ogohlantirish
+BIT(5) = 32, BIT(0) = 1
+MASKA(7, 4) = 240 (0xF0)
+MASKA(31, 0) = 4294967295
+ARRAY_SIZE(t) = 6
+MIN(i++, 10) = 5, i = 6
+MAX(3, 9) = 9
+```
+
+`-DLOG_DARAJA=4` bilan:
+
+```text
+[XATO] xato yuz berdi
+[OGOH] ogohlantirish
+[INFO] ma'lumot: 42
+[DEBUG] tuzatish: 7
+BIT(5) = 32, BIT(0) = 1
+MASKA(7, 4) = 240 (0xF0)
+MASKA(31, 0) = 4294967295
+ARRAY_SIZE(t) = 6
+MIN(i++, 10) = 5, i = 6
+MAX(3, 9) = 9
+```
+
+`-DLOG_DARAJA=0` bilan log qatorlari **umuman chiqmaydi** (faqat bit va massiv qatorlari):
+
+```text
+BIT(5) = 32, BIT(0) = 1
+MASKA(7, 4) = 240 (0xF0)
+MASKA(31, 0) = 4294967295
+ARRAY_SIZE(t) = 6
+MIN(i++, 10) = 5, i = 6
+MAX(3, 9) = 9
+```
+
+**Maslahat** (yechim emas):
+- Aynan bir xil shablonli makro: `#define LOG_INFO(...) printf("[INFO] " __VA_ARGS__)` — qo'shni satr literallari birlashadi. Oxirgi `"\n"` ni qanday qo'shasiz?
+  (`printf("[INFO] " fmt "\n", ...)` uchun birinchi argumentni ajrating yoki `printf("[INFO] "); printf(...); putchar('\n')` ni `do{}while(0)` ichiga oling.)
+- `MIN(a, b)` uchun: `({ __typeof__(a) _a = (a); __typeof__(b) _b = (b); _a < _b ? _a : _b; })`.
+- `MASKA(h, l)`: `(BIT(h+1) - BIT(l))` — `h = 31` da `1UL << 32` `unsigned long` (64 bit) da xavfsiz.
+- `gcc -E makro.c | tail -30` — makrolaringiz nimaga aylanganini ko'ring.
+
+**Tekshirish** (uch xil yig'ish):
+
+```bash
+D=~/C_loyha/darslik/loyihalar/10_log_makro
+gcc -Wall -Wextra -DLOG_DARAJA=2 makro.c -o d && ./d | diff - $D/kutilgan.txt && echo "2: TO'G'RI"
+gcc -Wall -Wextra -DLOG_DARAJA=4 makro.c -o d && ./d | diff - $D/kutilgan_2.txt && echo "4: TO'G'RI"
+gcc -Wall -Wextra -DLOG_DARAJA=0 makro.c -o d && ./d | diff - $D/kutilgan_3.txt && echo "0: TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [11-bob. Ko'p faylli dasturlar va Make](11-kop-fayl-make.md)

@@ -1,0 +1,5 @@
+A: ketma-ket 64 ta int             2 yo'l: xato  16, urish  48 ( 75.0%)
+B: 0 va 128 galma-gal              1 yo'l: xato  20, urish   0 (  0.0%)
+B: 0 va 128 galma-gal              2 yo'l: xato   2, urish  18 ( 90.0%)
+C: matritsa 16x16, qator bo'yicha  2 yo'l: xato  64, urish 192 ( 75.0%)
+C: matritsa 16x16, ustun bo'yicha  2 yo'l: xato 256, urish   0 (  0.0%)

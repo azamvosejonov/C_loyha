@@ -1,0 +1,18 @@
+Labirint 1: eng qisqa yo'l 24 qadam
+###########
+#S****#***#
+#.###*#*#*#
+#.#***#*#*#
+#.#*###*#*#
+#.#*****#E#
+###########
+
+Labirint 2: yo'l yo'q
+
+Labirint 3: eng qisqa yo'l 4 qadam
+#####
+#S**#
+#..*#
+#..E#
+#####
+

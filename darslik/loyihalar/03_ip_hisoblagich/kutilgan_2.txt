@@ -1,0 +1,7 @@
+IP:        10.1.2.3/8
+Maska:     255.0.0.0
+Tarmoq:    10.0.0.0
+Broadcast: 10.255.255.255
+Birinchi:  10.0.0.1
+Oxirgi:    10.255.255.254
+Hostlar:   16777214

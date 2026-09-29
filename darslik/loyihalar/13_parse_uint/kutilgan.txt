@@ -1,0 +1,23 @@
+Asos 10:
+  "0" -> ok 0
+  "42" -> ok 42
+  "4294967295" -> ok 4294967295
+  "4294967296" -> ERANGE
+  "" -> EINVAL
+  "abc" -> EINVAL
+  "12abc" -> EINVAL
+  "-5" -> EINVAL
+  "+5" -> EINVAL
+  " 7" -> EINVAL
+  "007" -> ok 7
+  "123456789012345678901234567890" -> ERANGE
+  "99\n" -> ok 99
+  "99\n\n" -> EINVAL
+Asos 16:
+  "ff" -> ok 255
+  "0xFF" -> ok 255
+  "0x" -> EINVAL
+  "FFFFFFFF" -> ok 4294967295
+  "100000000" -> ERANGE
+  "xyz" -> EINVAL
+  "0x1G" -> EINVAL

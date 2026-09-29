@@ -1,0 +1,3 @@
+first-fit ajratish 247, muvaffaqiyatsiz   4, tirik  90, bo'sh  156, eng katta   22, fragmentatsiya 85%
+best-fit  ajratish 247, muvaffaqiyatsiz   4, tirik  90, bo'sh   90, eng katta   12, fragmentatsiya 86%
+worst-fit ajratish 247, muvaffaqiyatsiz  15, tirik  79, bo'sh  437, eng katta   20, fragmentatsiya 95%

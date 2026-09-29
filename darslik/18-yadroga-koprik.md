@@ -277,4 +277,172 @@ YAKUNIY.md IV qism                  yangi drayverlar va quyi tizimlar (NVMe, USB
 II qism (19–31-boblar) — kompyuter tizimlari va operatsion tizimlar nazariyasi: odatda ingliz tilidagi
 bir nechta kitobdan o'rganiladigan bilimlar shu yerda.
 
+<!-- loyiha:boshi -->
+## Loyiha: `kprintf` — libc'siz formatlash
+
+**Maqsad:** yadroda `printf` **yo'q**. Yadro dasturchisi birinchi bo'lib o'zining `kprintf` ini yozadi — chunki
+usiz na xato, na holatni ko'rib bo'ladi (18.5). Bu funksiya bo'lmasa, yadroni debug qilib bo'lmaydi.
+**Bobdan ishlatiladi:** libc'siz yashash, o'zgaruvchan sonli argumentlar (`va_list`), sonni matnga o'girish, faqat bitta
+"chiqish" funksiyasiga (`kputc`) tayanish.
+
+**Talab:** `kprintf(fmt, ...)` — `%d %u %x %X %c %s %%` ni tushunsin. Barcha chiqish **bitta** `kputc(char)` orqali:
+yadroda bu funksiya belgini serial portga yoki ekranga yozadi; bu yerda `write(1, ...)` qiladi.
+**Ma'lumotlar:** yo'q (holatsiz). **Qadamlar:** formatni belgima-belgi yurish → `%` topilsa keyingi belgiga qarab
+argumentni `va_arg` bilan olish.
+**Sonni matnga:** raqamlarni **teskari tartibda** (oxirgisidan) olamiz (`v % asos`), keyin teskari chiqaramiz.
+
+```c
+/* kprintf.c - libc'siz printf */
+#include <limits.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <unistd.h>
+
+static void kputc(char c)                       /* YAGONA chiqish nuqtasi (yadroda: serial port) */
+{
+    ssize_t r = write(1, &c, 1);
+    (void)r;
+}
+
+static void kputs(const char *s)
+{
+    if (!s)
+        s = "(null)";
+    while (*s)
+        kputc(*s++);
+}
+
+static void kson(unsigned long long v, unsigned asos, int katta)
+{
+    const char *raqam = katta ? "0123456789ABCDEF" : "0123456789abcdef";
+    char bufer[24];
+    int n = 0;
+    do {
+        bufer[n++] = raqam[v % asos];           /* eng past raqam */
+        v /= asos;
+    } while (v != 0);
+    while (n > 0)
+        kputc(bufer[--n]);                      /* teskari tartibda chiqaramiz */
+}
+
+static void kprintf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    for (; *fmt; fmt++) {
+        if (*fmt != '%') {
+            kputc(*fmt);
+            continue;
+        }
+        char c = *++fmt;
+        if (c == '\0')
+            break;                              /* format '%' bilan tugadi */
+        switch (c) {
+        case 'd': {
+            int v = va_arg(ap, int);
+            if (v < 0) {
+                kputc('-');
+                kson(-(long long)v, 10, 0);     /* INT_MIN uchun ham to'g'ri: long long ga o'tdik */
+            } else {
+                kson((unsigned)v, 10, 0);
+            }
+            break;
+        }
+        case 'u': kson(va_arg(ap, unsigned), 10, 0); break;
+        case 'x': kson(va_arg(ap, unsigned), 16, 0); break;
+        case 'X': kson(va_arg(ap, unsigned), 16, 1); break;
+        case 'c': kputc((char)va_arg(ap, int)); break;
+        case 's': kputs(va_arg(ap, const char *)); break;
+        case '%': kputc('%'); break;
+        default:  kputc('%'); kputc(c); break;  /* noma'lum - o'zgarishsiz chiqaramiz */
+        }
+    }
+    va_end(ap);
+}
+
+int main(void)
+{
+    kprintf("Salom, %s! Son: %d, manfiy: %d, nol: %d\n", "yadro", 42, -17, 0);
+    kprintf("O'n oltilik: %x va %X, ishorasiz: %u\n", 255, 255, 4294967295u);
+    kprintf("Chegara: %d va %d\n", INT_MAX, INT_MIN);
+    kprintf("Belgilar: %c%c%c, foiz: 100%%, noma'lum: %q, bo'sh: %s\n", 'C', 'y', 'a', NULL);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined kprintf.c -o kprintf
+$ ./kprintf
+Salom, yadro! Son: 42, manfiy: -17, nol: 0
+O'n oltilik: ff va FF, ishorasiz: 4294967295
+Chegara: 2147483647 va -2147483648
+Belgilar: Cya, foiz: 100%, noma'lum: %q, bo'sh: (null)
+```
+
+Nega `-(long long)v`? `INT_MIN` ni manfiylab bo'lmaydi: `-INT_MIN` `int` da toshadi (UB!). Kengroq turga o'tish — yechim (13-bob).
+Nega raqamlar teskari? `v % 10` **oxirgi** raqamni beradi. `12345` → `5,4,3,2,1`; teskari chiqaramiz.
+
+**Kengaytiring:** `%p` (ko'rsatkich, `0x` bilan o'n oltilik) va `%o` (sakkizlik) qo'shing. Hech qanday `stdio.h` chaqirilmaganini
+`nm kprintf | grep " U "` bilan tekshiring (faqat `write` va libc ichki nomlari qoladi).
+
+## Mustaqil loyiha: `kprintf` — kenglik va to'ldirish ★★★
+
+**Vazifa:** yuqoridagi `kprintf` ni **kengaytiring** (yoki noldan yozing): kenglik, nol bilan to'ldirish,
+chapga tekislash va ikkilik format. Fayl: `kprintf2.c`. Hamma chiqish — faqat `kputc` orqali.
+
+**Format sintaksisi:** `%[bayroqlar][kenglik]tur`
+- **bayroqlar** (ixtiyoriy): `-` — chapga tekislash (o'ngdan probel bilan to'ldiradi); `0` — chapdan `0` bilan to'ldiradi
+  (`-` bilan birga kelsa `0` e'tiborga olinmaydi);
+- **kenglik**: raqamlar (masalan `5`, `08`) — minimal belgilar soni; matn shundan qisqa bo'lsa to'ldiriladi;
+- **tur**: `d u x X o b c s %` (`b` — ikkilik, `o` — sakkizlik).
+- Manfiy son `0` bayrog'i bilan: ishora **oldin**, nollar undan **keyin** (`-42`, `%05d` → `-0042`).
+- `%s` da `NULL` → `(null)`. `%c` va `%s` uchun `0` bayrog'i ham probel emas, `0` bilan to'ldirmaydi — oddiy probel qo'ying (soddalik uchun).
+- Noma'lum tur (`%q`) — o'zgarishsiz chiqarilsin (`%q`).
+
+**Qaytish qiymati:** `int kprintf(...)` — chiqarilgan belgilar **soni**. (Ichki hisoblagichni `kputc` ni o'rab oling.)
+
+**`main` da ushbu chaqiruvlar** (har biri bitta satr chiqarsin):
+
+```c
+kprintf("[%d] [%5d] [%-5d] [%05d]\n", 42, 42, 42, 42);
+kprintf("[%d] [%05d] [%6d]\n", -42, -42, -42);
+kprintf("[%x] [%X] [%08x]\n", 255, 255, 0xBEEF);
+kprintf("[%b] [%08b] [%b] [%o]\n", 10, 5, 0, 64);
+kprintf("[%s] [%10s] [%-10s] [%s]\n", "salom", "salom", "salom", NULL);
+kprintf("belgilar: %c%c%c, foiz: 100%%\n", 'a', 'b', 'c');
+kprintf("[%u] [%d]\n", 4294967295u, INT_MIN);
+int n = kprintf("hello %d\n", 5);
+kprintf("qaytardi: %d\n", n);
+kprintf("[%q]\n");
+```
+
+**Kutilgan natija** (`darslik/loyihalar/18_kprintf/kutilgan.txt`):
+
+```text
+[42] [   42] [42   ] [00042]
+[-42] [-0042] [   -42]
+[ff] [FF] [0000beef]
+[1010] [00000101] [0] [100]
+[salom] [     salom] [salom     ] [(null)]
+belgilar: abc, foiz: 100%
+[4294967295] [-2147483648]
+hello 5
+qaytardi: 8
+[%q]
+```
+
+**Maslahat** (yechim emas):
+- Avval sonni **bufer**ga (teskari) yozing, uzunligini biling; keyin: `to'ldirish soni = kenglik − uzunlik`.
+- Chapga tekislashda: matn, keyin probellar. O'ngga tekislashda: to'ldirish (probel yoki `0`), keyin matn.
+- Manfiy son + `0` bayrog'i: avval `-`, keyin nollar, keyin raqamlar. Ishorani alohida qayta ishlang.
+- `kenglik` raqamlarini `while (*fmt >= '0' && *fmt <= '9')` bilan o'qing (`0` bayrog'i ham shu belgi, uni **kenglikdan oldin** ajrating).
+- Hisoblagich: `static int chiqarildi;` ni `kputc` ichida oshiring; `kprintf` boshida nolga tushiring.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined kprintf2.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/18_kprintf/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [19-bob. Linux terminali va Git](19-terminal-git.md)

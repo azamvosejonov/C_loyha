@@ -1,0 +1,5 @@
+Hisob 0: 76000
+Hisob 1: -24000
+Hisob 2: -24000
+Hisob 3: -24000
+Jami: 4000 (o'zgarmadi)

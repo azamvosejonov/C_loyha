@@ -335,4 +335,184 @@ xotiraga **CPU'siz**, **fizik** manzil bo'yicha yozadi. Shuning uchun drayver:
   izohlardan tushuning. Keyin `kernel/drivers/ahci.c` dagi `#define` larni AHCI spetsifikatsiyasi bilan
   solishtiring (spetsifikatsiya internetda bepul: "Serial ATA AHCI 1.3.1").
 
+<!-- loyiha:boshi -->
+## Loyiha: virtual UART va uning drayveri
+
+**Maqsad:** qurilma bilan **registrlar orqali** gaplashishni o'rganish: holat bitlarini tekshirish, sozlash registrini
+"o'qi–o'zgartir–yoz" bilan o'zgartirish, va qurilma javob bermasa — **vaqt chegarasi** bilan chiqib ketish.
+Bu yadrodagi har qanday drayverning tuzilishi (16.2–16.5).
+**Bobdan ishlatiladi:** bit maskalar, `volatile`, registr tuzilmasi, kutish sikli.
+
+**Talab:** UART — ketma-ket port. Uch registr: `data` (yuboriladigan belgi), `status` (holat: `TX_BOSH` — yuborishga tayyor,
+`XATO`), `ctrl` (sozlash: `YOQ` bit + baud bo'luvchisi 8..15-bitlarda).
+Haqiqiy apparat yo'q, shuning uchun uni **kichik simulyator** qildik (kodning yuqori qismi). Drayver qismi esa haqiqiy drayverdek
+faqat registrlar bilan ishlaydi.
+
+```c
+/* uart.c - virtual UART va drayver */
+#include <stdint.h>
+#include <stdio.h>
+
+#define ST_TX_BOSH      (1u << 0)               /* yuborishga tayyor */
+#define ST_XATO         (1u << 7)
+#define CTL_YOQ         (1u << 0)
+#define CTL_BAUD_SHIFT  8
+#define CTL_BAUD_MASK   (0xFFu << CTL_BAUD_SHIFT)
+
+struct uart_regs {
+    volatile uint32_t data;
+    volatile uint32_t status;
+    volatile uint32_t ctrl;
+};
+
+/* ============ "APPARAT" (haqiqiy tizimda bu qism chipning ichida) ============ */
+static struct uart_regs qurilma = { 0, ST_TX_BOSH, 0 };
+static char sim_chiqish[64];
+static int sim_n, band_tick;
+
+static void qurilma_tick(void)                  /* vaqt o'tadi: yuborish tugaydi */
+{
+    if (band_tick > 0 && --band_tick == 0)
+        qurilma.status |= ST_TX_BOSH;
+}
+
+static void qurilma_data_yozildi(void)          /* DATA ga yozilganda qurilma "sezadi" */
+{
+    if (!(qurilma.ctrl & CTL_YOQ)) {
+        qurilma.status |= ST_XATO;
+        return;
+    }
+    if (sim_n < 63)
+        sim_chiqish[sim_n++] = (char)qurilma.data;
+    qurilma.status &= ~ST_TX_BOSH;              /* band */
+    band_tick = 3;                              /* 3 tickdan keyin bo'shaydi */
+}
+
+/* ================================ DRAYVER ================================ */
+static void uart_init(struct uart_regs *u, unsigned baud)
+{
+    uint32_t c = u->ctrl;                                           /* 1) o'qi */
+    c = (c & ~CTL_BAUD_MASK) | ((baud << CTL_BAUD_SHIFT) & CTL_BAUD_MASK);   /* 2) o'zgartir */
+    u->ctrl = c | CTL_YOQ;                                          /* 3) yoz */
+}
+
+static int uart_putc(struct uart_regs *u, char c, int *kutildi)
+{
+    int aylanish = 0;
+    while (!(u->status & ST_TX_BOSH)) {         /* qurilma tayyor bo'lguncha kutamiz... */
+        qurilma_tick();                         /* (simulyatsiya: vaqt o'tadi) */
+        if (++aylanish > 100)
+            return -1;                          /* ...lekin CHEKSIZ emas (16.5) */
+    }
+    *kutildi += aylanish;
+    u->data = (uint32_t)(unsigned char)c;
+    qurilma_data_yozildi();                     /* (simulyatsiya: qurilma javob beradi) */
+    return 0;
+}
+
+int main(void)
+{
+    struct uart_regs *u = &qurilma;
+    uart_init(u, 26);
+    printf("ctrl = 0x%08X (baud = %u, yoqilgan = %u)\n", u->ctrl,
+           (u->ctrl & CTL_BAUD_MASK) >> CTL_BAUD_SHIFT, u->ctrl & CTL_YOQ);
+
+    const char *matn = "SALOM";
+    int kutildi = 0;
+    for (const char *p = matn; *p; p++)
+        if (uart_putc(u, *p, &kutildi) != 0)
+            printf("belgi '%c' yuborilmadi!\n", *p);
+    printf("simda yuborilgan: \"%s\", jami kutish: %d aylanish\n", sim_chiqish, kutildi);
+
+    u->status &= ~ST_TX_BOSH;                   /* qurilma "qotdi": hech qachon tayyor bo'lmaydi */
+    band_tick = 100000;
+    if (uart_putc(u, '!', &kutildi) != 0)
+        printf("qurilma javob bermadi -> vaqt chegarasi ishladi (dastur qotib qolmadi)\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined uart.c -o uart
+$ ./uart
+ctrl = 0x00001A01 (baud = 26, yoqilgan = 1)
+simda yuborilgan: "SALOM", jami kutish: 12 aylanish
+qurilma javob bermadi -> vaqt chegarasi ishladi (dastur qotib qolmadi)
+```
+
+Tuzilish yadro drayveriga aynan o'xshaydi: registrlar tuzilmasi, `volatile`, maskalar, RMW, vaqt chegarali kutish.
+Faqat `qurilma_*` funksiyalari o'rniga haqiqiy chip bor.
+
+**Kengaytiring:** `uart_puts(u, s)` yozing. `CTL_YOQ` ni o'chirib `uart_putc` chaqiring — `ST_XATO` qanday o'rnatiladi? Drayver xatoni sezishi uchun nima qo'shasiz?
+
+## Mustaqil loyiha: ma'lumot yaxlitligi — parity, CRC-8, Gray ★★★
+
+**Vazifa:** aloqa va xotirada xatolarni aniqlash uchun ishlatiladigan to'rtta bit algoritmini o'zingiz yozing.
+Hammasi **bitli amallar** bilan; `__builtin_*` funksiyalari **taqiqlangan**. Fayl: `yaxlitlik.c`.
+
+1. `int parity(uint8_t b)` — birlar soni toq bo'lsa `1`, juft bo'lsa `0`.
+2. `uint8_t bit_teskari(uint8_t b)` — bitlar tartibini teskari aylantiradi (`0x01` → `0x80`).
+3. `uint8_t gray(uint8_t n)` va `uint8_t gray_teskari(uint8_t g)` — Gray kodi: qo'shni sonlar **bitta bit**ga farq qiladi.
+   `gray(n) = n ^ (n >> 1)`. Teskarisini o'zingiz toping (Maslahat pastda).
+4. `uint8_t crc8(const uint8_t *data, size_t n)` — CRC-8, polinom `0x07` (x⁸+x²+x+1), boshlang'ich qiymat 0, aks ettirishsiz:
+
+```text
+crc = 0
+har bir bayt uchun:
+    crc ^= bayt
+    8 marta:  agar crc ning eng katta biti 1 bo'lsa:  crc = (crc << 1) ^ 0x07
+              aks holda:                              crc = crc << 1        (8 bitda qoladi)
+```
+
+Standart tekshiruv: `"123456789"` uchun CRC-8 = `0xF4`.
+
+**Chiqish shakli aniq:**
+
+**Kutilgan natija** (`darslik/loyihalar/16_crc_gray/kutilgan.txt`):
+
+```text
+Parity (1 - toq sondagi birlar):
+  0x00 -> 0
+  0x01 -> 1
+  0xFF -> 0
+  0xB7 -> 0
+Bitlarni teskari aylantirish:
+  0x01 -> 0x80
+  0x0F -> 0xF0
+  0xA5 -> 0xA5
+  0x1D -> 0xB8
+Gray kodi (n -> gray -> orqaga):
+  0 -> 0 -> 0
+  1 -> 1 -> 1
+  2 -> 3 -> 2
+  3 -> 2 -> 3
+  4 -> 6 -> 4
+  5 -> 7 -> 5
+  6 -> 5 -> 6
+  7 -> 4 -> 7
+CRC-8 (polinom 0x07):
+  "" -> 0x00
+  "A" -> 0xC0
+  "123456789" -> 0xF4
+  "Salom, dunyo!" -> 0x8D
+  "Samom, dunyo!" (3-bayt buzilgan) -> 0x92
+```
+
+Sinov qiymatlari: parity — `0x00, 0x01, 0xFF, 0xB7`; teskari — `0x01, 0x0F, 0xA5, 0x1D`; Gray — `n = 0..7`;
+CRC — `""` (bo'sh), `"A"`, `"123456789"`, `"Salom, dunyo!"`, va oxirgisining **3-baytini** `0x01` bilan XOR qilib buzilgan varianti.
+
+**Maslahat** (yechim emas):
+- `parity`: baytni o'z-o'ziga siljitib XOR qilish: `b ^= b >> 4; b ^= b >> 2; b ^= b >> 1; return b & 1;` — nega ishlaydi?
+- `bit_teskari`: 8 marta: natijani 1 ga chapga suring, `b` ning eng past bitini qo'shing, `b` ni 1 ga o'ngga suring.
+- `gray_teskari`: `n = g; n ^= n >> 1; n ^= n >> 2; n ^= n >> 4;` (prefiks XOR). Qog'ozda `g = 0b110` uchun tekshiring.
+- CRC ichida `crc << 1` `int` da hisoblanadi (integer promotion, 2.11) — `(uint8_t)` cast bilan 8 bitda qoldiring.
+- Bitta bit buzilganda CRC **doim** o'zgaradi (bitta bit xatosini CRC-8 kafolatli ushlaydi). Natijada ko'rasiz.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined yaxlitlik.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/16_crc_gray/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [17-bob. Assembly va C](17-assembly.md)

@@ -1,0 +1,30 @@
+ombor.c dagi 5 ta xato va ularning yechimi
+(Avval o'zingiz toping! Bu faylni faqat tekshirish uchun oching.)
+
+1) qosh(): strcpy(royxat[n].nom, nom)
+   Nom 16 baytdan uzun bo'lsa, bufer chegarasidan chiqib yoziladi.
+   Vosita: AddressSanitizer -> "heap-buffer-overflow ... in strcpy".
+   Yechim: snprintf(royxat[n].nom, sizeof(royxat[n].nom), "%s", nom);
+
+2) jami_qiymat(): for (int i = 0; i <= n; i++)
+   Bittaga ortiqcha aylanadi (o'nta emas, on birinchi element o'qiladi).
+   Vosita: AddressSanitizer -> "heap-buffer-overflow ... READ in jami_qiymat".
+   Yechim: i < n.
+
+3) main(): eng_qimmat() ko'rsatkichi, keyin qosh() (realloc)
+   realloc massivni boshqa joyga ko'chirishi mumkin: eski ko'rsatkich "osilib qoladi".
+   Vosita: AddressSanitizer -> "heap-use-after-free ... in main".
+   Yechim: ko'rsatkich o'rniga INDEKS saqlash (indeks realloc'dan keyin ham to'g'ri).
+
+4) hisobot(): malloc(64) va free yo'q
+   Xotira sizib chiqadi (leak).
+   Vosita: LeakSanitizer (ASan bilan birga) -> "detected memory leaks"; valgrind --leak-check=full.
+   Yechim: puts(satr); dan keyin free(satr);
+
+5) chegirmali(): int narx * (100 - foiz)
+   30000000 * 90 = 2 700 000 000 > INT_MAX -> ishorali toshish (UB).
+   Vosita: UndefinedBehaviorSanitizer -> "signed integer overflow".
+   Yechim: long bilan hisoblash (parametr va qaytish turi long, printf da %ld).
+
+Umumiy saboq: har bir sanitizer o'z turdagi xatoni ushlaydi; dastur "tasodifan ishlab ketgan" bo'lishi
+mumkin, lekin bu xato yo'qligini bildirmaydi.

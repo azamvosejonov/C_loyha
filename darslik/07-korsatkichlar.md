@@ -450,4 +450,137 @@ int *p = a + 1;
 - Qo'shimcha: qog'ozda 7.13 dagi xotira rasmini chizing; `int x; int *p = &x; int **pp = &p;` uchun
   uchta o'zgaruvchining manzilini `%p` bilan chiqarib, rasmingiz bilan solishtiring.
 
+<!-- loyiha:boshi -->
+## Loyiha: map / filter / reduce
+
+**Maqsad:** Python'dagi `map`, `filter`, `functools.reduce` ni C'da funksiya ko'rsatkichlari bilan yozish.
+Bu yadroda ham uchraydigan naqsh: "hodisa kelganda **shu funksiyani** chaqir".
+**Bobdan ishlatiladi:** massivni ko'rsatkich sifatida uzatish, `int *`, `const int *`, funksiya ko'rsatkichi.
+
+**Talab:** uch umumiy funksiya; ular **nima qilishni** bilmaydi — buni argument sifatida berilgan funksiya hal qiladi.
+- `map(a, n, f)` — har elementni `f(x)` bilan almashtiradi;
+- `filter(src, n, dst, shart)` — sharti rost elementlarni `dst` ga ko'chiradi, sonini qaytaradi;
+- `reduce(a, n, boshi, f)` — `r = f(r, a[i])` bilan bitta qiymatga keltiradi.
+
+```c
+/* funksional.c - map / filter / reduce */
+#include <stdio.h>
+
+static void map(int *a, int n, int (*f)(int))
+{
+    for (int i = 0; i < n; i++)
+        a[i] = f(a[i]);
+}
+
+static int filter(const int *src, int n, int *dst, int (*shart)(int))
+{
+    int k = 0;
+    for (int i = 0; i < n; i++)
+        if (shart(src[i]))
+            dst[k++] = src[i];
+    return k;
+}
+
+static int reduce(const int *a, int n, int boshi, int (*f)(int, int))
+{
+    int r = boshi;
+    for (int i = 0; i < n; i++)
+        r = f(r, a[i]);
+    return r;
+}
+
+static void chiqar(const char *nom, const int *a, int n)
+{
+    printf("%-14s:", nom);
+    for (int i = 0; i < n; i++)
+        printf(" %d", a[i]);
+    printf("\n");
+}
+
+static int kvadrat(int x) { return x * x; }
+static int juft_mi(int x) { return x % 2 == 0; }
+static int qosh(int a, int b) { return a + b; }
+static int katta(int a, int b) { return a > b ? a : b; }
+static int kopaytir(int a, int b) { return a * b; }
+
+int main(void)
+{
+    int a[] = { 3, 8, 1, 6, 4, 7, 2, 5 };
+    int n = sizeof(a) / sizeof(a[0]);
+    int juftlar[8];
+
+    chiqar("asl massiv", a, n);
+    int k = filter(a, n, juftlar, juft_mi);
+    chiqar("juftlar", juftlar, k);
+
+    map(juftlar, k, kvadrat);                   /* massivni joyida o'zgartiradi */
+    chiqar("kvadratlari", juftlar, k);
+
+    printf("yig'indi      : %d\n", reduce(a, n, 0, qosh));
+    printf("eng katta     : %d\n", reduce(a, n, a[0], katta));
+    printf("ko'paytma     : %d\n", reduce(a, n, 1, kopaytir));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined funksional.c -o funksional
+$ ./funksional
+asl massiv    : 3 8 1 6 4 7 2 5
+juftlar       : 8 6 4 2
+kvadratlari   : 64 36 16 4
+yig'indi      : 36
+eng katta     : 8
+ko'paytma     : 40320
+```
+
+Diqqat qiling: `map` ham, `filter` ham, `reduce` ham massiv **qanday** qayta ishlanishini bilmaydi. Yangi amal
+kerakmi — yangi 1 qatorli funksiya yozasiz, sikllarni qayta yozmaysiz. `qsort(…, taqqosla)` (12-bob) ham shunday.
+
+**Kengaytiring:** `manfiy_mi` sharti va `ikki_barobar` amalini qo'shing. `reduce` bilan eng kichik elementni toping.
+`filter` ga `dst` uchun `n` dan kichik massiv bersangiz nima bo'ladi (sanitizer ko'rsatadi)?
+
+## Mustaqil loyiha: massivni joyida qayta ishlash ★★★
+
+**Vazifa:** qo'shimcha massiv **ochmasdan**, faqat ko'rsatkichlar va indekslar bilan uchta klassik
+algoritmni yozing. Bu mashq ko'rsatkichlarni "ichidan" his qilish uchun. Fayl: `joyida.c`.
+
+1. `int unique(int *a, int n)` — **saralangan** massivdan takroriy qiymatlarni olib tashlaydi (joyida),
+   yangi uzunlikni qaytaradi. Ikki ko'rsatkich: o'qish va yozish.
+2. `void rotate(int *a, int n, int k)` — massivni **o'ngga** `k` ta o'ringa aylantiradi
+   (oxirgi `k` ta element boshiga o'tadi). `k` `n` dan katta bo'lishi mumkin. Qo'shimcha massiv yo'q!
+   (Maslahat: `reverse` yordamchisi.)
+3. `int partition(int *a, int n, int pivot)` — `pivot` dan **kichik** elementlarni oldinga o'tkazadi,
+   ularning sonini qaytaradi. **Lomuto usuli**: `j` — "kichiklar" chegarasi (0 dan); `i` bo'ylab yuring,
+   `a[i] < pivot` bo'lsa, `a[i]` va `a[j]` ni almashtiring va `j++`. (Usul aniq belgilangan, chunki natija tartibi unga bog'liq.)
+
+Chiqarish tartibi aniq (quyida). Har bir funksiyani **yangi nusxa** massivda sinang.
+
+**Kutilgan natija** (`darslik/loyihalar/07_joyida/kutilgan.txt`):
+
+```text
+unique: 1 1 2 3 3 3 4 4 5 7 7 -> 6 ta: 1 2 3 4 5 7
+rotate(3): 1 2 3 4 5 6 7 -> 5 6 7 1 2 3 4
+rotate(10): 1 2 3 4 5 6 7 -> 5 6 7 1 2 3 4
+partition(5): 9 2 7 4 8 1 6 3 -> 4 ta: 2 4 1 3 8 7 6 9
+partition(1): 9 2 7 4 8 1 6 3 -> 0 ta: 9 2 7 4 8 1 6 3
+partition(100): 9 2 7 4 8 1 6 3 -> 8 ta: 9 2 7 4 8 1 6 3
+```
+
+Sinov ma'lumotlari: `unique` — `{1,1,2,3,3,3,4,4,5,7,7}`; `rotate` — `{1,2,3,4,5,6,7}` bilan `k = 3` va `k = 10`;
+`partition` — `{9,2,7,4,8,1,6,3}` bilan `pivot = 5`, `1` va `100`.
+
+**Maslahat** (yechim emas):
+- `unique`: `yoz` ko'rsatkichi/indeksi "hozirgacha noyoblar soni". Har `o'qi` da `a[o'qi] != a[yoz-1]` bo'lsa yozing.
+- `rotate`: 3 marta `reverse`: butun massiv, keyin birinchi `k` ta, keyin qolgan `n-k` ta. `k %= n` — `n == 0` ga ehtiyot bo'ling.
+- Massiv uzunligini funksiyaga **doim** alohida uzating — `sizeof(a)` funksiya ichida ko'rsatkich o'lchamini beradi (7.2).
+- `-fsanitize=address` bilan yig'ing: chegaradan chiqish darhol ko'rinadi.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined joyida.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/07_joyida/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [8-bob. Xotira: stek, heap, statik](08-xotira.md)

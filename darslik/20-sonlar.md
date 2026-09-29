@@ -317,4 +317,153 @@ toshishga e'tibor (64 bit).
 - **04** (bitlar) va **03** (toshish) — bu bob bilan qayta ko'ring.
 - Qo'shimcha: `union { float f; uint32_t u; }` bilan 1.0, −2.5, 0.1 ning bitlarini chiqarib, qo'lda hisoblaganingiz bilan solishtiring.
 
+<!-- loyiha:boshi -->
+## Loyiha: sonlar konvertori
+
+**Maqsad:** bir xil bitlar turli tur bilan qanday "o'qilishini" ko'rish: ishorali/ishorasiz, ikkiga to'ldirish, ishora
+kengayishi, qirqish, va `float` ning ichki tuzilishi.
+**Bobdan ishlatiladi:** ikkilik/o'n oltilik yozuv, ikkiga to'ldirish, ishora kengayishi, IEEE 754.
+
+**Talab:** (1) `int8_t` qiymatlari jadvali: o'nlik, o'n oltilik, ikkilik, ishorasiz talqin; (2) kengayish va qirqish; (3) `float` ni
+ishora/daraja/mantissaga ajratish.
+**Asosiy fikr:** bir xil 8 bit — `11111011` — `int8_t` da `−5`, `uint8_t` da `251`. Ma'no — turda, bitlarda emas.
+
+```c
+/* sonlar.c - sonlar konvertori */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+static void ikkilik(uint32_t v, int bitlar)     /* har 4 bitdan keyin '_' */
+{
+    for (int b = bitlar - 1; b >= 0; b--) {
+        putchar((v >> b) & 1 ? '1' : '0');
+        if (b % 4 == 0 && b > 0)
+            putchar('_');
+    }
+}
+
+static void float_tahlil(float f)
+{
+    uint32_t u;
+    memcpy(&u, &f, sizeof(u));                  /* bitlarni butun son sifatida olamiz (13-bob: type punning) */
+    unsigned ishora = u >> 31, daraja = (u >> 23) & 0xFF, mantissa = u & 0x7FFFFF;
+    printf("%6.2f = 0x%08X: ishora %u, daraja %3u (2^%d), mantissa 0x%06X\n", (double)f, u, ishora, daraja,
+           (int)daraja - 127, mantissa);
+}
+
+int main(void)
+{
+    printf("%-6s %-5s %-10s %s\n", "int8_t", "hex", "ikkilik", "uint8_t deb o'qilsa");
+    int8_t qiymatlar[] = { 0, 5, 127, -128, -5, -1 };
+    for (int i = 0; i < 6; i++) {
+        uint8_t u = (uint8_t)qiymatlar[i];
+        printf("%6d 0x%02X  ", qiymatlar[i], u);
+        ikkilik(u, 8);
+        printf("  %u\n", u);
+    }
+
+    printf("\nKengayish va qirqish:\n");
+    int8_t manfiy = -5;
+    uint8_t katta = 251;
+    printf("  int8_t -5    -> int32_t : %d (0x%08X)   [ishora kengayadi]\n", (int32_t)manfiy, (uint32_t)(int32_t)manfiy);
+    printf("  uint8_t 251  -> uint32_t: %u (0x%08X)   [nol bilan to'ldiriladi]\n", (uint32_t)katta, (uint32_t)katta);
+    printf("  int 300      -> uint8_t : %u    [yuqori bitlar tashlandi: 300 mod 256]\n", (uint8_t)300);
+    printf("  int 200      -> int8_t  : %d   [bitlar o'sha, talqin boshqa]\n", (int8_t)200);
+
+    printf("\nfloat ning ichida:\n");
+    float_tahlil(6.5f);
+    float_tahlil(-0.75f);
+    float_tahlil(0.1f);
+    float_tahlil(1.0f);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g sonlar.c -o sonlar
+$ ./sonlar
+int8_t hex   ikkilik    uint8_t deb o'qilsa
+     0 0x00  0000_0000  0
+     5 0x05  0000_0101  5
+   127 0x7F  0111_1111  127
+  -128 0x80  1000_0000  128
+    -5 0xFB  1111_1011  251
+    -1 0xFF  1111_1111  255
+
+Kengayish va qirqish:
+  int8_t -5    -> int32_t : -5 (0xFFFFFFFB)   [ishora kengayadi]
+  uint8_t 251  -> uint32_t: 251 (0x000000FB)   [nol bilan to'ldiriladi]
+  int 300      -> uint8_t : 44    [yuqori bitlar tashlandi: 300 mod 256]
+  int 200      -> int8_t  : -56   [bitlar o'sha, talqin boshqa]
+
+float ning ichida:
+  6.50 = 0x40D00000: ishora 0, daraja 129 (2^2), mantissa 0x500000
+ -0.75 = 0xBF400000: ishora 1, daraja 126 (2^-1), mantissa 0x400000
+  0.10 = 0x3DCCCCCD: ishora 0, daraja 123 (2^-4), mantissa 0x4CCCCD
+  1.00 = 0x3F800000: ishora 0, daraja 127 (2^0), mantissa 0x000000
+```
+
+`6.5 = 1.625 × 2²` — daraja `129 − 127 = 2`, mantissa `0.625` ning bitlari. `0.1` ning mantissasi `0x4CCCCD` — cheksiz `0.0001100110011…`
+kasrning qirqilgani. Shuning uchun `0.1` **aniq** saqlanmaydi (20.6).
+
+**Kengaytiring:** `double` uchun ham shunday yozing (11 bit daraja, 52 bit mantissa). `0.0f`, `-0.0f` va `1.0f/0.0f` ning bitlariga qarang.
+
+## Mustaqil loyiha: Q16.16 qat'iy nuqtali kalkulyator ★★★
+
+**Vazifa:** yadroda `float` **ishlatilmaydi** (20.7). Kasr sonlar butun sonda saqlanadi: `int32_t` da yuqori 16 bit — butun qism,
+pastki 16 bit — kasr qism. `1.0 = 65536 (0x10000)`. **Hisob-kitobning o'zida `float`/`double` taqiqlangan.** Fayl: `qat.c`.
+
+**Turi:** `typedef int32_t q16;`
+
+**Funksiyalar** (qoidalar aniq — natija shularga bog'liq):
+- `q16 q_kasr(int surat, int maxraj)` — `surat/maxraj`. Musbat uchun **yaxlitlab**: `(surat·65536 + maxraj/2) / maxraj`
+  (`int64_t` da). Manfiy surat uchun: `-q_kasr(-surat, maxraj)`.
+- `q16 q_qosh(q16 a, q16 b)`, `q16 q_ayir(q16 a, q16 b)` — oddiy `+`, `−`.
+- `q16 q_kop(q16 a, q16 b)` — `((int64_t)a * b) >> 16` (arifmetik siljitish: pastga yaxlitlanadi).
+- `q16 q_bol(q16 a, q16 b)` — `((int64_t)a << 16) / b` (C bo'lishi: nolga qarab yaxlitlanadi).
+- `q16 q_sqrt(q16 x)` — Nyuton: `y = x` dan boshlab **aynan 12 marta** `y = (y + q_bol(x, y)) >> 1`. (`x > 0` deb oling.)
+- `void q_chiqar(q16 x)` — **4 xona** kasr bilan, faqat butun arifmetika: kasr qismi `f` (0..65535) uchun
+  raqamlar = `(f · 10000 + 32768) / 65536`; agar `10000` chiqsa — butun qismga `1` qo'shib kasr `0000`. Manfiy sonda ishora
+  alohida (`-` chiqarib, moduli bilan ishlang). Format: `-4.1250`.
+
+**Sinovlar** (`main` da, har biri bitta satr; kirish qiymatlari `q_kasr` bilan yasaladi):
+
+| Chiqishi | Hisob |
+|---|---|
+| `3.5 * 2.25 =` | `q_kop(7/2, 9/4)` |
+| `10 / 3 =` | `q_bol(10/1, 3/1)` |
+| `sqrt(2) =` | `q_sqrt(2/1)` |
+| `-2.75 * 1.5 =` | `q_kop(-11/4, 3/2)` |
+| `0.1 + 0.2 =` | `q_qosh(1/10, 2/10)` |
+| `1/3 + 1/3 + 1/3 =` | uch marta `q_kasr(1,3)` yig'indisi |
+| `sqrt(0.25) =` | `q_sqrt(1/4)` |
+
+**Kutilgan natija** (`darslik/loyihalar/20_qat_nuqta/kutilgan.txt`):
+
+```text
+3.5 * 2.25 = 7.8750
+10 / 3 = 3.3333
+sqrt(2) = 1.4142
+-2.75 * 1.5 = -4.1250
+0.1 + 0.2 = 0.3000
+1/3 + 1/3 + 1/3 = 1.0000
+sqrt(0.25) = 0.5000
+```
+
+**Maslahat** (yechim emas):
+- `int64_t` oraliq natija — 32 bitli ko'paytma toshib ketadi. Nega `>> 16`?
+- `1/3+1/3+1/3` `1.0000` chiqishi kerak, ammo ichida `65535` (1.0 dan bitta bit kam) — bu **yaxlitlash kaskadi** va `q_chiqar` dagi `10000` holati.
+  Uni ushlamasangiz `0.9999` yoki `0.10000` chiqadi.
+- Manfiy `q16` ning kasr qismini olishda `x & 0xFFFF` xato beradi. Avval `-x` ga o'tib, ishorani alohida saqlang.
+- `q_sqrt` da bo'lish `q_bol` orqali — `x / y` emas!
+- `-fsanitize=undefined` bilan yig'ing: chap siljitishda manfiy son UB. `(int64_t)a << 16` — `a` allaqachon 64 bitga o'tgan.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined qat.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/20_qat_nuqta/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [21-bob. Xotira ierarxiyasi va kesh](21-kesh.md)

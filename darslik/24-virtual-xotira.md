@@ -288,4 +288,181 @@ ishlay oladi (CR3 almashishi shart emas). MyOS xotira xaritasi: README → "Xoti
 - MyOS: `docs/04-virtual-xotira.md`, `docs/11-fork-cow.md`; `crash` dasturi bilan turli page fault'larni
   keltirib chiqarib, yadro xabarlarini o'qing.
 
+<!-- loyiha:boshi -->
+## Loyiha: ikki darajali sahifa jadvali
+
+**Maqsad:** virtual manzilning **haqiqiy** tarjimasini o'z qo'lingiz bilan bajarish. Protsessorning MMU'si aynan shu ishni apparatda qiladi;
+yadro esa shu jadvallarni to'ldiradi (24.3–24.4).
+**Bobdan ishlatiladi:** sahifa jadvali, katalog + jadval (2 daraja), sahifa bayroqlari (mavjud/yozish), page fault.
+
+**Talab:** 32 bitli virtual manzil bo'linadi: `[katalog: 10 bit | jadval: 10 bit | siljish: 12 bit]` (sahifa = 4 KB).
+- `xarita(va, pa, bayroq)` — virtual sahifani fizik sahifaga bog'laydi. Kerakli jadval yo'q bo'lsa **shu payt yaratadi** (kerak bo'lganda ajratish).
+- `tarjima(va, yozish, &pa)` — manzilni tarjima qiladi yoki **page fault** sababini qaytaradi:
+  sahifa yo'q (`FAULT_YOQ`) yoki yozish taqiqlangan sahifaga yozishga urinish (`FAULT_HIMOYA`).
+
+**Nega 2 daraja?** Tekis jadval: 2²⁰ yozuv × 4 bayt = **4 MB** — har bir jarayon uchun! 2 darajada faqat **ishlatilgan** hududlar uchun
+4 KB lik jadval ajratiladi: ko'pchilik jarayon bir necha MB dan foydalanadi, xolos.
+
+```c
+/* sahifa.c - 2 darajali sahifa jadvali */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define P_MAVJUD 1u
+#define P_YOZISH 2u
+
+static uint32_t *katalog[1024];                 /* har biri: 1024 yozuvli jadval yoki NULL */
+static int jadval_soni;
+
+enum natija { OK, FAULT_YOQ, FAULT_HIMOYA };
+
+static int xarita(uint32_t va, uint32_t pa, unsigned bayroq)
+{
+    uint32_t d = va >> 22, j = (va >> 12) & 0x3FF;
+    if (!katalog[d]) {
+        katalog[d] = calloc(1024, sizeof(uint32_t));    /* nollar: "mavjud" biti 0 */
+        if (!katalog[d])
+            return -1;
+        jadval_soni++;
+    }
+    katalog[d][j] = (pa & ~0xFFFu) | bayroq | P_MAVJUD;
+    return 0;
+}
+
+static enum natija tarjima(uint32_t va, int yozish, uint32_t *pa)
+{
+    uint32_t d = va >> 22, j = (va >> 12) & 0x3FF, siljish = va & 0xFFF;
+    if (!katalog[d])
+        return FAULT_YOQ;
+    uint32_t yozuv = katalog[d][j];
+    if (!(yozuv & P_MAVJUD))
+        return FAULT_YOQ;
+    if (yozish && !(yozuv & P_YOZISH))
+        return FAULT_HIMOYA;
+    *pa = (yozuv & ~0xFFFu) | siljish;
+    return OK;
+}
+
+static void sinov(uint32_t va, int yozish)
+{
+    uint32_t pa = 0;
+    enum natija n = tarjima(va, yozish, &pa);
+    printf("  %s 0x%08X -> ", yozish ? "yozish" : "o'qish", va);
+    if (n == OK)
+        printf("fizik 0x%08X\n", pa);
+    else
+        printf("PAGE FAULT (%s)\n", n == FAULT_YOQ ? "sahifa yo'q" : "yozish taqiqlangan");
+}
+
+int main(void)
+{
+    xarita(0x00400000, 0x00200000, P_YOZISH);   /* ma'lumot: o'qish + yozish */
+    xarita(0x00401000, 0x00203000, 0);          /* kod: faqat o'qish */
+    xarita(0xBFFFF000, 0x00A00000, P_YOZISH);   /* stek (yuqori manzillar) */
+
+    printf("Tarjimalar:\n");
+    sinov(0x00400123, 0);
+    sinov(0x00400123, 1);
+    sinov(0x00401ABC, 0);
+    sinov(0x00401ABC, 1);
+    sinov(0x00402000, 0);
+    sinov(0xBFFFFFF0, 1);
+    sinov(0x80000000, 0);
+
+    printf("Ajratilgan jadvallar: %d (%d KB). Tekis jadval 4096 KB bo'lardi.\n", jadval_soni, jadval_soni * 4);
+    for (int i = 0; i < 1024; i++)
+        free(katalog[i]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined sahifa.c -o sahifa
+$ ./sahifa
+Tarjimalar:
+  o'qish 0x00400123 -> fizik 0x00200123
+  yozish 0x00400123 -> fizik 0x00200123
+  o'qish 0x00401ABC -> fizik 0x00203ABC
+  yozish 0x00401ABC -> PAGE FAULT (yozish taqiqlangan)
+  o'qish 0x00402000 -> PAGE FAULT (sahifa yo'q)
+  yozish 0xBFFFFFF0 -> fizik 0x00A00FF0
+  o'qish 0x80000000 -> PAGE FAULT (sahifa yo'q)
+Ajratilgan jadvallar: 2 (8 KB). Tekis jadval 4096 KB bo'lardi.
+```
+
+`0x00400123` va `0x00401ABC` **bir xil katalog yozuvi** (`0x00400000` hududi), shuning uchun **bitta** jadval; `0xBFFFF000` boshqa hudud — ikkinchi jadval.
+Uchta sahifa uchun atigi 8 KB, tekis jadval esa 4 MB. `0x00402000` xaritalanmagan — jadval bor, lekin yozuv "mavjud emas": page fault.
+
+**Kengaytiring:** `P_USER` bayrog'ini (user rejimi kirishi) qo'shing va `tarjima` ga `user` argumentini bering. Katalog yozuvining o'ziga ham bayroqlar bo'lishi kerakmi?
+
+## Mustaqil loyiha: VMA ro'yxati — `mmap`, `munmap`, `find_vma` ★★★
+
+**Vazifa:** yadro jarayonning manzil maydonini **VMA** (virtual memory area) — "shu diapazon ishlatilmoqda" — larning tartiblangan ro'yxati
+sifatida saqlaydi. Sizning vazifangiz shu ro'yxatni boshqarish. Fayl: `vma.c`.
+
+**Manzil maydoni:** `[0x1000, 0x10000)`. Sahifa = `0x1000`. Har VMA — `[boshi, oxiri)`; ro'yxat **manzil bo'yicha tartiblangan**, VMA lar kesishmaydi
+(yonma-yon turishi mumkin, birlashtirilmaydi).
+
+**Funksiyalar:**
+- `unsigned long vma_mmap(unsigned long uzunlik)` — uzunlikni sahifaga **yuqoriga** yaxlitlaydi va manzil maydonidagi **birinchi (eng past) yetarli
+  bo'sh oraliq**ni (first-fit) topib, yangi VMA yaratadi. Manzilni qaytaradi; joy bo'lmasa `0`.
+- `int vma_munmap(unsigned long boshi, unsigned long uzunlik)` — `[boshi, boshi+uzunlik)` oralig'ini VMA lardan olib tashlaydi (`boshi` va uzunlik sahifaga
+  tekis deb oling). Oraliq VMA ning: **butunini** yopsa — VMA yo'qoladi; **boshini/oxirini** yopsa — qisqaradi; **o'rtasini** yopsa —
+  VMA **ikkiga bo'linadi**. Bir nechta VMA ni qamrab olishi ham mumkin. Har doim `0` qaytaradi.
+- `const struct vma *vma_top(unsigned long manzil)` — `manzil` qaysi VMA ga tegishli bo'lsa, o'shani; bo'lmasa `NULL`.
+
+**Chiqish shakli (aniq):**
+- amal qatori: `mmap(0x3000) = 0x1000` (joy bo'lmasa `mmap(0x20000) = 0x0 (joy yo'q)`), `munmap(0x4000, 0x2000)`,
+  `find_vma(0x2500) = yo'q` yoki `find_vma(0x3800) = [0x3000, 0x4000)`;
+- `mmap` va `munmap` dan keyin `holat:` qatori, undan keyin ro'yxat qatori: **ikki probel**, so'ng VMA lar `[0x1000, 0x4000)` shaklida
+  bir probel bilan ajratilgan; ro'yxat bo'sh bo'lsa `  (bo'sh)`. `find_vma` dan keyin holat chiqarilmaydi.
+
+**Amallar (tartib bilan):**
+1. `mmap(0x3000)` &nbsp; 2. `mmap(0x2000)` &nbsp; 3. `mmap(0x1000)` &nbsp; 4. `munmap(0x4000, 0x2000)` &nbsp; 5. `mmap(0x1000)` &nbsp;
+6. `munmap(0x2000, 0x1000)` &nbsp; 7. `find_vma(0x2500)` va `find_vma(0x3800)` &nbsp; 8. `mmap(0x20000)` &nbsp; 9. `munmap(0x1000, 0xF000)`
+
+**Kutilgan natija** (`darslik/loyihalar/24_vma/kutilgan.txt`):
+
+```text
+mmap(0x3000) = 0x1000
+holat:
+  [0x1000, 0x4000)
+mmap(0x2000) = 0x4000
+holat:
+  [0x1000, 0x4000) [0x4000, 0x6000)
+mmap(0x1000) = 0x6000
+holat:
+  [0x1000, 0x4000) [0x4000, 0x6000) [0x6000, 0x7000)
+munmap(0x4000, 0x2000)
+holat:
+  [0x1000, 0x4000) [0x6000, 0x7000)
+mmap(0x1000) = 0x4000
+holat:
+  [0x1000, 0x4000) [0x4000, 0x5000) [0x6000, 0x7000)
+munmap(0x2000, 0x1000)
+holat:
+  [0x1000, 0x2000) [0x3000, 0x4000) [0x4000, 0x5000) [0x6000, 0x7000)
+find_vma(0x2500) = yo'q
+find_vma(0x3800) = [0x3000, 0x4000)
+mmap(0x20000) = 0x0 (joy yo'q)
+munmap(0x1000, 0xF000)
+holat:
+  (bo'sh)
+```
+
+**Maslahat** (yechim emas):
+- Ro'yxat: `struct vma { unsigned long boshi, oxiri; }` massivi (masalan 64 tagacha) + `soni`. Tartiblangan — qo'shish/o'chirishda siljitish kerak.
+- `mmap` bo'sh oraliqlarni ko'rib chiqadi: `[0x1000, birinchi.boshi)`, `[i.oxiri, (i+1).boshi)`, `[oxirgi.oxiri, 0x10000)`. Birinchisi yetarli bo'lsa — o'sha.
+- `munmap` ni har VMA uchun ko'ring: kesishma bormi? bo'lsa 4 holatdan qaysi biri (butun / chap qism / o'ng qism / o'rta)?
+- O'rta holat ro'yxatga **yangi element** qo'shadi (bo'linish).
+- Bu — Linux `mm/mmap.c` dagi `find_vma`, `__split_vma`, `unmap_region` ning kichik nusxasi.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined vma.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/24_vma/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [25-bob. Dinamik xotira ajratish](25-xotira-ajratish.md)

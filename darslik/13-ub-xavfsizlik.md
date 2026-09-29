@@ -233,4 +233,172 @@ UB dan tashqari yana ikki toifa bor:
 - Qo'shimcha: 13.2-dagi `toshadimi` funksiyasini `gcc -O0` va `gcc -O2` bilan kompilyatsiya qilib,
   `toshadimi(INT_MAX)` natijasini solishtiring. Keyin `gcc -O2 -S` bilan assembly'ni ko'ring.
 
+<!-- loyiha:boshi -->
+## Loyiha: xavfsiz butun sonlar
+
+**Maqsad:** aniqlanmagan xatti-harakatga (UB) yo'l qo'ymaydigan kichik kutubxona: qo'shish, ko'paytirish va
+matnni songa aylantirish — **hammasi toshishni oldindan sezadi**.
+**Bobdan ishlatiladi:** toshishni tekshirish (13.3), `__builtin_*_overflow`, `strtol` + `errno` + `endptr`, xato kodlari.
+
+**Talab:** har bir funksiya `0` (muvaffaqiyat) yoki **manfiy xato kodi** (`-ERANGE` — sig'maydi,
+`-EINVAL` — noto'g'ri kirish) qaytarsin; natija chiqish parametri orqali.
+**Nima uchun manfiy kod?** Yadro (Linux) ham shunday: `return -ENOMEM;` (12-bob, 30-bob).
+
+```c
+/* xavfsiz.c - toshmaydigan hisob-kitob */
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static int qosh(int a, int b, int *natija)
+{
+    return __builtin_add_overflow(a, b, natija) ? -ERANGE : 0;     /* GCC: toshishni o'zi aniqlaydi */
+}
+
+static int kopaytir(int a, int b, int *natija)
+{
+    return __builtin_mul_overflow(a, b, natija) ? -ERANGE : 0;
+}
+
+static int matndan_int(const char *s, int *natija)
+{
+    char *oxir;
+    errno = 0;
+    long v = strtol(s, &oxir, 10);
+    if (oxir == s || *oxir != '\0')             /* hech narsa o'qilmadi yoki oxirida ortiqcha belgi */
+        return -EINVAL;
+    if (errno == ERANGE || v > INT_MAX || v < INT_MIN)
+        return -ERANGE;
+    *natija = (int)v;
+    return 0;
+}
+
+static const char *nomi(int kod)
+{
+    return kod == 0 ? "ok" : kod == -ERANGE ? "ERANGE (sig'maydi)" : "EINVAL (noto'g'ri)";
+}
+
+int main(void)
+{
+    int r, kod;
+    char yorliq[64];
+
+    kod = qosh(2000000000, 100000000, &r);
+    printf("%-32s: %s", "qosh(2000000000, 100000000)", nomi(kod));
+    if (kod == 0)
+        printf(" = %d", r);
+    printf("\n");
+
+    kod = qosh(2000000000, 200000000, &r);
+    printf("%-32s: %s\n", "qosh(2000000000, 200000000)", nomi(kod));
+
+    kod = kopaytir(65536, 32767, &r);
+    printf("%-32s: %s", "kopaytir(65536, 32767)", nomi(kod));
+    if (kod == 0)
+        printf(" = %d", r);
+    printf("\n");
+
+    kod = kopaytir(65536, 32768, &r);
+    printf("%-32s: %s\n", "kopaytir(65536, 32768)", nomi(kod));
+
+    const char *matnlar[] = { "12345", "-2147483648", "2147483648", "12x", "", "  42" };
+    for (int i = 0; i < 6; i++) {
+        kod = matndan_int(matnlar[i], &r);
+        snprintf(yorliq, sizeof(yorliq), "matndan_int(\"%s\")", matnlar[i]);
+        printf("%-32s: %s", yorliq, nomi(kod));
+        if (kod == 0)
+            printf(" = %d", r);
+        printf("\n");
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=undefined xavfsiz.c -o xavfsiz
+$ ./xavfsiz
+qosh(2000000000, 100000000)     : ok = 2100000000
+qosh(2000000000, 200000000)     : ERANGE (sig'maydi)
+kopaytir(65536, 32767)          : ok = 2147418112
+kopaytir(65536, 32768)          : ERANGE (sig'maydi)
+matndan_int("12345")            : ok = 12345
+matndan_int("-2147483648")      : ok = -2147483648
+matndan_int("2147483648")       : ERANGE (sig'maydi)
+matndan_int("12x")              : EINVAL (noto'g'ri)
+matndan_int("")                 : EINVAL (noto'g'ri)
+matndan_int("  42")             : ok = 42
+```
+
+Sanitizer **jim** — chunki hech qayerda UB yo'q. Endi xavfli variantni yozing: `return a + b;` (tekshiruvsiz) va
+`qosh(INT_MAX, 1)` ni chaqiring: `-fsanitize=undefined` "signed integer overflow" deydi.
+`strtol` ning `"  42"` (boshida probel) ni qabul qilishiga e'tibor bering: u boshidagi probelni o'tkazib yuboradi.
+
+**Kengaytiring:** `ayir_xavfsiz` (`__builtin_sub_overflow`) qo'shing. `matndan_int` `"+7"` ni qabul qiladimi? Tekshiring.
+
+## Mustaqil loyiha: `parse_uint` — Linux'ning `kstrtouint` i ★★★
+
+**Vazifa:** matnni `unsigned int` ga **qo'lda** (harfma-harf) aylantiring. `strtol`/`strtoul`/`sscanf` **ishlatmang** —
+maqsad: har bir chegaraviy holatni o'zingiz hal qilish. Yadroda libc yo'q, `kstrtouint` aynan shunday yozilgan.
+Fayl: `parse.c`.
+
+**Imzo:** `int parse_uint(const char *s, unsigned *chiqish, int asos)` — `asos` 10 yoki 16. `0` yoki `-EINVAL` yoki `-ERANGE`.
+
+**Qoidalar:**
+1. Bo'sh satr → `-EINVAL`. Raqam bo'lmagan belgi (harf, `+`, `-`, boshida probel) → `-EINVAL`.
+2. Oxirida **bitta** `\n` ruxsat etiladi (fayldan o'qilgan satr uchun), ikkita — yo'q.
+3. `asos == 16` da ixtiyoriy `0x`/`0X` old qo'shimchasi; lekin faqat `0x` (raqamsiz) → `-EINVAL`.
+4. Qiymat `UINT_MAX` (4294967295) dan oshsa → `-ERANGE`. **Toshishni ko'paytirishdan OLDIN tekshiring**
+   (`v * asos + raqam` allaqachon toshgan bo'lmasin — 13.3).
+5. Oldingi nollar mumkin: `"007"` = 7.
+6. Xato bo'lsa `*chiqish` o'zgarmasin.
+
+`main` quyidagi jadvalni **aynan shu shaklda** chiqarsin: `"<matn>" -> ok <qiymat>` yoki `EINVAL` yoki `ERANGE`.
+Ikki maxsus qator (`\n` bilan) `main` da qo'lda yoziladi: `"99\n"` va `"99\n\n"`.
+
+**Kutilgan natija** (`darslik/loyihalar/13_parse_uint/kutilgan.txt`):
+
+```text
+Asos 10:
+  "0" -> ok 0
+  "42" -> ok 42
+  "4294967295" -> ok 4294967295
+  "4294967296" -> ERANGE
+  "" -> EINVAL
+  "abc" -> EINVAL
+  "12abc" -> EINVAL
+  "-5" -> EINVAL
+  "+5" -> EINVAL
+  " 7" -> EINVAL
+  "007" -> ok 7
+  "123456789012345678901234567890" -> ERANGE
+  "99\n" -> ok 99
+  "99\n\n" -> EINVAL
+Asos 16:
+  "ff" -> ok 255
+  "0xFF" -> ok 255
+  "0x" -> EINVAL
+  "FFFFFFFF" -> ok 4294967295
+  "100000000" -> ERANGE
+  "xyz" -> EINVAL
+  "0x1G" -> EINVAL
+```
+
+Sinov satrlari, tartib bilan. Asos 10: `0`, `42`, `4294967295`, `4294967296`, bo'sh satr, `abc`, `12abc`, `-5`, `+5`,
+` 7` (boshida probel), `007`, `123456789012345678901234567890`. Asos 16: `ff`, `0xFF`, `0x`, `FFFFFFFF`,
+`100000000`, `xyz`, `0x1G`.
+
+**Maslahat** (yechim emas):
+- Toshish sharti: `v > (UINT_MAX - raqam) / asos` bo'lsa, `v * asos + raqam` `UINT_MAX` dan oshadi. Nega bo'lish bilan yozilgan?
+- `0x` old qo'shimchani faqat `asos == 16` bo'lsa va keyingi belgi mavjud bo'lsa o'tkazing.
+- Raqam qiymati: `'0'..'9'` → 0..9, `'a'..'f'`/`'A'..'F'` → 10..15; `asos` dan kichik bo'lishi shart.
+- `-fsanitize=undefined` bilan yig'ing: hech qanday xabar bo'lmasligi kerak.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined parse.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/13_parse_uint/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [14-bob. Tizim chaqiruvlari: fayllar va jarayonlar](14-tizim-chaqiruvlari.md)

@@ -348,3 +348,161 @@ Eng samarali yo'l — **texnik ingliz tili**, umumiy emas:
 4. Keyinchalik: Linux `Documentation/` dan qisqa hujjatlarni lug'at bilan o'qish.
 
 Kuniga 20–30 daqiqa — REJA.md dagi kundalik tartibda shunga joy qoldirilgan.
+
+<!-- loyiha:boshi -->
+## Loyiha: atamalar qidiruvchisi
+
+**Maqsad:** saralangan ma'lumotdan **ikkilik qidiruv** bilan tez topish, va prefiks bo'yicha qidirish. Bu lug'at (31-bob) uchun ham, yadro ichida
+saralangan jadvallar (`bsearch`, belgilar jadvali, `extable`) uchun ham ishlaydi (28.4).
+**Bobdan ishlatiladi:** `struct` massivi, `bsearch`, `strcasecmp` (katta-kichik harfga sezgir emas solishtirish), prefiks tekshirish.
+
+**Talab:** alifbo bo'yicha **saralangan** atamalar massivi. `qidir(nom)` — katta-kichik harfni farqlamasdan aniq nom bo'yicha; `prefiks(p)` — `p`
+bilan boshlanuvchi hamma atamalar.
+**Muhim:** `bsearch` faqat **saralangan** massivda to'g'ri ishlaydi — massiv tartibi `strcasecmp` bilan mos bo'lishi shart.
+
+```c
+/* lugat.c - atamalar qidiruvchisi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+
+struct atama {
+    const char *nom;
+    const char *izoh;
+};
+
+static const struct atama lugat[] = {           /* alifbo tartibida! */
+    { "bug", "dasturdagi xato" },
+    { "cache", "tez yashirin xotira" },
+    { "daemon", "fonda ishlovchi dastur" },
+    { "fork", "jarayon nusxasini yaratish" },
+    { "heap", "dinamik xotira sohasi" },
+    { "kernel", "operatsion tizim yadrosi" },
+    { "mutex", "o'zaro istisno qulfi" },
+    { "pipe", "jarayonlar orasidagi quvur" },
+    { "shell", "buyruq qobig'i" },
+    { "stack", "chaqiruvlar steki" },
+    { "thread", "bajarilish ipi" },
+    { "zombie", "tugagan, lekin kutilmagan jarayon" },
+};
+#define SONI (sizeof(lugat) / sizeof(lugat[0]))
+
+static int taqqosla(const void *kalit, const void *elem)
+{
+    return strcasecmp((const char *)kalit, ((const struct atama *)elem)->nom);
+}
+
+static void qidir(const char *nom)
+{
+    const struct atama *a = bsearch(nom, lugat, SONI, sizeof(lugat[0]), taqqosla);
+    if (a)
+        printf("%-8s -> %s\n", a->nom, a->izoh);
+    else
+        printf("%-8s -> topilmadi\n", nom);
+}
+
+static void prefiks(const char *p)
+{
+    printf("'%s' bilan boshlanuvchilar:", p);
+    int topildi = 0;
+    for (size_t i = 0; i < SONI; i++)
+        if (strncasecmp(lugat[i].nom, p, strlen(p)) == 0) {
+            printf(" %s", lugat[i].nom);
+            topildi++;
+        }
+    printf("%s\n", topildi ? "" : " (yo'q)");
+}
+
+int main(void)
+{
+    qidir("kernel");
+    qidir("MUTEX");                             /* katta harf ham topiladi */
+    qidir("zombie");
+    qidir("linux");
+    prefiks("s");
+    prefiks("TH");
+    prefiks("x");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined lugat.c -o lugat
+$ ./lugat
+kernel   -> operatsion tizim yadrosi
+mutex    -> o'zaro istisno qulfi
+zombie   -> tugagan, lekin kutilmagan jarayon
+linux    -> topilmadi
+'s' bilan boshlanuvchilar: shell stack
+'TH' bilan boshlanuvchilar: thread
+'x' bilan boshlanuvchilar: (yo'q)
+```
+
+12 atamada ko'pi bilan 4 solishtirish (2⁴ = 16 ≥ 12) kifoya; million atamada ham 20 ta. Ketma-ket qidirish esa o'rtacha yarmini ko'rar edi.
+Massivni saralamasdan `bsearch` chaqirilsa — natija **noto'g'ri** (yoki topmaydi), lekin xato ham bermaydi: bunday xatolar eng ayyor.
+
+**Kengaytiring:** `"stack"` va `"shell"` o'rnini almashtirib (saralanmagan qilib) `qidir("thread")` ni chaqiring. Prefiks qidiruvini `bsearch` kabi tezlashtiring
+(birinchi mosini ikkilik qidirish bilan toping, keyin oldinga yuring).
+
+## Mustaqil loyiha: `hexdump` ★★★
+
+**Vazifa:** yadro dasturchisi har kuni **baytlarni ko'zi bilan ko'radi**: disk tasviri, tarmoq paketi, ELF fayl, xotira dumpi. Buning uchun `hexdump -C`
+(yoki `xxd`) kerak. Siz shunday vositani yozing: standart kirishdan baytlarni o'qib, `hexdump -C -v` formatida chiqaring. Fayl: `hexdump.c`.
+
+**Format (aniq).** Har qator — 16 bayt:
+
+```text
+00000000  53 61 6c 6f 6d 2c 20 79  61 64 72 6f 21 0a 00 01  |Salom, yadro!...|
+```
+
+1. **Offset:** 8 xonali kichik harfli o'n oltilik (`%08x`), keyin **ikki probel**.
+2. **Baytlar:** har bayt `%02x` va bitta probel. **8-baytdan keyin qo'shimcha bitta probel** (ya'ni ikkita guruh orasida ikki probel).
+3. Oxirgi qator to'liq bo'lmasa, yetishmagan baytlar o'rniga **3 ta probel** (`"   "`) qo'yiladi (8-baytdan keyingi qo'shimcha probel ham saqlanadi).
+4. So'ng **bitta probel**, `|`, ASCII ko'rinishi, `|`. ASCII: kodi 32..126 — belgining o'zi, qolganlari — `.`. Oxirgi qatorda faqat mavjud baytlar.
+5. Hamma qatordan keyin **oxirgi qator**: jami baytlar soni `%08x` ko'rinishida (bo'sh kirish uchun `00000000`).
+6. Takrorlanuvchi qatorlar `*` bilan **qisqartirilmaydi** (bu `hexdump -v` kabi).
+
+**Kirish fayli** (`darslik/loyihalar/31_hexdump/kirish.bin`, 56 bayt: matn + 0x00–0x13 baytlar + matn + `ff fe 7f 80`).
+
+**1-sinov:** `./dastur < kirish.bin`
+
+```text
+00000000  53 61 6c 6f 6d 2c 20 79  61 64 72 6f 21 0a 00 01  |Salom, yadro!...|
+00000010  02 03 04 05 06 07 08 09  0a 0b 0c 0d 0e 0f 10 11  |................|
+00000020  12 13 48 65 78 20 64 75  6d 70 20 74 65 73 74 20  |..Hex dump test |
+00000030  30 31 32 33 ff fe 7f 80                           |0123....|
+00000038
+```
+
+**2-sinov:** bo'sh kirish — `./dastur < /dev/null`
+
+```text
+00000000
+```
+
+**3-sinov:** aniq 16 bayt — `printf 'ABCDEFGHIJKLMNOP' | ./dastur`
+
+```text
+00000000  41 42 43 44 45 46 47 48  49 4a 4b 4c 4d 4e 4f 50  |ABCDEFGHIJKLMNOP|
+00000010
+```
+
+**Maslahat** (yechim emas):
+- Kirishni `fread(bufer, 1, 16, stdin)` bilan 16 baytdan o'qing — qaytgan son `n` (oxirida 16 dan kam bo'lishi mumkin, 0 bo'lsa tugadi).
+- Bo'lakni chiqarish: `for i in 0..15`: `i < n` bo'lsa `"%02x "`, aks holda `"   "`; `i == 7` dan keyin qo'shimcha `" "`. Keyin `" |"`...
+- Baytni `unsigned char` sifatida qayta ishlang: `isprint((unsigned char)c)` yoki `c >= 32 && c <= 126`.
+- Jami baytlarni yig'ing va oxirida `%08x` bilan chiqaring.
+- Sinab ko'rish: sizda `hexdump -C -v fayl` yoki `xxd fayl` bo'lsa, natijani solishtiring; yo'q bo'lsa `od -A x -t x1z -v fayl` ham o'xshash (format biroz boshqacha).
+- Bu dastur bilan MyOS disk tasviri, ELF sarlavhasi (22-bob) va o'z `.o` fayllaringizga qarang: `./dastur < namuna.elf | head`.
+
+**Tekshirish:**
+
+```bash
+D=~/C_loyha/darslik/loyihalar/31_hexdump
+gcc -Wall -Wextra -g -fsanitize=address,undefined hexdump.c -o dastur
+./dastur < $D/kirish.bin | diff - $D/kutilgan.txt && echo "1: TO'G'RI"
+./dastur < /dev/null | diff - $D/kutilgan_2.txt && echo "2: TO'G'RI"
+printf 'ABCDEFGHIJKLMNOP' | ./dastur | diff - $D/kutilgan_3.txt && echo "3: TO'G'RI"
+```
+<!-- loyiha:oxiri -->

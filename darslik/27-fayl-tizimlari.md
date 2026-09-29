@@ -313,4 +313,240 @@ funksiyalar jadvalini chaqiradi (7-bob: `file_ops`). MyOS: `kernel/fs/vfs.c`, `d
 - MyOS: `docs/13-disk-ext2.md` va `tools/test.sh` dagi `e2fsck` tekshiruvi — yadro yozgan diskni Linux
   qanday tekshiradi.
 
+<!-- loyiha:boshi -->
+## Loyiha: xotiradagi mini fayl tizimi
+
+**Maqsad:** fayl tizimining ichki tuzilmasini o'z qo'lingiz bilan yasash: **inode** (fayl haqida ma'lumot), **bloklar**, blok **bitmap**i va nomlar.
+Disk o'rniga oddiy massiv ishlatamiz — g'oya bir xil (27.3–27.4).
+**Bobdan ishlatiladi:** inode, blok bitmap, blok ajratish/qaytarish, fayl hajmi va bloklar.
+
+**Talab:** 16 ta blok (har biri 16 bayt); har fayl ko'pi bilan 4 blok. 8 ta inode. Funksiyalar:
+- `fs_yarat(nom)` — bo'sh inode oladi (0 = muvaffaqiyat, −1 = joy yo'q yoki nom band);
+- `fs_yoz(nom, matn)` — faylga **qo'shib** yozadi, kerak bo'lganda bloklar ajratadi (bitmap orqali);
+- `fs_oqi(nom, bufer, hajm)` — mazmunni o'qiydi;
+- `fs_ochir(nom)` — inode ni ozod qiladi va bloklarni bitmap'ga qaytaradi;
+- `fs_holat()` — bitmap va fayllarni ko'rsatadi.
+
+**Ma'lumotlar:** `struct inode { int band; char nom[12]; int hajm; int blok[4]; }`, `char disk[16][16]`, `uint16_t bitmap` (1 = band blok).
+
+```c
+/* mfs.c - xotiradagi mini fayl tizimi */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#define BLOKLAR 16
+#define BLOK_HAJM 16
+#define INODELAR 8
+#define FAYL_BLOK 4
+
+struct inode {
+    int band;
+    char nom[12];
+    int hajm;
+    int blok[FAYL_BLOK];
+};
+
+static char disk[BLOKLAR][BLOK_HAJM];
+static uint16_t bitmap;                         /* i-bit = 1: i-blok band */
+static struct inode inodelar[INODELAR];
+
+static int blok_ol(void)                        /* birinchi bo'sh blok yoki -1 */
+{
+    for (int i = 0; i < BLOKLAR; i++)
+        if (!(bitmap & (1u << i))) {
+            bitmap |= (uint16_t)(1u << i);
+            return i;
+        }
+    return -1;
+}
+
+static struct inode *top(const char *nom)
+{
+    for (int i = 0; i < INODELAR; i++)
+        if (inodelar[i].band && strcmp(inodelar[i].nom, nom) == 0)
+            return &inodelar[i];
+    return NULL;
+}
+
+static int fs_yarat(const char *nom)
+{
+    if (top(nom))
+        return -1;
+    for (int i = 0; i < INODELAR; i++)
+        if (!inodelar[i].band) {
+            memset(&inodelar[i], 0, sizeof(inodelar[i]));
+            inodelar[i].band = 1;
+            snprintf(inodelar[i].nom, sizeof(inodelar[i].nom), "%s", nom);
+            return 0;
+        }
+    return -1;
+}
+
+static int fs_yoz(const char *nom, const char *matn)
+{
+    struct inode *f = top(nom);
+    if (!f)
+        return -1;
+    for (const char *p = matn; *p; p++) {
+        int k = f->hajm / BLOK_HAJM;            /* fayl ichidagi blok raqami */
+        if (k >= FAYL_BLOK)
+            return -2;                          /* fayl hajmi chegarasi */
+        if (f->hajm % BLOK_HAJM == 0) {         /* yangi blok kerak */
+            int b = blok_ol();
+            if (b < 0)
+                return -3;                      /* disk to'ldi */
+            f->blok[k] = b;
+        }
+        disk[f->blok[k]][f->hajm % BLOK_HAJM] = *p;
+        f->hajm++;
+    }
+    return 0;
+}
+
+static int fs_oqi(const char *nom, char *bufer, int hajm)
+{
+    struct inode *f = top(nom);
+    if (!f)
+        return -1;
+    int n = f->hajm < hajm - 1 ? f->hajm : hajm - 1;
+    for (int i = 0; i < n; i++)
+        bufer[i] = disk[f->blok[i / BLOK_HAJM]][i % BLOK_HAJM];
+    bufer[n] = '\0';
+    return n;
+}
+
+static void fs_ochir(const char *nom)
+{
+    struct inode *f = top(nom);
+    if (!f)
+        return;
+    for (int k = 0; k * BLOK_HAJM < f->hajm; k++)
+        bitmap &= (uint16_t)~(1u << f->blok[k]);        /* bloklarni qaytaramiz */
+    f->band = 0;
+}
+
+static void fs_holat(const char *izoh)
+{
+    printf("%s\n  bitmap: ", izoh);
+    for (int i = 0; i < BLOKLAR; i++)
+        putchar(bitmap & (1u << i) ? '1' : '0');
+    printf("\n");
+    for (int i = 0; i < INODELAR; i++)
+        if (inodelar[i].band) {
+            printf("  %-8s hajm %2d, bloklar:", inodelar[i].nom, inodelar[i].hajm);
+            for (int k = 0; k * BLOK_HAJM < inodelar[i].hajm; k++)
+                printf(" %d", inodelar[i].blok[k]);
+            printf("\n");
+        }
+}
+
+int main(void)
+{
+    char bufer[128];
+    fs_yarat("salom");
+    fs_yarat("yadro");
+    fs_yoz("salom", "Salom, dunyo!");                   /* 13 bayt: 1 blok */
+    fs_yoz("yadro", "Yadro yozish oson emas, lekin qiziq.");    /* 36 bayt: 3 blok */
+    fs_holat("Ikki fayl yaratildi:");
+
+    fs_yoz("salom", " Xush kelibsiz!");                /* 13+15=28: yana 1 blok kerak */
+    fs_oqi("salom", bufer, sizeof(bufer));
+    printf("salom mazmuni: \"%s\"\n", bufer);
+    fs_holat("salom kengaydi:");
+
+    fs_ochir("salom");
+    fs_holat("salom o'chirildi (bloklar qaytdi):");
+
+    fs_yarat("yangi");
+    fs_yoz("yangi", "abc");
+    fs_holat("yangi fayl bo'sh blokni (0-blok) qayta ishlatdi:");
+
+    printf("64 baytdan katta yozish: kod %d\n", fs_yoz("yadro", "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined mfs.c -o mfs
+$ ./mfs
+Ikki fayl yaratildi:
+  bitmap: 1111000000000000
+  salom    hajm 13, bloklar: 0
+  yadro    hajm 36, bloklar: 1 2 3
+salom mazmuni: "Salom, dunyo! Xush kelibsiz!"
+salom kengaydi:
+  bitmap: 1111100000000000
+  salom    hajm 28, bloklar: 0 4
+  yadro    hajm 36, bloklar: 1 2 3
+salom o'chirildi (bloklar qaytdi):
+  bitmap: 0111000000000000
+  yadro    hajm 36, bloklar: 1 2 3
+yangi fayl bo'sh blokni (0-blok) qayta ishlatdi:
+  bitmap: 1111000000000000
+  yangi    hajm  3, bloklar: 0
+  yadro    hajm 36, bloklar: 1 2 3
+64 baytdan katta yozish: kod -2
+```
+
+Bitmap nomerlar: `1` — blok band. `salom` o'chirilgach 0- va 4-bloklar bo'shadi; yangi fayl birinchi bo'sh blokni (0-blok) oldi.
+Haqiqiy fayl tizimlari (ext2, 27.4) ham xuddi shu tarzda ishlaydi — faqat katta o'lchamda va diskda.
+
+**Kengaytiring:** `fs_royxat()` (nomlar va hajmlar), `fs_qisqartir(nom)`. Fayl 4 blokdan katta bo'lolmasligi — real tizimda qanday hal qilinadi? (Bilvosita bloklar, 27.4.)
+
+## Mustaqil loyiha: jurnal va avariyadan tiklash ★★★
+
+**Vazifa:** tok o'chsa nima bo'ladi? Pul o'tkazmasi ikki yozuvdan iborat (bir hisobdan ayirish, ikkinchisiga qo'shish) — orada tok
+o'chsa, pul **yo'qoladi**. Fayl tizimlari (ext4, NTFS) buni **jurnal** (write-ahead log) bilan hal qiladi (27.6). Siz shu mexanizmni
+kichik modelda yozasiz. Fayl: `jurnal.c`.
+
+**Model:** "disk" — 4 ta hisob `hisob[4]` (boshida `100, 50, 0, 0`) va **jurnal**: `struct jurnal { int haqiqiy, commit; int dan, ga; int dan_yangi, ga_yangi; }`.
+Har "diskka yozuv" — bitta qadam; avariya har qadamdan **keyin** bo'lishi mumkin.
+
+**O'tkazma `otkazma(dan, ga, summa, avariya_qadami)`** — quyidagi **5 qadam** aynan shu tartibda; `avariya_qadami = k` bo'lsa, `k` ta qadam
+bajarilgach dastur "qulaydi" (funksiya darhol qaytadi):
+
+| Qadam | Nima qilinadi |
+|---|---|
+| 1 | jurnalga yozish: `haqiqiy=1, commit=0`, `dan`, `ga`, ikkala hisobning **yangi** qiymatlari |
+| 2 | `commit = 1` (tranzaksiya "qat'iy") |
+| 3 | `hisob[dan] = dan_yangi` |
+| 4 | `hisob[ga] = ga_yangi` |
+| 5 | jurnalni tozalash (`haqiqiy=0, commit=0`) |
+
+**Tiklash `tiklash()`** (qayta yoqilganda): 
+- jurnal `haqiqiy` emas → hech narsa qilmaydi (kod **0**);
+- `haqiqiy` bo'lsa, lekin `commit=0` → tashlab yuboradi (kod **1**) — tranzaksiya "bo'lmagan" deb hisoblanadi;
+- `commit=1` → jurnaldagi yangi qiymatlarni hisoblarga **qayta yozadi** (bu amal **idempotent**: ikki marta qilinsa ham zarar yo'q) va jurnalni tozalaydi (kod **2**).
+
+**Sinov (aniq).** Har `k = 0..5` uchun: disk boshlang'ich holatga qaytariladi, `otkazma(0, 1, 30, k)` bajariladi, `tiklash()` chaqiriladi va
+holat chiqariladi. Keyin **jurnalsiz** variant: ikki yozuv (`hisob[dan] -= s`, `hisob[ga] += s`) — 1-yozuvdan keyin avariya.
+
+**Kutilgan natija** (`darslik/loyihalar/27_jurnal/kutilgan.txt`):
+
+```text
+Jurnal bilan (otkazma 0 -> 1, 30 so'm; boshida 100, 50):
+  avariya 0 qadamdan keyin: A=100 B=50 jami=150 (tiklash kerak emas)
+  avariya 1 qadamdan keyin: A=100 B=50 jami=150 (jurnal tashlandi)
+  avariya 2 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 3 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 4 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 5 qadamdan keyin: A=70 B=80 jami=150 (tiklash kerak emas)
+Jurnalsiz, 1-yozuvdan keyin avariya: A=70 B=50 jami=120 (BUZILDI)
+```
+
+**Maslahat** (yechim emas):
+- `k` qadamdan keyin to'xtash: har qadam oldidan `if (bajarildi == avariya_qadami) return;` yoki qadamlar `switch` ichida `case` dan `case` ga o'tsin.
+- O'zgarmas (invariant): **yig'indi doim 150**. Jurnal bilan har `k` uchun bu to'g'ri: yo eski holat (`100, 50`), yo yangi (`70, 80`) — hech qachon oraliq.
+- `tiklash` qayta o'ynashda jurnaldagi **yangi qiymatlarni** yozing, o'zgarish (`-=`, `+=`) emas! Nega? (Idempotentlik: ikki marta tiklash yoki tiklash paytida yana avariya.)
+- Jurnalsiz variantda yig'indini chiqaring va `BUZILDI` ni ko'ring.
+- Bu — real fayl tizimidagi "commit" bloki, "replay" va `fsck` ning modeli.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined jurnal.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/27_jurnal/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [28-bob. Algoritmlar va ma'lumotlar tuzilmalari](28-algoritmlar.md)

@@ -370,4 +370,126 @@ Har bir o'n oltilik raqam — 4 bit. `0xFF` = 8 bit hammasi 1. `0x1000` = 4096 (
 - **03** (toshishsiz arifmetika) — chegaralar va UB.
 - Qo'shimcha: `sizeof` bilan barcha turlarning hajmini chiqaradigan dastur yozing.
 
+<!-- loyiha:boshi -->
+## Loyiha: turlar jadvali va toshish
+
+**Maqsad:** har bir butun tur xotirada necha bayt olishini, chegaralarini va toshganda nima bo'lishini
+o'z ko'zingiz bilan ko'rish.
+**Bobdan ishlatiladi:** `<stdint.h>` turlari, `sizeof`, `<limits.h>`, unsigned toshishi, butun bo'lish.
+
+**Talab:** (1) turlar jadvali: nomi, hajmi, eng kichik va eng katta qiymati; (2) uchta "tuzoq" natijasi.
+**Ma'lumotlar:** yo'q — hammasi doimiylar (`INT8_MIN`, `sizeof(...)`).
+**Qadamlar:** sarlavha chiqarish → har tur uchun bitta `printf` → tuzoqlar.
+
+```c
+/* turlar.c - turlar jadvali */
+#include <stdint.h>
+#include <stdio.h>
+
+int main(void)
+{
+    printf("%-9s %4s  %-20s %s\n", "tur", "bayt", "eng kichik", "eng katta");
+    printf("%-9s %4zu  %-20d %d\n", "int8_t", sizeof(int8_t), INT8_MIN, INT8_MAX);
+    printf("%-9s %4zu  %-20u %u\n", "uint8_t", sizeof(uint8_t), 0u, UINT8_MAX);
+    printf("%-9s %4zu  %-20d %d\n", "int16_t", sizeof(int16_t), INT16_MIN, INT16_MAX);
+    printf("%-9s %4zu  %-20u %u\n", "uint16_t", sizeof(uint16_t), 0u, UINT16_MAX);
+    printf("%-9s %4zu  %-20d %d\n", "int32_t", sizeof(int32_t), INT32_MIN, INT32_MAX);
+    printf("%-9s %4zu  %-20u %u\n", "uint32_t", sizeof(uint32_t), 0u, UINT32_MAX);
+    printf("%-9s %4zu  %-20lld %lld\n", "int64_t", sizeof(int64_t), (long long)INT64_MIN,
+           (long long)INT64_MAX);
+    printf("%-9s %4zu  %-20u %llu\n", "uint64_t", sizeof(uint64_t), 0u,
+           (unsigned long long)UINT64_MAX);
+
+    printf("\nTuzoqlar:\n");
+    uint8_t bayt = 255;
+    bayt = bayt + 1;                    /* 256 sig'maydi -> 0 ga aylanadi */
+    printf("  uint8_t: 255 + 1 = %u\n", bayt);
+
+    uint32_t nol = 0;
+    printf("  uint32_t: 0 - 1 = %u\n", nol - 1);
+
+    printf("  butun bo'lish: 7 / 2 = %d, lekin 7 / 2.0 = %.1f\n", 7 / 2, 7 / 2.0);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra turlar.c -o turlar
+$ ./turlar
+tur       bayt  eng kichik           eng katta
+int8_t       1  -128                 127
+uint8_t      1  0                    255
+int16_t      2  -32768               32767
+uint16_t     2  0                    65535
+int32_t      4  -2147483648          2147483647
+uint32_t     4  0                    4294967295
+int64_t      8  -9223372036854775808 9223372036854775807
+uint64_t     8  0                    18446744073709551615
+
+Tuzoqlar:
+  uint8_t: 255 + 1 = 0
+  uint32_t: 0 - 1 = 4294967295
+  butun bo'lish: 7 / 2 = 3, lekin 7 / 2.0 = 3.5
+```
+
+**Kengaytiring:** `char` va `long` uchun ham qator qo'shing (`CHAR_MIN` — `<limits.h>`). `long` hajmi
+sizda 8 bayt bo'lishi mumkin, Windows'da esa 4 — shuning uchun yadroda `long` emas, `int64_t` yoziladi.
+
+## Mustaqil loyiha: video hajmi hisoblagichi ★☆☆
+
+**Vazifa:** siqilmagan video qancha joy oladi? Bu hisobda `int` **toshadi** — sizning ishingiz shuni
+sezish va to'g'ri turni tanlash. Fayl: `video.c`.
+
+**Ma'lumotlar** (o'zgaruvchi qilib yozing):
+- kenglik 1920 piksel, balandlik 1080 piksel
+- har piksel 3 bayt (R, G, B)
+- soniyasiga 60 kadr
+- davomiyligi 600 soniya (10 daqiqa)
+
+**Talab.** Quyidagilarni hisoblab chiqaring:
+- bitta kadr hajmi (bayt), bir soniya hajmi (bayt), butun video hajmi (bayt);
+- butun video hajmi **GiB** da (1 GiB = 1024×1024×1024 bayt) — kasr bilan, 2 xona aniqlik;
+- `int` ning eng katta qiymati (`INT_MAX`, `<limits.h>` dan);
+- butun video hajmi shu chegaradan **necha barobar** katta (butun bo'lish bilan) — shu bilan `int` nega
+  yetmasligini ko'rsatasiz.
+
+Yorliq `%-22s`, qiymat `%lld`/`%.2f` (aniq shaklini kutilgan natijadan ko'ring).
+
+**Kutilgan natija** (`darslik/loyihalar/02_tur_jadvali/kutilgan.txt`):
+
+```text
+Bitta kadr:           6220800 bayt
+Bir soniya:           373248000 bayt
+Butun video:          223948800000 bayt
+Hajmi:                208.57 GiB
+int eng kattasi:      2147483647
+int ga sig'maydi:     104 barobar katta
+```
+
+**Qo'shimcha sinov.** 1280×720, 3 bayt, 30 kadr, 120 soniya:
+
+```text
+Bitta kadr:           2764800 bayt
+Bir soniya:           82944000 bayt
+Butun video:          9953280000 bayt
+Hajmi:                9.27 GiB
+int eng kattasi:      2147483647
+int ga sig'maydi:     4 barobar katta
+```
+
+**Maslahat** (yechim emas):
+- Avval qog'ozda kadr hajmini hisoblang: 1920 × 1080 × 3 = 6 220 800 — bu `int` ga sig'adi. 60 ga ko'paytirsangiz-chi?
+- Qaysi tur 20 milliarddan katta sonni saqlaydi? `int64_t`. Ko'paytmada **bitta** operand `int64_t` bo'lsa,
+  butun ifoda shu turda hisoblanadi — lekin qaysi joydan boshlab?
+- `(int64_t)a * b * c` va `a * b * (int64_t)c` farqi nima? (Ikkinchisida `a * b` allaqachon `int` da hisoblanadi!)
+- GiB uchun `double` kerak: `(double)hajm / (1024.0 * 1024 * 1024)`.
+- `int64_t` ni `printf` da `%lld` bilan chiqaring va `(long long)` bilan cast qiling.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g video.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/02_tur_jadvali/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [3-bob. Operatorlar](03-operatorlar.md)

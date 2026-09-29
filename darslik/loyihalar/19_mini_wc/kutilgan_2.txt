@@ -1,0 +1,3 @@
+      4      6 a.txt
+      2      7 b.txt
+      6     13 jami

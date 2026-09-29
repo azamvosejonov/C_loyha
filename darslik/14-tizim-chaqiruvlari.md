@@ -372,4 +372,182 @@ Linux'da `ps aux` → holat `Z`. MyOS'da `ps` → `zombie`.
   `fork`+`execvp`+`waitpid` (27), ichki `cd` va `exit`, keyin `>` va `|` (28). Tayyor bo'lgach, MyOS
   `user/bin/sh.c` bilan solishtiring.
 
+<!-- loyiha:boshi -->
+## Loyiha: `wc` — tizim chaqiruvlari bilan
+
+**Maqsad:** `printf`/`fopen`siz — faqat yadro bilan **to'g'ridan-to'g'ri** gaplashish: `open`, `read`, `write`,
+`close`. Har bir C dasturi ichida aynan shu ish bajariladi (14.1).
+**Bobdan ishlatiladi:** fayl deskriptorlari, `open` bayroqlari, `read` qaytargan bayt soni, xatolarni tekshirish.
+
+**Talab:** fayl yozing, uni **kichik bufer** (8 bayt) bilan bo'lak-bo'lak o'qib, qator, so'z va baytlarni sanang
+(`wc` kabi).
+**Muhim:** `read` so'ralgandan **kam** bayt qaytarishi mumkin va faylning oxirida `0` qaytaradi. Shuning uchun
+`read` har doim siklda chaqiriladi, `n` ta bayt qaytganini tekshirasiz.
+**Ma'lumotlar:** `fd`, `bufer[8]`, sanagichlar, `ichida` (so'z ichidamizmi — 6-bobdagi bayroq).
+
+```c
+/* syswc.c - open / read / write / close bilan wc */
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int main(void)
+{
+    const char *fayl = "namuna.txt";
+    const char matn[] = "salom dunyo\nikkinchi qator bor\n\nuchinchi\n";
+
+    int fd = open(fayl, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror("open");
+        return 1;
+    }
+    if (write(fd, matn, sizeof(matn) - 1) != (ssize_t)(sizeof(matn) - 1)) {
+        perror("write");
+        return 1;
+    }
+    close(fd);
+
+    fd = open(fayl, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return 1;
+    }
+    char bufer[8];                              /* ataylab kichik: read() ko'p marta chaqiriladi */
+    long baytlar = 0, qatorlar = 0, sozlar = 0;
+    int ichida = 0, chaqiruvlar = 0;
+    ssize_t n;
+    while ((n = read(fd, bufer, sizeof(bufer))) > 0) {
+        chaqiruvlar++;
+        baytlar += n;
+        for (ssize_t i = 0; i < n; i++) {
+            char c = bufer[i];
+            if (c == '\n')
+                qatorlar++;
+            if (c == ' ' || c == '\n' || c == '\t')
+                ichida = 0;
+            else if (!ichida) {                 /* bo'shliqdan harfga o'tish - yangi so'z */
+                ichida = 1;
+                sozlar++;
+            }
+        }
+    }
+    if (n < 0)
+        perror("read");
+    close(fd);
+    unlink(fayl);
+
+    printf("qatorlar: %ld, so'zlar: %ld, baytlar: %ld\n", qatorlar, sozlar, baytlar);
+    printf("read() %d marta chaqirildi (8 baytdan)\n", chaqiruvlar);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g syswc.c -o syswc
+$ ./syswc
+qatorlar: 4, so'zlar: 6, baytlar: 41
+read() 6 marta chaqirildi (8 baytdan)
+$ printf 'salom dunyo\nikkinchi qator bor\n\nuchinchi\n' | wc
+      4       6      41
+$ strace -e trace=openat,read,write,close,unlink -o iz.txt ./syswc > /dev/null && sed -n '/namuna.txt/,$p' iz.txt
+openat(AT_FDCWD, "namuna.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+write(3, "salom dunyo\nikkinchi qator bor\n\n"..., 41) = 41
+close(3)                                = 0
+openat(AT_FDCWD, "namuna.txt", O_RDONLY) = 3
+read(3, "salom du", 8)                  = 8
+read(3, "nyo\nikki", 8)                 = 8
+read(3, "nchi qat", 8)                  = 8
+read(3, "or bor\n\n", 8)                = 8
+read(3, "uchinchi", 8)                  = 8
+read(3, "\n", 8)                        = 1
+read(3, "", 8)                          = 0
+close(3)                                = 0
+unlink("namuna.txt")                    = 0
+write(1, "qatorlar: 4, so'zlar: 6, baytlar"..., 75) = 75
++++ exited with 0 +++
+```
+
+Sizning natijangiz haqiqiy `wc` bilan bir xil (`4 6 41`). `strace` (29-bob) dasturning yadroga qilgan
+chaqiruvlarini ko'rsatadi: `openat(...) = 3` — `fd = 3` (0, 1, 2 band, 3 — birinchi bo'sh), keyin `read(3, ...)` yetti marta
+(oxirgisi `0` qaytaradi — fayl tugadi), so'ng `close`, `unlink`.
+
+**Kengaytiring:** `bufer` ni 4096 ga o'zgartiring — `read()` necha marta chaqiriladi? `open` ga mavjud bo'lmagan fayl bering va
+`perror` xabarini o'qing.
+
+## Mustaqil loyiha: mini `grep` ★★★
+
+**Vazifa:** standart kirishdan (`fd 0`) qatorlarni o'qib, naqsh (matn) bor qatorlarni chiqaruvchi dastur.
+Fayl: `mgrep.c`. **Faqat** `read()` va `write()` (fd 0, 1, 2) bilan kirish-chiqish qiling —
+`printf`, `puts`, `fgets`, `fopen`, `getchar` **taqiqlanadi**. Matnni formatlash uchun `snprintf`, qidirish
+uchun `strstr` mumkin.
+
+**Buyruq qatori:** `./dastur [-n] [-c] naqsh`
+- `-n` — har bir topilgan qator oldiga `<qator raqami>:` qo'shadi (`4:yana bir salom`);
+- `-c` — qatorlarni chiqarmaydi, faqat topilganlar **sonini** chiqaradi;
+- bayroqlar ixtiyoriy tartibda, naqsh — birinchi `-` bilan boshlanmagan argument;
+- naqsh yo'q bo'lsa: `Ishlatish: mgrep [-n] [-c] naqsh` ni **fd 2** ga (stderr) yozing, chiqish kodi 2.
+
+**Chiqish kodi:** kamida bitta qator topilsa — `0`, hech biri topilmasa — `1` (haqiqiy `grep` kabi).
+
+**Qiyinchiliklar (testda bor):**
+1. `read()` qatorni **o'rtasida** uzishi mumkin — qator bir necha `read` ga bo'linishi mumkin. Test faylida 5000 belgili qator bor.
+2. Fayl oxirgi qatori `\n` **bilan tugamasligi** mumkin — u ham qator! Chiqarilganda oxiriga `\n` qo'shiladi.
+3. Qidiruv katta-kichik harfga **sezgir** (`SALOM` ≠ `salom`).
+
+**Kirish fayli** (`darslik/loyihalar/14_mini_grep/kirish.txt`): 7 qator (5-qator 5000 ta `x`, oxirgi qatorda `\n` yo'q):
+
+```text
+salom dunyo
+Bugun havo yaxshi
+SALOM katta harf
+yana bir salom, salom!
+xxxxxxxxxx...(5000 ta x)
+dunyo tinch
+oxirgi qator salom (yangi qatorsiz)
+```
+
+**1-sinov:** `./dastur salom < kirish.txt; echo "chiqish kodi: $?"`
+
+```text
+salom dunyo
+yana bir salom, salom!
+oxirgi qator salom (yangi qatorsiz)
+chiqish kodi: 0
+```
+
+**2-sinov:** `./dastur -n dunyo < kirish.txt; echo "chiqish kodi: $?"`
+
+```text
+1:salom dunyo
+6:dunyo tinch
+chiqish kodi: 0
+```
+
+**3-sinov:** `./dastur -c salom < kirish.txt; echo "chiqish kodi: $?"` va keyin `./dastur yoqsoz < kirish.txt; echo "chiqish kodi: $?"`
+
+```text
+3
+chiqish kodi: 0
+chiqish kodi: 1
+```
+
+**Maslahat** (yechim emas):
+- Har `read` dan keyin olingan baytlarni **qator buferiga** to'plang (kattalashadigan — `realloc`, yoki katta statik massiv
+  ustiga ehtiyot bo'lib). `\n` topilganda qatorni `'\0'` bilan yopib, tekshirasiz va buferni tozalaysiz.
+- `read` 0 qaytarganda (fayl tugadi) buferda yig'ilgan, `\n` siz qolgan oxirgi qatorni ham tekshiring.
+- Chiqarish: `write(1, qator, uzunlik)` va alohida `write(1, "\n", 1)`. Qisman yozilishi (`write` kam qaytarishi) — oddiy
+  fayl/quvur uchun kam uchraydi, lekin qanday hal qilinishini o'ylab ko'ring (loop).
+- Raqam prefiksi uchun: `int m = snprintf(t, sizeof t, "%d:", raqam); write(1, t, m);`.
+
+**Tekshirish** (uch buyruq):
+
+```bash
+D=~/C_loyha/darslik/loyihalar/14_mini_grep
+gcc -Wall -Wextra -g -fsanitize=address,undefined mgrep.c -o dastur
+(./dastur salom < $D/kirish.txt; echo "chiqish kodi: $?") | diff - $D/kutilgan.txt && echo "1: TO'G'RI"
+(./dastur -n dunyo < $D/kirish.txt; echo "chiqish kodi: $?") | diff - $D/kutilgan_2.txt && echo "2: TO'G'RI"
+(./dastur -c salom < $D/kirish.txt; echo "chiqish kodi: $?"; ./dastur yoqsoz < $D/kirish.txt; echo "chiqish kodi: $?") | diff - $D/kutilgan_3.txt && echo "3: TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [15-bob. Parallellik: oqimlar, qulflar, atomiklar](15-parallellik.md)

@@ -7,6 +7,9 @@
 > kompyuter tizimlari va OS nazariyasi, lug'at bilan), [mashqlar](mashqlar/README.md) (48 ta, avtomatik
 > tekshiruv bilan), `docs/` (MyOS yadrosi), [labs](labs/README.md) (22 ta),
 > [QOLLANMA.md](QOLLANMA.md), [YAKUNIY.md](YAKUNIY.md). Internetdan qidirish shart emas.
+>
+> Darslikning **har bir bobi oxirida** kichik loyiha va mustaqil loyiha bor ([darslik/loyihalar](darslik/loyihalar/README.md)) —
+> bobni o'qib bo'lgach shuni yozing: bu kod yozish va mantiqni mashq qilishning eng yaxshi yo'li.
 
 ## Halol kutilma
 
@@ -27,7 +30,7 @@ Bu — "junior tizim dasturchisi"ning mustahkam darajasi va yadro sohasiga eng t
 | Vaqt | Nima |
 |---|---|
 | 1–1.5 soat | **O'qish**: darslik bobi yoki `docs/` hujjati + tegishli kod. Misollarni qo'lda yozib ko'rish |
-| 3–4 soat | **Yozish**: mashq yoki lab. Avval o'zingiz; qotib qolsangiz — 30 daqiqa kurashing, keyin darslikni qayta o'qing |
+| 3–4 soat | **Yozish**: bobning loyihasi, mashq yoki lab. Avval o'zingiz; qotib qolsangiz — 30 daqiqa kurashing, keyin darslikni qayta o'qing |
 | 30 daqiqa | **Ingliz tili** (spetsifikatsiyalar, Linux, suhbatlar — hammasi inglizcha) |
 | 30 daqiqa | **Daftar**: bugun nimani tushundim — o'z so'zlarim bilan. Tushunmaganlarim ro'yxati |
 

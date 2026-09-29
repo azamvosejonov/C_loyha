@@ -347,4 +347,151 @@ tezlikni o'lchab ko'rmasdan optimallashtirmang.
 - Qo'shimcha: 1 dan 100 gacha FizzBuzz; ko'paytirish jadvali (ichma-ich `for`); kiritilgan sonning
   raqamlari yig'indisi (`while` + `% 10` va `/ 10`).
 
+<!-- loyiha:boshi -->
+## Loyiha: taxmin o'yini (ikkilik qidiruv)
+
+**Maqsad:** `while`, `if/else if/else`, `break` va ichma-ich `for` bilan kichik "aql" yaratish: kompyuter
+1 dan 100 gacha maxfiy sonni eng kam urinishda topadi.
+**Bobdan ishlatiladi:** `while`, `for`, `if`, `else if`, `break`.
+
+**Talab:** maxfiy son berilgan. Kompyuter har safar oraliqning o'rtasini aytadi. "Kattaroq" javobi
+kelsa — pastki yarmini tashlaydi, "kichikroq" bo'lsa — yuqori yarmini. Har urinishda variantlar **ikki
+barobar** kamayadi.
+**Ma'lumotlar:** `maxfiy`, oraliq chegaralari `past`, `yuqori`, `qadam` hisoblagichi.
+**Qadamlar:** o'rta = (past + yuqori) / 2 → solishtirish → chegarani siljitish → takrorlash.
+
+```c
+/* taxmin.c - ikkiga bo'lib qidirish */
+#include <stdio.h>
+
+int main(void)
+{
+    int maxfiy = 73;
+    int past = 1, yuqori = 100, qadam = 0;
+
+    printf("Maxfiy son 1..100 orasida. Kompyuter oraliqni ikkiga bo'lib qidiradi:\n");
+    while (past <= yuqori) {
+        int orta = (past + yuqori) / 2;
+        qadam++;
+        if (orta == maxfiy) {
+            printf("  %d-qadam: %d -> TOPILDI!\n", qadam, orta);
+            break;
+        } else if (orta < maxfiy) {
+            printf("  %d-qadam: %d -> maxfiy kattaroq\n", qadam, orta);
+            past = orta + 1;
+        } else {
+            printf("  %d-qadam: %d -> maxfiy kichikroq\n", qadam, orta);
+            yuqori = orta - 1;
+        }
+    }
+
+    /* Hamma maxfiy sonlar uchun eng yomon holatni topamiz */
+    int eng_kop = 0, eng_kop_son = 0;
+    for (int s = 1; s <= 100; s++) {
+        int p = 1, y = 100, q = 0;
+        while (p <= y) {
+            int o = (p + y) / 2;
+            q++;
+            if (o == s)
+                break;
+            if (o < s)
+                p = o + 1;
+            else
+                y = o - 1;
+        }
+        if (q > eng_kop) {
+            eng_kop = q;
+            eng_kop_son = s;
+        }
+    }
+    printf("1..100 ichida eng ko'p qadam: %d (birinchi marta maxfiy = %d da)\n", eng_kop, eng_kop_son);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra taxmin.c -o taxmin
+$ ./taxmin
+Maxfiy son 1..100 orasida. Kompyuter oraliqni ikkiga bo'lib qidiradi:
+  1-qadam: 50 -> maxfiy kattaroq
+  2-qadam: 75 -> maxfiy kichikroq
+  3-qadam: 62 -> maxfiy kattaroq
+  4-qadam: 68 -> maxfiy kattaroq
+  5-qadam: 71 -> maxfiy kattaroq
+  6-qadam: 73 -> TOPILDI!
+1..100 ichida eng ko'p qadam: 7 (birinchi marta maxfiy = 2 da)
+```
+
+100 ta variantni 7 qadamda topdi: 2⁷ = 128 > 100. Oddiy ketma-ket sanash (1, 2, 3...) esa 100 gacha qadam talab qilardi.
+Bir milliard variant bo'lsa ham 30 qadam yetadi — algoritm shu bilan kuchli (28-bob).
+
+**Kengaytiring:** `maxfiy` ni 1, 50, 100 qilib ko'ring. Sikl sharti `past <= yuqori` ni `<` ga almashtirsangiz, qaysi
+sonlarda dastur xato qiladi?
+
+## Mustaqil loyiha: oy kalendari ★★☆
+
+**Vazifa:** `cal` buyrug'i kabi oy kalendarini chiqaring. Massiv va funksiya **kerak emas** — faqat sikl,
+`if` va `%`. Fayl: `kalendar.c`.
+
+**Ma'lumotlar** (kod boshida):
+- `birinchi` — oyning 1-kuni haftaning qaysi kuni (0 = Dushanba, 1 = Seshanba, ..., 6 = Yakshanba);
+- `kunlar` — oyda nechta kun.
+
+**Talab:**
+- Birinchi qator: ` Du Se Ch Pa Ju Sh Ya` (har ustun 3 belgi kenglikda).
+- Har kun `%3d` bilan chiqadi. 1-kundan oldingi bo'sh kataklar — 3 tadan probel.
+- Har Yakshanbadan keyin yangi qator. Oxirgi qatordan keyin **bitta** yangi qator (bo'sh qator bo'lmasin;
+  agar oy aynan Yakshanba bilan tugasa, ikkita yangi qator chiqmasin!).
+- Qatorlar oxirida ortiqcha probel bo'lmasin.
+
+**Kutilgan natija** — `birinchi = 2` (Chorshanba), `kunlar = 30` (`darslik/loyihalar/04_kalendar/kutilgan.txt`):
+
+```text
+ Du Se Ch Pa Ju Sh Ya
+        1  2  3  4  5
+  6  7  8  9 10 11 12
+ 13 14 15 16 17 18 19
+ 20 21 22 23 24 25 26
+ 27 28 29 30
+```
+
+**Qo'shimcha sinovlar.** `birinchi = 6`, `kunlar = 31` (Yakshanbadan boshlanadigan):
+
+```text
+ Du Se Ch Pa Ju Sh Ya
+                    1
+  2  3  4  5  6  7  8
+  9 10 11 12 13 14 15
+ 16 17 18 19 20 21 22
+ 23 24 25 26 27 28 29
+ 30 31
+```
+
+`birinchi = 0`, `kunlar = 28` (mukammal to'rt hafta):
+
+```text
+ Du Se Ch Pa Ju Sh Ya
+  1  2  3  4  5  6  7
+  8  9 10 11 12 13 14
+ 15 16 17 18 19 20 21
+ 22 23 24 25 26 27 28
+```
+
+**Maslahat** (yechim emas):
+- Avval qog'ozda 30 kunlik oyni chizing va "hafta kuni" hisoblagichini yuritish qoidasini toping:
+  har kundan keyin u 1 ga oshadi, 7 ga yetsa 0 ga qaytadi (`%` yoki `if`).
+- Birinchi qatordagi bo'sh kataklar soni = `birinchi`.
+- Oxirgi qator to'liq bo'lmasa, uni yangi qator bilan yopish kerak. To'liq bo'lsa — allaqachon yopilgan.
+  Bu ikki holatni bitta shart bilan ajrating.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g kalendar.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/04_kalendar/kutilgan.txt && echo "TO'G'RI"
+```
+
+Ikkinchi va uchinchi sinov uchun `birinchi`, `kunlar` ni o'zgartirib, `kutilgan_2.txt`, `kutilgan_3.txt` bilan solishtiring.
+Uchala sinovdan o'tsangiz — chegaraviy holatlar (oy Yakshanba bilan tugash, hafta Dushanbadan boshlanish) to'g'ri.
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [5-bob. Funksiyalar](05-funksiyalar.md)

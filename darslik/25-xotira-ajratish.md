@@ -267,4 +267,146 @@ yaratadi → page fault'da buddy'dan sahifa.
 - **32** (buddy), **33** (slab).
 - MyOS: `user/libc/malloc.c` ni o'qing — qaysi dizayn tanlangan va nega?
 
+<!-- loyiha:boshi -->
+## Loyiha: arena (bump) ajratuvchi
+
+**Maqsad:** eng oddiy va eng tez xotira ajratuvchini yozish. Yadro boshlanishida (`kmalloc` hali tayyor emas) va kompilyatorlarda
+(bir necha ming kichik obyektni birdaniga tashlab yuborish kerak bo'lganda) ko'p ishlatiladi (25.1).
+**Bobdan ishlatiladi:** tekislash (alignment), ajratish siyosatining eng sodda ko'rinishi, xotira tugaganda `NULL`.
+
+**G'oya:** katta bufer + bitta "hozirgi joy" ko'rsatkichi. Ajratish — ko'rsatkichni oldinga surish. Bo'shatish **yo'q**: butun arenani birdaniga tozalaymiz
+(`reset`) yoki belgigacha qaytamiz (`qayt`).
+**Tekislash:** `int` 4 ga, `double` 8 ga bo'linadigan manzilda turishi kerak. Formula: `(joy + t - 1) & ~(t - 1)` (`t` — 2 ning darajasi).
+
+```c
+/* arena.c - bump ajratuvchi */
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+static uint8_t xotira[64];                      /* kichik arena, tugashini ko'rish oson bo'lsin */
+static size_t joy;                              /* keyingi bo'sh bayt raqami */
+
+static void *ajrat(size_t n, size_t tekis)
+{
+    size_t bosh = (joy + tekis - 1) & ~(tekis - 1);     /* tekislash: keyingi bo'linadigan manzil */
+    if (bosh + n > sizeof(xotira))
+        return NULL;                            /* joy yo'q */
+    joy = bosh + n;
+    return &xotira[bosh];
+}
+
+static size_t belgi(void) { return joy; }
+static void qayt(size_t b) { joy = b; }
+static void tozala(void) { joy = 0; }
+
+static void korsat(const char *nom, const void *p)
+{
+    if (p)
+        printf("%-22s offset %2zu, keyingi joy %2zu\n", nom, (size_t)((const uint8_t *)p - xotira), joy);
+    else
+        printf("%-22s NULL (joy yetmadi), keyingi joy %2zu\n", nom, joy);
+}
+
+int main(void)
+{
+    char *s = ajrat(5, 1);                      /* 5 bayt, tekislash shart emas */
+    korsat("char[5]", s);
+    int *son = ajrat(sizeof(int), _Alignof(int));       /* 4 ga tekis: 5 -> 8 */
+    korsat("int", son);
+    double *d = ajrat(sizeof(double), _Alignof(double));/* 8 ga tekis: 12 -> 16 */
+    korsat("double", d);
+
+    size_t b = belgi();                         /* shu joyni eslab qolamiz */
+    char *vaqtincha = ajrat(30, 1);
+    korsat("vaqtincha[30]", vaqtincha);
+    qayt(b);                                    /* vaqtinchani "bo'shatdik" */
+    korsat("qaytdik", ajrat(0, 1));
+
+    void *katta = ajrat(100, 8);
+    korsat("katta[100]", katta);                /* sig'maydi: 64 baytlik arena */
+
+    strcpy(s, "abcd");                          /* ajratilgan xotiradan foydalanish */
+    *son = 42;
+    *d = 3.5;
+    printf("s = %s, son = %d, d = %.1f\n", s, *son, *d);
+
+    tozala();
+    korsat("tozalangandan keyin", ajrat(1, 1));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined arena.c -o arena
+$ ./arena
+char[5]                offset  0, keyingi joy  5
+int                    offset  8, keyingi joy 12
+double                 offset 16, keyingi joy 24
+vaqtincha[30]          offset 24, keyingi joy 54
+qaytdik                offset 24, keyingi joy 24
+katta[100]             NULL (joy yetmadi), keyingi joy 24
+s = abcd, son = 42, d = 3.5
+tozalangandan keyin    offset  0, keyingi joy  1
+```
+
+`int` 8-baytdan boshlandi (5-bayt o'rniga), chunki 5 ga 4 bo'linmaydi — orada 3 bayt **bo'sh joy** (padding, 9-bob). Bu — ajratuvchining bepul
+narxi: tez (bitta qo'shish), lekin bo'sh joyni qayta ishlatib bo'lmaydi.
+
+**Kengaytiring:** arena o'lchamini `sizeof(xotira)` dan parametrga aylantiring va bir nechta arena yarating. `ajrat` ga `0` uzunlik berilsa nima bo'ladi?
+
+## Mustaqil loyiha: ajratish siyosatlari taqqoslash ★★★
+
+**Vazifa:** 25.4-bo'limdagi uch siyosat — **first-fit**, **best-fit**, **worst-fit** — bir xil ish yukida qanday **fragmentatsiya** berishini o'lchang.
+Fayl: `fit.c`. Hech qanday `malloc` yo'q — xotira shunchaki **bo'sh oraliqlar ro'yxati** ustida hisoblanadi.
+
+**Model:** xotira 2048 birlik (`[0, 2048)`). Bo'sh joy — **manzil bo'yicha tartiblangan** oraliqlar `(boshi, uzunligi)`. Boshida bitta oraliq: `(0, 2048)`.
+
+**Siyosatlar** (yetarli, ya'ni `uzunlik ≥ o'lcham` oraliqlar orasidan):
+- **first-fit** — manzili eng past;
+- **best-fit** — uzunligi eng kichik (teng bo'lsa manzili past);
+- **worst-fit** — uzunligi eng katta (teng bo'lsa manzili past).
+
+**Ajratish:** tanlangan oraliqning **boshidan** `o'lcham` birlik olinadi; qolgan qismi (bo'lsa) oraliq bo'lib qoladi. Mos oraliq yo'q bo'lsa — ajratish
+**muvaffaqiyatsiz** (sanaladi, blok qo'shilmaydi).
+**Bo'shatish:** blok qaytariladi va qo'shni bo'sh oraliqlar bilan **birlashtiriladi** (chapdagi va o'ngdagi).
+
+**Ish yuki** (har siyosat uchun **aynan** shu ketma-ketlik): tasodifiy son generatori
+
+```text
+uint32_t davlat = 12345;
+sonni_ol():  davlat = davlat * 1103515245u + 12345u;  return (davlat >> 16) & 0x7fff;
+```
+
+400 qadam. Har qadamda `r = sonni_ol() % 100`:
+- agar `r < 60` **yoki** tirik bloklar yo'q → **ajratish**: `o'lcham = 1 + sonni_ol() % 40`;
+- aks holda → **bo'shatish**: `k = sonni_ol() % tirik_soni`; tirik bloklar ro'yxatining `k`-elementi bo'shatiladi, ro'yxatdan
+  o'chirish — **oxirgi element `k` o'rniga qo'yiladi** (swap-remove). Tirik ro'yxat ajratish tartibida to'ldiriladi.
+
+**Chiqish** (har siyosat uchun bitta qator; `%-9s` va qolganlari aniq — kutilgan natijaga qarang). Ma'lumotlar: ajratish urinishlari, muvaffaqiyatsizlari, oxirida tirik
+bloklar soni, jami bo'sh joy `T`, eng katta bo'sh oraliq `L`, **tashqi fragmentatsiya** `(T − L) · 100 / T` (butun bo'lish; `T = 0` bo'lsa `0`).
+
+**Kutilgan natija** (`darslik/loyihalar/25_fit_siyosat/kutilgan.txt`):
+
+```text
+first-fit ajratish 247, muvaffaqiyatsiz   4, tirik  90, bo'sh  156, eng katta   22, fragmentatsiya 85%
+best-fit  ajratish 247, muvaffaqiyatsiz   4, tirik  90, bo'sh   90, eng katta   12, fragmentatsiya 86%
+worst-fit ajratish 247, muvaffaqiyatsiz  15, tirik  79, bo'sh  437, eng katta   20, fragmentatsiya 95%
+```
+
+**Maslahat** (yechim emas):
+- Bitta `simulyatsiya(siyosat)` funksiyasi; siyosat — `int` kod (0, 1, 2) yoki funksiya ko'rsatkichi. Generator holatini har siyosat uchun **qayta** `12345` ga qo'ying.
+- Bo'sh oraliqlar — `struct oraliq { long boshi, uzunlik; }` massivi, tartiblangan. Ajratish oraliqni qisqartiradi (yoki nol uzunlik bo'lsa o'chiradi).
+- Bo'shatishda o'rin toping (tartib bo'yicha), chap qo'shni `chap.boshi + chap.uzunlik == blok.boshi` bo'lsa qo'shing, o'ng qo'shni ham.
+- Qadamlar generatordan **bir xil tartibda** son oladi — ajratish `2` ta, bo'shatish `2` ta son ishlatadi (`r`, keyin `o'lcham` yoki `k`). Tartibni buzmang.
+- Natijalarni tahlil qiling: qaysi siyosat eng kam fragmentatsiya beradi? Nega best-fit har doim g'olib emas (25.4)?
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined fit.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/25_fit_siyosat/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [26-bob. Parallellik chuqur](26-parallellik-chuqur.md)

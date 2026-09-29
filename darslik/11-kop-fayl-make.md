@@ -304,4 +304,210 @@ oddiy Make ishlatadi — to'liq nazorat uchun.
   qaysi fayllar qayta yig'ilishini kuzating (`-MMD -MP` bilan va usiz).
 - MyOS `Makefile`'ini boshidan oxirigacha o'qing va `make V=1` bilan haqiqiy buyruqlarni ko'ring.
 
+<!-- loyiha:boshi -->
+## Loyiha: bank moduli (3 fayl + Makefile)
+
+**Maqsad:** loyihani modullarga bo'lish: kim nimani **ko'radi** va nimani **yashiradi**.
+**Bobdan ishlatiladi:** `.h`/`.c`/`main.c` taqsimoti, `static` (fayl ichida yashirish), Makefile, `-MMD`.
+
+**Talab:** hisob ochish, o'tkazma, hisobot. Hisoblar ro'yxati **modul ichida yashirin** — tashqaridan faqat
+raqam (`id`) va funksiyalar orqali murojaat qilinadi. Shunda ichki tuzilishni keyin o'zgartirish mumkin
+(masalan, massivni bog'langan ro'yxatga almashtirish) va `main.c` ga tegish shart bo'lmaydi.
+
+**Qaysi fayl nima biladi:**
+
+| Fayl | Ko'radi | Yashiradi |
+|---|---|---|
+| `bank.h` | funksiya e'lonlari, `BANK_MAX` | hech narsa (menyu) |
+| `bank.c` | hisoblar massivi (`static`), yordamchi `togri_id` (`static`) | tashqaridan ko'rinmaydi |
+| `main.c` | faqat `bank.h` | `bank.c` ichini bilmaydi |
+
+```c
+/* bank.h - menyu */
+#pragma once
+
+#define BANK_MAX 8
+
+int bank_och(const char *ism, long boshlangich);    /* hisob raqami (id) yoki -1: joy yo'q */
+int bank_otkazma(int dan, int ga, long summa);      /* 0 - bajarildi, -1 - rad etildi */
+long bank_balans(int id);
+void bank_hisobot(void);
+```
+
+```c
+/* bank.c - oshxona */
+#include "bank.h"
+
+#include <stdio.h>
+#include <string.h>
+
+struct hisob {                                  /* main.c bu tuzilmani KO'RMAYDI */
+    char ism[16];
+    long balans;
+};
+static struct hisob hisoblar[BANK_MAX];         /* static: faqat shu faylda ko'rinadi */
+static int soni;
+
+static int togri_id(int id)
+{
+    return id >= 0 && id < soni;
+}
+
+int bank_och(const char *ism, long boshlangich)
+{
+    if (soni == BANK_MAX)
+        return -1;
+    snprintf(hisoblar[soni].ism, sizeof(hisoblar[soni].ism), "%s", ism);
+    hisoblar[soni].balans = boshlangich;
+    return soni++;
+}
+
+int bank_otkazma(int dan, int ga, long summa)
+{
+    if (!togri_id(dan) || !togri_id(ga) || summa <= 0 || hisoblar[dan].balans < summa)
+        return -1;
+    hisoblar[dan].balans -= summa;
+    hisoblar[ga].balans += summa;
+    return 0;
+}
+
+long bank_balans(int id)
+{
+    return togri_id(id) ? hisoblar[id].balans : -1;
+}
+
+void bank_hisobot(void)
+{
+    printf("Bank hisoboti:\n");
+    for (int i = 0; i < soni; i++)
+        printf("  #%d %-10s %8ld\n", i, hisoblar[i].ism, hisoblar[i].balans);
+    printf("Jami %d ta hisob\n", soni);
+}
+```
+
+```c
+/* main.c - mijoz */
+#include <stdio.h>
+
+#include "bank.h"
+
+int main(void)
+{
+    int ali = bank_och("Ali", 100000);
+    int vali = bank_och("Vali", 50000);
+    printf("Ali (#%d) va Vali (#%d) hisoblari ochildi\n", ali, vali);
+
+    printf("O'tkazma 30000: %d\n", bank_otkazma(ali, vali, 30000));
+    printf("O'tkazma 90000 (yetmaydi): %d\n", bank_otkazma(ali, vali, 90000));
+    printf("Noto'g'ri raqam: %d\n", bank_otkazma(ali, 7, 10));
+    bank_hisobot();
+    return 0;
+}
+```
+
+```make
+# Makefile
+CC     := gcc
+CFLAGS := -Wall -Wextra -g -MMD -MP
+OBJ    := main.o bank.o
+
+dastur: $(OBJ)
+	$(CC) $^ -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+-include $(OBJ:.o=.d)
+
+.PHONY: clean
+clean:
+	rm -f dastur *.o *.d
+```
+
+```console
+$ make
+gcc -Wall -Wextra -g -MMD -MP -c main.c -o main.o
+gcc -Wall -Wextra -g -MMD -MP -c bank.c -o bank.o
+gcc main.o bank.o -o dastur
+$ ./dastur
+Ali (#0) va Vali (#1) hisoblari ochildi
+O'tkazma 30000: 0
+O'tkazma 90000 (yetmaydi): -1
+Noto'g'ri raqam: -1
+Bank hisoboti:
+  #0 Ali           70000
+  #1 Vali          80000
+Jami 2 ta hisob
+$ make
+make: 'dastur' is up to date.
+$ touch bank.c && make
+gcc -Wall -Wextra -g -MMD -MP -c bank.c -o bank.o
+gcc main.o bank.o -o dastur
+$ touch bank.h && make
+gcc -Wall -Wextra -g -MMD -MP -c main.c -o main.o
+gcc -Wall -Wextra -g -MMD -MP -c bank.c -o bank.o
+gcc main.o bank.o -o dastur
+$ nm bank.o | grep -i "hisoblar\|togri\|bank_"
+00000000000001ce T bank_balans
+0000000000000217 T bank_hisobot
+000000000000002a T bank_och
+00000000000000ca T bank_otkazma
+0000000000000000 b hisoblar
+0000000000000000 t togri_id
+```
+
+Kuzating: uchinchi `make` hech narsa qilmadi; `bank.c` "o'zgargach" faqat `bank.o` qayta yig'ildi; `bank.h` o'zgargach
+**ikkala** `.o` qayta yig'ildi (`-MMD` yaratgan `.d` fayllar sarlavha bog'liqligini biladi). `nm` da `hisoblar`
+va `togri_id` kichik harf (`b`, `t`) — `static`, tashqariga chiqmagan.
+
+**Kengaytiring:** `bank_yopish(id)` qo'shing. `main.c` da `hisoblar[0].balans = 1000000;` yozib ko'ring — nega kompilyator
+"`hisoblar` undeclared" deydi? (Yashirin!)
+
+## Mustaqil loyiha: kitob moduli ★★☆
+
+**Vazifa:** o'qiyotgan kitoblaringizni kuzatuvchi modul. Uch fayl (`kitob.h`, `kitob.c`, `main.c`) va `Makefile`.
+Bu — oldingi suhbatdagi mashq, endi to'liq talab bilan.
+
+**Talab.** `kitob.h` da aynan shular (boshqa hech narsa, `#pragma once` dan tashqari):
+
+```text
+struct kitob { const char *nom; int jami; int oqilgan; };
+void kitob_och(struct kitob *k, const char *nom, int sahifa);   // oqilgan = 0
+void kitob_oqi(struct kitob *k, int n);          // n ta bet o'qidi
+int  kitob_foiz(const struct kitob *k);          // 0..100, butun bo'lish bilan
+void kitob_chiqar(const struct kitob *k);        // "C tili: 150/320 bet (46%)" + yangi qator
+int  kitob_soni(void);                           // hozirgacha nechta kitob ochilgan
+```
+
+**Qoidalar (`kitob.c` ichida):**
+- `kitob_oqi` da o'qilgan betlar soni **jami dan oshib ketmasin**; `n` manfiy yoki nol bo'lsa hech narsa o'zgarmasin.
+- Bu tekshiruvni **`static` yordamchi funksiya** bajarsin (masalan `chegarala`) — u `.h` da yo'q.
+- Nechta kitob ochilgani **`static` o'zgaruvchi**da saqlansin (`.h` da e'lon qilinmaydi!); tashqaridan faqat `kitob_soni()` orqali.
+
+**Makefile:** `dastur` nishoni, naqsh qoidasi `%.o: %.c`, `-MMD -MP`, `clean`.
+
+**`main.c` sinovi:** "C tili" (320 bet) va "Yadro" (450 bet) ochiladi; birinchisidan 100, keyin 50 bet o'qiladi
+(orasida `-20` — hisobga olinmaydi); ikkinchisidan 500 bet o'qiladi (450 dan oshmaydi); ikkalasi chiqariladi; oxirida kitoblar soni.
+
+**Kutilgan natija** (`darslik/loyihalar/11_kitob_moduli/kutilgan.txt`):
+
+```text
+C tili: 150/320 bet (46%)
+Yadro: 450/450 bet (100%)
+Ochilgan kitoblar: 2
+```
+
+**Maslahat** (yechim emas):
+- Avval qog'ozda 5 ta funksiyaning imzosini yozing — bu tayyor `.h`.
+- `nm kitob.o`: 5 ta `T` (kitob_*), bitta kichik `t` (yordamchi), bitta kichik `b`/`d` (hisoblagich).
+- `touch kitob.h && make` — ikkala `.o` qayta yig'ilganini tekshiring; `touch main.c && make` — faqat `main.o`.
+- `kitob_foiz` da `jami == 0` bo'lsa nima bo'ladi? (Nolga bo'lish — UB! Qanday himoya qilasiz?)
+
+**Tekshirish:**
+
+```bash
+make && ./dastur | diff - ~/C_loyha/darslik/loyihalar/11_kitob_moduli/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [12-bob. Standart kutubxona](12-standart-kutubxona.md)

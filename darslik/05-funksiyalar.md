@@ -383,4 +383,159 @@ Standart C'da yo'q (GCC kengaytmasi bor, lekin ishlatmang). Yordamchi funksiyani
 - **06** — manzil orqali o'zgartirish (bu bobning asosiy mashqi).
 - **07** — chiqish parametrlari va bufer hajmi.
 
+<!-- loyiha:boshi -->
+## Loyiha: sonlar laboratoriyasi
+
+**Maqsad:** kichik, aniq vazifali funksiyalar to'plamini yozish va ularni bir-biriga tayantirish.
+**Bobdan ishlatiladi:** funksiya yozish, `static`, qiymat qaytarish, rekursiya, bitta funksiya — bitta ish.
+
+**Talab:** tub son tekshiruvi, EKUB va EKUK, Fibonachchi, daraja va raqamlar yig'indisi.
+**Ma'lumotlar:** hammasi funksiya argumentlari — global holat yo'q.
+**Funksiyalar** (avval imzo, keyin tana):
+`tub_mi(n)`, `eub(a, b)`, `eukk(a, b)` (EKUB'ga tayanadi!), `fib(n)`, `daraja(a, n)`, `raqamlar_yigindisi(n)`.
+
+```c
+/* sonlar.c - sonlar laboratoriyasi */
+#include <stdio.h>
+
+static int tub_mi(int n)
+{
+    if (n < 2)
+        return 0;
+    for (int d = 2; d * d <= n; d++)            /* d*d <= n : ildizgacha tekshirish yetadi */
+        if (n % d == 0)
+            return 0;
+    return 1;
+}
+
+static int eub(int a, int b)                    /* Evklid algoritmi */
+{
+    while (b != 0) {
+        int t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+static int eukk(int a, int b)
+{
+    return a / eub(a, b) * b;                   /* avval bo'lamiz - toshmaslik uchun */
+}
+
+static long fib(int n)                          /* rekursiya: to'xtash sharti + o'ziga chaqiruv */
+{
+    return n < 2 ? n : fib(n - 1) + fib(n - 2);
+}
+
+static long daraja(long a, int n)               /* tez darajaga ko'tarish: n ni har safar yarimlaymiz */
+{
+    if (n == 0)
+        return 1;
+    long yarim = daraja(a, n / 2);
+    return n % 2 ? yarim * yarim * a : yarim * yarim;
+}
+
+static int raqamlar_yigindisi(long n)
+{
+    return n < 10 ? (int)n : (int)(n % 10) + raqamlar_yigindisi(n / 10);
+}
+
+int main(void)
+{
+    printf("50 gacha tub sonlar:");
+    for (int i = 1; i <= 50; i++)
+        if (tub_mi(i))
+            printf(" %d", i);
+    printf("\n");
+    printf("EUB(48, 36) = %d, EUKK(4, 6) = %d\n", eub(48, 36), eukk(4, 6));
+    printf("Fibonachchi:");
+    for (int i = 0; i < 15; i++)
+        printf(" %ld", fib(i));
+    printf("\n");
+    printf("2^10 = %ld, 3^13 = %ld\n", daraja(2, 10), daraja(3, 13));
+    printf("98765 raqamlari yig'indisi = %d\n", raqamlar_yigindisi(98765));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra sonlar.c -o sonlar
+$ ./sonlar
+50 gacha tub sonlar: 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47
+EUB(48, 36) = 12, EUKK(4, 6) = 12
+Fibonachchi: 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377
+2^10 = 1024, 3^13 = 1594323
+98765 raqamlari yig'indisi = 35
+```
+
+Funksiyalarni ajratish foydasi: `eukk` ichida EKUB formulasi qayta yozilmadi — `eub` chaqirildi.
+Xatoni topish ham oson: `tub_mi(9)` noto'g'ri chiqsa, faqat bitta 7 qatorli funksiyani ko'rasiz.
+
+**Kengaytiring:** `fib(40)` ni chaqiring — nega sekin? (Har chaqiruv ikkitaga bo'linadi, bir xil qiymatlar qayta-qayta
+hisoblanadi.) `daraja` ni oddiy siklga almashtiring — tez rekursiv variant bilan 60 marta ko'paytirish sonini solishtiring.
+
+## Mustaqil loyiha: Hanoy minorasi va Paskal uchburchagi ★★☆
+
+**Vazifa:** rekursiv fikrlashni mashq qiling. Ikki mashhur masala bir dasturda. Fayl: `rekursiya.c`.
+
+**1. Hanoy minorasi.** Uch tayoq: A, B, C. A da `n` ta disk (pastda kattasi). Hamma disklarni C ga
+o'tkazing: bir yurishda faqat bitta disk, katta disk kichik disk ustiga tushmasin.
+- `void hanoy(int n, char dan, char ga, char oraliq)` — yurishlarni tartib raqami bilan chiqaradi: `3: A -> B`.
+  Raqam **global** hisoblagichdan olinadi (`static long yurish;`).
+- `long hanoy_soni(int n)` — yurishlar sonini **rekursiv** hisoblaydi (formulasiz: `2*hanoy_soni(n-1) + 1`).
+
+**2. Paskal uchburchagi.** `long c(int n, int k)` — rekursiv: chekkalari 1, ichkarisi yuqoridagi ikkitasining yig'indisi.
+
+**Chiqish tartibi** (aniq shakli kutilgan natijada):
+1. `hanoy(3, 'A', 'C', 'B')` ning barcha yurishlari;
+2. `hanoy_soni(n)` n = 1, 2, 3, 4, 10, 20 uchun;
+3. Paskalning 0..6-qatorlari (har katak `%4ld`);
+4. `C(20, 10)`.
+
+**Kutilgan natija** (`darslik/loyihalar/05_hanoy_paskal/kutilgan.txt`):
+
+```text
+Hanoy, 3 disk (A -> C, oraliq B):
+1: A -> C
+2: A -> B
+3: C -> B
+4: A -> C
+5: B -> A
+6: B -> C
+7: A -> C
+Yurishlar soni:
+n = 1: 1
+n = 2: 3
+n = 3: 7
+n = 4: 15
+n = 10: 1023
+n = 20: 1048575
+Paskal uchburchagi:
+   1
+   1   1
+   1   2   1
+   1   3   3   1
+   1   4   6   4   1
+   1   5  10  10   5   1
+   1   6  15  20  15   6   1
+C(20, 10) = 184756
+```
+
+**Maslahat** (yechim emas):
+- Hanoy: `n` ta diskni `dan` dan `ga` ga o'tkazish uchun avval `n−1` tasini `oraliq` ga, keyin eng katta diskni
+  `ga` ga, keyin `n−1` tasini `oraliq` dan `ga` ga o'tkazasiz. Bu uch qadamning ikkitasi — o'sha funksiyaning
+  o'zi (kichikroq `n` bilan). To'xtash sharti nima?
+- Qog'ozda `n = 2` uchun 3 ta yurishni chizing, keyin `n = 3` ni.
+- Paskal: `c(n, 0) = c(n, n) = 1`, boshqasi `c(n-1, k-1) + c(n-1, k)`.
+- `c(20, 10)` rekursiv ~370 ming chaqiruv qiladi — tez. Lekin `c(40, 20)` ni sinab ko'rmang, kuting va nega
+  sekinligini o'ylang.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g rekursiya.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/05_hanoy_paskal/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [6-bob. Massivlar va satrlar](06-massivlar-satrlar.md)

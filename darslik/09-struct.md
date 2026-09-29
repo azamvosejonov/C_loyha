@@ -364,4 +364,191 @@ Yadroda tez-tez uchraydi: sarlavha va ma'lumot bitta ajratmada.
 - Qo'shimcha: `sizeof` va `offsetof` bilan 9.2 va 9.11-savoldagi tuzilmalarning joylashuvini chiqarib,
   qog'ozdagi rasmingiz bilan solishtiring.
 
+<!-- loyiha:boshi -->
+## Loyiha: geometriya — nuqta va to'g'ri to'rtburchak
+
+**Maqsad:** ma'lumotni **tuzilma** sifatida modellashtirish: `struct` ichida `struct`, `enum` va `typedef`.
+**Bobdan ishlatiladi:** `struct`, ichma-ich `struct`, `enum`, `typedef`, struktura qiymat sifatida uzatish.
+
+**Talab:** to'g'ri to'rtburchak (ikki burchak nuqtasi bilan) uchun: yuza, nuqta ichidami, ikki to'rtburchak
+kesishishi, ularni o'rab oluvchi eng kichik to'rtburchak.
+**Ma'lumotlar:**
+```text
+struct nuqta       { x, y }
+struct tortburchak { pastchap (nuqta), yuqoriong (nuqta) }
+enum joy           { TASHQARIDA, CHEGARADA, ICHIDA }
+```
+**Funksiyalar:** `yuza`, `joylashuv`, `kesishma` (natijani chiqish parametri orqali), `oraydi`.
+
+```c
+/* geometriya.c - nuqta va to'g'ri to'rtburchak */
+#include <stdio.h>
+
+struct nuqta {
+    int x, y;
+};
+struct tortburchak {
+    struct nuqta pastchap, yuqoriong;
+};
+typedef struct tortburchak Tb;                  /* qisqa nom */
+enum joy { TASHQARIDA, CHEGARADA, ICHIDA };
+
+static int min(int a, int b) { return a < b ? a : b; }
+static int max(int a, int b) { return a > b ? a : b; }
+
+static int yuza(Tb t)                           /* struktura NUSXA sifatida uzatiladi */
+{
+    return (t.yuqoriong.x - t.pastchap.x) * (t.yuqoriong.y - t.pastchap.y);
+}
+
+static enum joy joylashuv(Tb t, struct nuqta p)
+{
+    if (p.x < t.pastchap.x || p.x > t.yuqoriong.x || p.y < t.pastchap.y || p.y > t.yuqoriong.y)
+        return TASHQARIDA;
+    if (p.x == t.pastchap.x || p.x == t.yuqoriong.x || p.y == t.pastchap.y || p.y == t.yuqoriong.y)
+        return CHEGARADA;
+    return ICHIDA;
+}
+
+static int kesishma(Tb a, Tb b, Tb *natija)     /* 1 - kesishadi, natija to'ldiriladi */
+{
+    struct nuqta pc = { max(a.pastchap.x, b.pastchap.x), max(a.pastchap.y, b.pastchap.y) };
+    struct nuqta yo = { min(a.yuqoriong.x, b.yuqoriong.x), min(a.yuqoriong.y, b.yuqoriong.y) };
+    if (pc.x >= yo.x || pc.y >= yo.y)
+        return 0;
+    natija->pastchap = pc;
+    natija->yuqoriong = yo;
+    return 1;
+}
+
+static Tb oraydi(Tb a, Tb b)
+{
+    Tb r = { { min(a.pastchap.x, b.pastchap.x), min(a.pastchap.y, b.pastchap.y) },
+             { max(a.yuqoriong.x, b.yuqoriong.x), max(a.yuqoriong.y, b.yuqoriong.y) } };
+    return r;
+}
+
+static void chiqar(const char *nom, Tb t)
+{
+    printf("%s: (%d,%d)-(%d,%d), yuza %d\n", nom, t.pastchap.x, t.pastchap.y, t.yuqoriong.x,
+           t.yuqoriong.y, yuza(t));
+}
+
+int main(void)
+{
+    Tb a = { { 0, 0 }, { 6, 4 } };
+    Tb b = { { 4, 2 }, { 10, 8 } };
+    Tb c = { { 20, 20 }, { 25, 25 } };
+    const char *joy_nomi[] = { "tashqarida", "chegarada", "ichida" };
+
+    chiqar("A", a);
+    chiqar("B", b);
+    struct nuqta sinov[] = { { 3, 2 }, { 6, 1 }, { 7, 7 } };
+    for (int i = 0; i < 3; i++)
+        printf("(%d,%d) A ga nisbatan: %s\n", sinov[i].x, sinov[i].y, joy_nomi[joylashuv(a, sinov[i])]);
+
+    Tb k;
+    if (kesishma(a, b, &k))
+        chiqar("A va B kesishmasi", k);
+    printf("A va C kesishadimi? %s\n", kesishma(a, c, &k) ? "ha" : "yo'q");
+    chiqar("A va C ni o'rovchi", oraydi(a, c));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined geometriya.c -o geometriya
+$ ./geometriya
+A: (0,0)-(6,4), yuza 24
+B: (4,2)-(10,8), yuza 36
+(3,2) A ga nisbatan: ichida
+(6,1) A ga nisbatan: chegarada
+(7,7) A ga nisbatan: tashqarida
+A va B kesishmasi: (4,2)-(6,4), yuza 4
+A va C kesishadimi? yo'q
+A va C ni o'rovchi: (0,0)-(25,25), yuza 625
+```
+
+Nega `Tb *natija` ko'rsatkich, `Tb` qiymat emas? Funksiya ikki natija qaytarishi kerak: "kesishadimi" (`return`) va
+"kesishma to'rtburchagi" (chiqish parametri) — 5.4 va 7-boblar. Struktura kichik bo'lgani uchun `yuza(Tb t)` nusxa
+bilan ishlaydi; yadroda katta struktura **doim** ko'rsatkich bilan uzatiladi.
+
+**Kengaytiring:** `perimetr(Tb)` qo'shing. `enum joy` ga `BURCHAKDA` qiymatini qo'shing va `joylashuv` ni yangilang.
+
+## Mustaqil loyiha: poker qo'llari ★★★
+
+**Vazifa:** 5 kartalik poker qo'lini baholang va tasodifiy taqsimlashni simulyatsiya qiling. Fayl: `poker.c`.
+
+**Ma'lumotlar.** Karta — `struct karta { int rank; enum masti masti; }`. Rank: 2..14 (`T`=10, `J`=11, `Q`=12,
+`K`=13, `A`=14). Mastlar: `enum masti { S, H, D, C }`. Matn belgisi: rank `"23456789TJQKA"`, mast `"SHDC"`
+(masalan `TH` — o'n cherva, `AS` — tuz).
+
+**Kombinatsiyalar** (kuchli → kuchsiz) va chiqariladigan nomi:
+
+| Nomi | Shart |
+|---|---|
+| `Strit-flesh` | bir mast **va** ketma-ket 5 rank |
+| `Kare` | to'rt bir xil rank |
+| `Full-xaus` | uchlik + juftlik |
+| `Flesh` | hammasi bir mast |
+| `Strit` | ketma-ket 5 rank (A **faqat eng yuqori**: `T J Q K A` — strit, `A 2 3 4 5` — emas) |
+| `Uchlik` | uchta bir xil rank |
+| `Ikki juft` | ikkita juftlik |
+| `Bir juft` | bitta juftlik |
+| `Yuqori karta` | boshqa hech narsa |
+
+**A qism — aniq qo'llar.** Har birini `"TH JH QH KH AH"` shaklidagi satrdan o'qing (`strchr` bilan
+belgi indeksini toping), baholang va `qo'l -> nom` ko'rinishida chiqaring. Qo'llar (tartib bilan):
+`TH JH QH KH AH`, `9S 9H 9D 9C 2H`, `KS KH KD 4C 4H`, `2D 7D 9D JD KD`, `5S 6H 7D 8C 9H`, `QS QH QD 3C 8H`,
+`JS JH 4D 4C AH`, `8S 8H 2D 5C KH`, `2S 5H 9D JC KH`, `AS 2H 3D 4C 5H`.
+
+**B qism — taqsimlash.** Karta to'plami: mast bo'yicha `S,H,D,C`, har mastda rank `2..14`
+(`indeks = mast*13 + (rank-2)`). Aralashtirish (Fisher–Yates), tasodifiy son generatori aniq berilgan:
+
+```text
+uint32_t davlat = 2026;
+sonni_ol():  davlat = davlat * 1103515245u + 12345u;  return (davlat >> 16) & 0x7fff;
+i = 51 dan 1 gacha:  j = sonni_ol() % (i + 1);  to'plam[i] va to'plam[j] almashtiriladi
+```
+
+Keyin 6 ta qo'l: `h`-qo'l = `to'plam[5h .. 5h+4]`. Qo'l chiqarilishidan oldin kartalar **rank kamayishi**
+bo'yicha (teng rankda mast tartibi `S,H,D,C`) saralansin.
+
+**Kutilgan natija** (`darslik/loyihalar/09_poker/kutilgan.txt`):
+
+```text
+A qism:
+  TH JH QH KH AH -> Strit-flesh
+  9S 9H 9D 9C 2H -> Kare
+  KS KH KD 4C 4H -> Full-xaus
+  2D 7D 9D JD KD -> Flesh
+  5S 6H 7D 8C 9H -> Strit
+  QS QH QD 3C 8H -> Uchlik
+  JS JH 4D 4C AH -> Ikki juft
+  8S 8H 2D 5C KH -> Bir juft
+  2S 5H 9D JC KH -> Yuqori karta
+  AS 2H 3D 4C 5H -> Yuqori karta
+B qism:
+  Qo'l 1: AS 7H 7D 3C 2H -> Bir juft
+  Qo'l 2: JD TH 4H 3D 2C -> Yuqori karta
+  Qo'l 3: JH TD 9D 5H 4C -> Yuqori karta
+  Qo'l 4: AC KS 9H 6S 2D -> Yuqori karta
+  Qo'l 5: JC 9C 6C 5S 5C -> Bir juft
+  Qo'l 6: JS 9S 8S 8H 5D -> Bir juft
+```
+
+**Maslahat** (yechim emas):
+- Avval har rankdan nechta borligini sanang (`int soni[15]`). Juft/uchlik/kare/full-xaus shu sanoqdan aniqlanadi.
+- Strit: saralangan qo'lda `rank[i] == rank[i+1] + 1` har bir i uchun. `A 2 3 4 5` da tuz 14 — shart bajarilmaydi.
+- Ustuvorlik tartibini `if` zanjirida qattiq bering: yuqori kombinatsiya avval tekshiriladi.
+- `strchr("23456789TJQKA", c) - "23456789TJQKA"` — belgi indeksi (7.4: ko'rsatkich ayirmasi).
+- LCG aniq shu formulada bo'lsa, sizniki ham aynan mening natijamni beradi — birinchi qo'l orqali tekshiring.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined poker.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/09_poker/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [10-bob. Preprotsessor](10-preprotsessor.md)

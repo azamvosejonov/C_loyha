@@ -419,4 +419,125 @@ ning boshidagi izohga qarang). 14-bobda buni o'zingiz qilasiz.
 - `;` ni ataylab o'chirib, xato xabarini o'qing. `}` ni o'chirib ko'ring. `#include` ni o'chirib ko'ring.
 - `return 3;` qilib, `./salom; echo $?` bilan chiqish kodini ko'ring.
 
+<!-- loyiha:boshi -->
+## Loyiha: do'kon cheki
+
+**Maqsad:** printf va oddiy hisob-kitob bilan chiroyli, ustunlari tekis chek chop etish.
+**Bobdan ishlatiladi:** `int`, arifmetika, `printf` formatlari (`%-12s`, `%7d`).
+
+### Loyihalash usuli (har bir loyihada shu 5 qadam)
+
+1. **Talab:** dastur nima chiqarishi kerak? Natijani avval qog'ozga chizib oling.
+2. **Ma'lumotlar:** qaysi qiymatlar kerak? Har biriga o'zgaruvchi.
+3. **Qadamlar:** qaysi tartibda hisoblanadi? (avval yig'indi, keyin soliq...)
+4. **Kod:** qadamlarni koddga aylantiring.
+5. **Sinov:** natijani qog'ozdagi bilan solishtiring.
+
+**Talab:** 3 xil mahsulot (nomi, narxi, soni) — jadval, jami summa va 12% QQS.
+**Ma'lumotlar:** har mahsulot uchun `narx` va `soni`; `jami`, `qqs`.
+**Qadamlar:** jami = narx×soni yig'indisi → qqs = jami × 12 / 100 → chiqarish.
+
+```c
+/* chek.c - do'kon cheki */
+#include <stdio.h>
+
+int main(void)
+{
+    int non_narx = 4000, non_soni = 3;
+    int sut_narx = 12000, sut_soni = 1;
+    int guruch_narx = 18000, guruch_soni = 2;
+
+    int jami = non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni;
+    int qqs = jami * 12 / 100;
+
+    printf("==================================\n");
+    printf("%-12s %7s %4s %8s\n", "Mahsulot", "Narx", "Soni", "Summa");
+    printf("----------------------------------\n");
+    printf("%-12s %7d %4d %8d\n", "Non", non_narx, non_soni, non_narx * non_soni);
+    printf("%-12s %7d %4d %8d\n", "Sut", sut_narx, sut_soni, sut_narx * sut_soni);
+    printf("%-12s %7d %4d %8d\n", "Guruch", guruch_narx, guruch_soni, guruch_narx * guruch_soni);
+    printf("----------------------------------\n");
+    printf("%-25s %8d\n", "Jami:", jami);
+    printf("%-25s %8d\n", "shundan QQS (12%):", qqs);
+    printf("==================================\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra chek.c -o chek
+$ ./chek
+==================================
+Mahsulot        Narx Soni    Summa
+----------------------------------
+Non             4000    3    12000
+Sut            12000    1    12000
+Guruch         18000    2    36000
+----------------------------------
+Jami:                        60000
+shundan QQS (12%):            7200
+==================================
+```
+
+`%-12s` — matnni 12 belgi kenglikda **chapga** tekislaydi, `%7d` — sonni 7 belgi kenglikda **o'ngga**.
+Ustunlar tekis chiqishining sababi shu.
+
+**Kengaytiring:** to'rtinchi mahsulot qo'shing. `qqs` ni 15% qiling. Nega `jami * 12 / 100` ni
+`jami / 100 * 12` deb yozsak natija boshqacha chiqishi mumkin? (Butun bo'lish qoldiqni tashlaydi — 3-bob.)
+
+## Mustaqil loyiha: yo'l xarajati kalkulyatori ★☆☆
+
+**Vazifa:** do'stlar bilan sayohatga chiqasiz. Yo'lga qancha pul ketishini va har biringizga qancha
+tushishini hisoblaydigan dastur yozing. Fayl nomi: `yol.c`.
+
+**Ma'lumotlar** (kodning boshida o'zgaruvchi qilib yozing):
+- masofa — 250 km
+- yoqilg'i sarfi — 100 km ga 8 litr
+- 1 litr narxi — 9000 so'm
+- yo'l to'lovi — 15000 so'm, 2 marta (borishda va qaytishda)
+- odamlar soni — 4
+
+**Talab:** dastur hech narsa so'ramaydi, faqat hisoblab quyidagini chiqaradi:
+
+- Yorliq — `%-18s` (chapga tekis), qiymat — `%8d` (o'ngga tekis), keyin birlik.
+- Litrlar = masofa × sarf / 100.
+
+**Kutilgan natija** (`darslik/loyihalar/00_chek/kutilgan.txt`):
+
+```text
+Masofa:                250 km
+Yoqilg'i:               20 litr
+Yoqilg'i puli:      180000 so'm
+Yo'l to'lovi:        30000 so'm
+Jami:               210000 so'm
+Har bir kishiga:     52500 so'm
+```
+
+**Qo'shimcha sinov.** Ma'lumotlarni o'zgartiring: masofa 400, sarf 6, litr narxi 10000, to'lov 20000
+× 3 marta, 5 kishi. Natija:
+
+```text
+Masofa:                400 km
+Yoqilg'i:               24 litr
+Yoqilg'i puli:      240000 so'm
+Yo'l to'lovi:        60000 so'm
+Jami:               300000 so'm
+Har bir kishiga:     60000 so'm
+```
+
+**Maslahat** (yechim emas):
+- Avval qog'ozda hisoblang: litrlar → yoqilg'i puli → to'lovlar → jami → har kishiga.
+- Har bir oraliq natijaga alohida o'zgaruvchi bering — kodni o'qish oson bo'ladi.
+- `printf` da `'` belgisi matn ichida oddiy belgi (`"Yo'l"`), maxsus emas.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g yol.c -o yol && ./yol | diff - ~/C_loyha/darslik/loyihalar/00_chek/kutilgan.txt && echo "TO'G'RI"
+```
+
+`diff` hech narsa chiqarmasa va "TO'G'RI" yozilsa — natija harfma-harf bir xil. Farq bo'lsa, `diff` qaysi
+qator boshqacha ekanini ko'rsatadi (`<` — sizniki, `>` — kutilgani).
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [1-bob. Kompilyatsiya: koddan dasturgacha](01-kompilyatsiya.md)

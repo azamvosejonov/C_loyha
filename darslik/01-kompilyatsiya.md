@@ -420,4 +420,126 @@ faqat bir marta qo'sh" deydi. Eski usul — "include guard" (10-bob).
 - `mashqlar/01_kvadratlar` ni oching: `mashq.h`, `yechim.c`, `test.c` qanday bog'langanini tushuning.
   Hozircha yechmasangiz ham bo'ladi.
 
+<!-- loyiha:boshi -->
+## Loyiha: geometriya moduli
+
+**Maqsad:** bitta dasturni uch faylga bo'lish: `.h` (menyu), `.c` (oshxona), `main.c` (mijoz).
+**Bobdan ishlatiladi:** e'lon va ta'rif (1.2), sarlavha fayli (1.3), alohida kompilyatsiya va bog'lash.
+
+**Talab:** to'g'ri to'rtburchak va kvadrat uchun yuza, perimetr, o'rta qiymat hisoblovchi modul.
+**Ma'lumotlar:** faqat `int` sonlar — modulning o'z holati yo'q.
+**Funksiyalar:** `yuza(a, b)`, `perimetr(a, b)`, `kvadrat(a)`, `kub(a)`, `yarim_yigindi(a, b)`.
+Qaysi biri `.h` ga? Hammasi (main ishlatadi). Qaysi biri `.c` da qoladi? Ichki yordamchilar (hozircha yo'q).
+
+```c
+/* geometriya.h - menyu */
+#pragma once
+
+int yuza(int a, int b);
+int perimetr(int a, int b);
+int kvadrat(int a);
+int kub(int a);
+int yarim_yigindi(int a, int b);
+```
+
+```c
+/* geometriya.c - oshxona */
+#include "geometriya.h"
+
+int yuza(int a, int b) { return a * b; }
+int perimetr(int a, int b) { return 2 * (a + b); }
+int kvadrat(int a) { return a * a; }
+int kub(int a) { return a * a * a; }
+int yarim_yigindi(int a, int b) { return (a + b) / 2; }
+```
+
+```c
+/* main.c - mijoz */
+#include <stdio.h>
+#include "geometriya.h"
+
+int main(void)
+{
+    printf("4 x 7 to'rtburchak: yuza = %d, perimetr = %d\n", yuza(4, 7), perimetr(4, 7));
+    printf("kvadrat(9) = %d, kub(3) = %d\n", kvadrat(9), kub(3));
+    printf("yarim_yigindi(10, 15) = %d\n", yarim_yigindi(10, 15));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -c geometriya.c
+$ gcc -Wall -Wextra -c main.c
+$ gcc main.o geometriya.o -o dastur
+$ ./dastur
+4 x 7 to'rtburchak: yuza = 28, perimetr = 22
+kvadrat(9) = 81, kub(3) = 27
+yarim_yigindi(10, 15) = 12
+$ nm geometriya.o
+0000000000000044 T kub
+0000000000000031 T kvadrat
+0000000000000017 T perimetr
+000000000000005b T yarim_yigindi
+0000000000000000 T yuza
+$ nm main.o
+                 U kub
+                 U kvadrat
+0000000000000000 T main
+                 U perimetr
+                 U printf
+                 U yarim_yigindi
+                 U yuza
+```
+
+`nm` da `T` — "bu yerda aniqlangan", `U` — "boshqa joydan kerak". `main.o` dagi `U yuza` linker
+`geometriya.o` dagi `T yuza` bilan ulaganda to'ldiriladi (1.3-bo'lim).
+
+**Kengaytiring:** `diagonal_kvadrati(a, b)` (= a² + b²) funksiyasini qo'shing — nechta faylga tegdingiz?
+(Uchta: `.h` ga e'lon, `.c` ga tana, `main.c` da chaqiruv.) Faqat `geometriya.c` ni o'zgartirsangiz, `main.c` ni
+qayta kompilyatsiya qilish shartmi?
+
+## Mustaqil loyiha: vaqt moduli ★☆☆
+
+**Vazifa:** sutka 1440 daqiqadan iborat. "09:45 + 02:30" kabi hisoblarni bajaradigan modul yozing.
+Uch fayl: `vaqt.h`, `vaqt.c`, `main.c`.
+
+**Talab.** Vaqt bitta `int` da — sutka boshidan o'tgan daqiqalar (0..1439). Modul aynan shu **4 ta**
+funksiyani `vaqt.h` orqali beradi:
+
+| Funksiya | Nima qiladi |
+|---|---|
+| `int vaqt_yasa(int soat, int daqiqa)` | soat×60 + daqiqa (sutkadan oshsa aylanadi) |
+| `int vaqt_qosh(int a, int b)` | a + b, sutkadan oshsa boshidan boshlanadi |
+| `int vaqt_farq(int a, int b)` | a dan b gacha necha daqiqa oldinga (kechasi ham o'tadi) |
+| `void vaqt_chiqar(int t)` | `HH:MM` ko'rinishida chiqaradi, **yangi qatorsiz** |
+
+`vaqt.c` da bitta **`static`** yordamchi funksiya bo'lsin: har qanday (manfiy ham) daqiqani
+0..1439 ga keltiradigan. Uni boshqa funksiyalar ishlatsin.
+
+**Sinov** (`main.c` shuni bajarsin) — kutilgan natija (`darslik/loyihalar/01_geometriya/kutilgan.txt`):
+
+```text
+09:45 + 02:30 = 12:15
+23:50 + 00:25 = 00:15
+08:30 dan 17:05 gacha: 08:35
+22:00 dan 06:30 gacha: 08:30
+```
+
+Sinovlar: `09:45 + 02:30`; `23:50 + 00:25`; `08:30` dan `17:05` gacha farq; `22:00` dan `06:30` gacha farq.
+
+**Maslahat** (yechim emas):
+- Manfiy son bilan `%` C da manfiy qoldiq beradi: `-10 % 1440` nechaga teng? Shuning uchun static yordamchi kerak.
+- `%02d` — ikki xonali, oldiga nol qo'yiladi.
+- `.h` ga faqat 4 ta e'lon (va `#pragma once`) yoziladi, yordamchi funksiya yozilmaydi.
+
+**O'zingizni tekshiring:** `nm vaqt.o` da 4 ta `T` va bitta kichik `t` (static) bo'lishi kerak.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -c vaqt.c && gcc -Wall -Wextra -c main.c && gcc vaqt.o main.o -o dastur \
+  && ./dastur | diff - ~/C_loyha/darslik/loyihalar/01_geometriya/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [2-bob. O'zgaruvchilar va turlar](02-turlar.md)

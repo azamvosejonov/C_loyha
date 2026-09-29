@@ -304,4 +304,181 @@ ko'pincha noto'g'ri. 21-bobdagi matritsa tajribasini `perf stat -e cache-misses`
 - `strace -f sh -c 'ls | wc -l'` chiqishida `pipe`, `clone`, `dup2`, `execve` qatorlarini topib, 14-bob bilan bog'lang.
 - MyOS'da: `make run-nographic APPEND=demo=uaf` — slab qanday ushlashini ko'ring; `make debug` bilan `kmain` da to'xtab, `bt` va `info registers` ni sinang.
 
+<!-- loyiha:boshi -->
+## Loyiha: xotira sizib chiqishini ushlagich (mini leak detector)
+
+**Maqsad:** o'zingiz `malloc`/`free` ni **kuzatib** boradigan kichik vosita yaratish. AddressSanitizer, valgrind va yadroning `kmemleak` i
+ichida aynan shu g'oya bor: har bir ajratishni yodda tut, `free` da o'chir, oxirida qolganlarni ko'rsat (29.4–29.5).
+**Bobdan ishlatiladi:** makrolar (`__FILE__`, `__LINE__`), o'z ajratuvchi qatlami, jadval, xatolarni bildirish.
+
+**Talab:** `MALLOC(n)` va `FREE(p)` makrolari. Har ajratish qayerdan (fayl:qator) va qancha ekanini eslab qolsin. `FREE` noto'g'ri
+ko'rsatkich (ajratilmagan yoki ikki marta bo'shatilgan) ni **ushlasin**. Dastur oxirida `hisobot()` sizib chiqqanlarni ro'yxat qilsin.
+**Nega makro?** Funksiya ichida `__LINE__` funksiyaning o'z qatorini beradi; makro esa **chaqirilgan joyning** qatorini beradi (10-bob).
+
+```c
+/* ushlagich.c - malloc/free kuzatuvchisi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAKS 64
+
+struct yozuv {
+    void *p;
+    size_t hajm;
+    const char *fayl;
+    int qator;
+};
+static struct yozuv jadval[MAKS];
+static int xato_soni;
+
+static void *kuzat_malloc(size_t n, const char *fayl, int qator)
+{
+    void *p = malloc(n);
+    for (int i = 0; p && i < MAKS; i++)
+        if (!jadval[i].p) {
+            jadval[i] = (struct yozuv){ p, n, fayl, qator };
+            break;
+        }
+    return p;
+}
+
+static void kuzat_free(void *p, const char *fayl, int qator)
+{
+    for (int i = 0; i < MAKS; i++)
+        if (jadval[i].p == p) {
+            jadval[i].p = NULL;
+            free(p);
+            return;
+        }
+    xato_soni++;
+    printf("XATO %s:%d: free() noto'g'ri yoki ikki marta chaqirildi\n", fayl, qator);
+}
+
+#define MALLOC(n) kuzat_malloc((n), __FILE__, __LINE__)
+#define FREE(p) kuzat_free((p), __FILE__, __LINE__)
+
+static void hisobot(void)
+{
+    size_t jami = 0;
+    int soni = 0;
+    for (int i = 0; i < MAKS; i++)
+        if (jadval[i].p) {
+            printf("  SIZIB CHIQDI: %zu bayt, ajratilgan joy %s:%d\n", jadval[i].hajm, jadval[i].fayl, jadval[i].qator);
+            jami += jadval[i].hajm;
+            soni++;
+        }
+    printf("Hisobot: %d ta sizib chiqish (%zu bayt), %d ta noto'g'ri free()\n", soni, jami, xato_soni);
+}
+
+static void sizdiruvchi(void)
+{
+    char *c = MALLOC(50);
+    (void)c;                                    /* funksiyadan chiqdik, c yo'qoldi: SIZIB CHIQISH */
+}
+
+int main(void)
+{
+    char *a = MALLOC(100);
+    char *b = MALLOC(200);
+    strcpy(a, "salom");
+    FREE(a);
+    FREE(a);                                    /* XATO: ikki marta */
+    FREE(b);
+    int x;
+    FREE(&x);                                   /* XATO: ajratilmagan manzil */
+    sizdiruvchi();
+    hisobot();
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g ushlagich.c -o ushlagich
+$ ./ushlagich
+XATO ushlagich.c:68: free() noto'g'ri yoki ikki marta chaqirildi
+XATO ushlagich.c:71: free() noto'g'ri yoki ikki marta chaqirildi
+  SIZIB CHIQDI: 50 bayt, ajratilgan joy ushlagich.c:58
+Hisobot: 1 ta sizib chiqish (50 bayt), 2 ta noto'g'ri free()
+```
+
+Bizning kuzatuvchi **fayl:qator** bilan aytdi: 58-qatorda ajratilgan 50 bayt qaytarilmagan; 68- va 71-qatorlardagi `FREE` lar noto'g'ri.
+Ikki marta `free` ni bizning qatlam **o'zi** ushladi va haqiqiy `free` ga yetkazmadi.
+
+Endi shu xatoni boshqa vositalar qanday ko'rishini solishtiring. Eng oddiy sizib chiqish:
+
+```c
+/* sizish.c - eng oddiy sizib chiqish */
+#include <stdlib.h>
+
+static void f(void)
+{
+    void *p = malloc(50);
+    (void)p;                                    /* f tugadi, p yo'qoldi, free yo'q */
+}
+
+int main(void)
+{
+    f();
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address sizish.c -o s_asan && ./s_asan 2>&1 | grep -E "SUMMARY"
+SUMMARY: AddressSanitizer: 50 byte(s) leaked in 1 allocation(s).
+$ gcc -Wall -Wextra -g sizish.c -o s_val && valgrind --leak-check=full ./s_val 2>&1 | grep -E "definitely lost:"
+==2234==    definitely lost: 50 bytes in 1 blocks
+```
+
+AddressSanitizer (LeakSanitizer) va valgrind ikkalasi ham 50 baytni topdi. Nega ular `ushlagich.c` dagi sizishni **ko'rmadi**? Bizning kuzatuvchi jadvali ko'rsatkichni
+saqlab turibdi, shuning uchun sanitizer uni "hali erishish mumkin" (still reachable) deb hisoblaydi — sizib chiqish emas. Bu — muhim saboq:
+vositalar bir-birini to'ldiradi, hech biri hammasini ko'rmaydi.
+
+**Kengaytiring:** `REALLOC(p, n)` makrosini qo'shing. `MAKS` dan ko'p ajratish bo'lsa nima bo'ladi — jimgina yo'qoladi (yozuvsiz). Buni qanday oshkor qilasiz?
+
+## Mustaqil loyiha: 5 ta xatoni toping ★★★
+
+**Vazifa:** sizga ataylab **5 ta xatosi bor** `ombor.c` beriladi (`darslik/loyihalar/29_xato_ovchisi/ombor.c`). Har birini **vosita yordamida** toping va tuzating —
+kodni birinchi qarashda o'qib emas. Bu — haqiqiy dasturchining kundalik ishi (29-bob).
+
+**Dastur:** mahsulotlar ombori (nom, narx, soni): qo'shish, jami qiymat, eng qimmat mahsulot, chegirmali narx, hisobot.
+
+**Ish tartibi (har xato uchun):**
+1. Yig'ing: `gcc -Wall -Wextra -g -fsanitize=address,undefined ombor.c -o ombor && ./ombor`
+2. Vosita xabarini o'qing: **qaysi qator**, **qanday xato turi**?
+3. Sababni o'zingiz tushuntiring (daftarga bir gap): "Bu xato nima uchun yuz beryapti?"
+4. Tuzating, 1-qadamga qayting — keyingi xato chiqquncha.
+
+**Vositalar ro'yxati** (har xato boshqasida ko'rinadi): AddressSanitizer (`-fsanitize=address`, u LeakSanitizer ni ham o'z ichiga oladi),
+UBSan (`-fsanitize=undefined`), `valgrind ./ombor`, `gdb` (`bt`, `print`).
+
+**Maqsad:** hamma xato tuzatilgach, dastur **sanitizer bilan ham jim** ishlaydi va quyidagini chiqaradi:
+
+**Kutilgan natija** (`darslik/loyihalar/29_xato_ovchisi/kutilgan.txt`):
+
+```text
+Jami qiymat: 204000
+Eng qimmat: Juda uzun nomli (50000 so'm)
+Chegirmali narx (30000000 so'm, 10%): 27000000
+Mahsulot turlari: 5
+```
+
+**Maslahat** (yechim emas):
+- Bitta ishga tushirishda sanitizer odatda **birinchi** xatoda to'xtaydi. Tuzatib, qayta ishga tushirasiz — keyingisi chiqadi. Bu normal.
+- Qator raqamlari `ombor.c:28` shaklida beriladi. `gdb ./ombor` → `run` → `bt` to'liq chaqiruvlar zanjirini ko'rsatadi.
+- Beshta xato **turlicha**: bufer chegarasidan yozish, chegaradan o'qish, o'chirilgan xotiraga murojaat, sizib chiqish, ishorali toshish.
+- "Tasodifan ishlab ketgan" dastur xatosiz emas: sanitizersiz yig'ib ishga tushirib ko'ring — ehtimol, hech narsa sezmaysiz. Nega bu xavfli?
+- Yechim kalitlari: `darslik/loyihalar/29_xato_ovchisi/javoblar.txt` — **faqat o'zingiz urinib ko'rgach** oching.
+
+**Tekshirish:**
+
+```bash
+D=~/C_loyha/darslik/loyihalar/29_xato_ovchisi
+cp $D/ombor.c . && gcc -Wall -Wextra -g -fsanitize=address,undefined ombor.c -o ombor
+./ombor            # 5 marta tuzatib, qayta ishga tushiring
+./ombor | diff - $D/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [30-bob. Yadro arxitekturasi va Linux'ga yo'l](30-yadro-arxitekturasi.md)

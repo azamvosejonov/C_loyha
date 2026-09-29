@@ -282,4 +282,175 @@ Muhim emas qaysi biri — muhimi uni tez ishlatish:
 - `grep -rn` bilan MyOS'da `kmalloc` chaqirilgan 5 ta joyni toping va har biri nimaga xotira so'rayotganini aniqlang.
 - `git log --oneline --reverse` — MyOS'ning birinchi 5 commitini `git show --stat` bilan ko'rib chiqing.
 
+<!-- loyiha:boshi -->
+## Loyiha: `mhead` — buyruq qatori argumentlari
+
+**Maqsad:** terminal buyrug'i kabi ishlaydigan dastur yozish: `argc`/`argv`, bayroqlar, xato xabarlari `stderr` ga, chiqish kodi,
+fayl yoki `stdin` dan o'qish. Bu — barcha Unix vositalarining umumiy tuzilishi (19-bob, 5.11).
+**Bobdan ishlatiladi:** `argv` tahlili, `strtol` bilan tekshirilgan son o'qish, `stdin`/`stderr`, chiqish kodlari.
+
+**Talab:** `mhead [-n SON] [fayl]` — faylning (yoki `stdin` ning) birinchi `SON` qatorini chiqarsin (standart: 10).
+- Noto'g'ri son yoki ortiqcha argument: xabar `stderr` ga, chiqish kodi **2**.
+- Fayl ochilmasa: `mhead: <fayl>: <sabab>` `stderr` ga, chiqish kodi **1**.
+- Muvaffaqiyat: **0**.
+
+```c
+/* mhead.c - head buyrug'i */
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static void yordam(void)
+{
+    fprintf(stderr, "Ishlatish: mhead [-n SON] [fayl]\n");
+}
+
+int main(int argc, char **argv)
+{
+    long n = 10;
+    const char *yol = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-n") == 0) {
+            if (i + 1 >= argc) {                /* "-n" dan keyin son yo'q */
+                yordam();
+                return 2;
+            }
+            char *oxir;
+            n = strtol(argv[++i], &oxir, 10);
+            if (oxir == argv[i] || *oxir != '\0' || n < 0) {
+                fprintf(stderr, "mhead: noto'g'ri son: %s\n", argv[i]);
+                return 2;
+            }
+        } else if (strcmp(argv[i], "--yordam") == 0) {
+            yordam();
+            return 0;
+        } else if (!yol) {
+            yol = argv[i];
+        } else {
+            yordam();
+            return 2;
+        }
+    }
+
+    FILE *f = yol ? fopen(yol, "r") : stdin;    /* fayl bermasa - standart kirish */
+    if (!f) {
+        fprintf(stderr, "mhead: %s: %s\n", yol, strerror(errno));
+        return 1;
+    }
+    char qator[1024];
+    for (long k = 0; k < n && fgets(qator, sizeof(qator), f); k++)
+        fputs(qator, stdout);
+    if (f != stdin)
+        fclose(f);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g mhead.c -o mhead
+$ seq 1 20 > sonlar.txt
+$ ./mhead sonlar.txt | tr '\n' ' '; echo
+1 2 3 4 5 6 7 8 9 10 
+$ ./mhead -n 3 sonlar.txt
+1
+2
+3
+$ seq 1 100 | ./mhead -n 2
+1
+2
+$ ./mhead yoq.txt 2>&1; echo "chiqish kodi: $?"
+mhead: yoq.txt: No such file or directory
+chiqish kodi: 1
+$ ./mhead -n abc sonlar.txt 2>&1; echo "chiqish kodi: $?"
+mhead: noto'g'ri son: abc
+chiqish kodi: 2
+$ ./mhead -n 0 sonlar.txt | wc -l
+0
+```
+
+`|` (quvur) tufayli bir xil dastur ham fayldan, ham boshqa buyruq chiqishidan o'qiydi — chunki `stdin` ham oddiy fayl deskriptori (0).
+Xato xabarlari `stdout` ga emas, `stderr` ga yozilgani uchun quvurga aralashmaydi: `./mhead yoq.txt | wc -l` faqat `0` ni beradi, xabar terminalga chiqadi.
+
+**Kengaytiring:** `-c` bayrog'ini qo'shing (birinchi N **bayt**). Bir nechta fayl berilsa, har birining oldiga `==> fayl <==` sarlavhasini chiqaring.
+
+## Mustaqil loyiha: mini `wc` ★★★
+
+**Vazifa:** `wc` buyrug'ini yozing: `mwc [-l] [-w] [-c] [fayl...]`. Fayl: `mwc.c`. Kirish-chiqish uchun `stdio` (`fopen`, `fread` yoki
+`getc`, `printf`) ishlatishingiz mumkin.
+
+**Talab:**
+- **Ustunlar:** `-l` — qatorlar (`\n` soni), `-w` — so'zlar (probel, tab, `\n` bilan ajratilgan bo'sh bo'lmagan ketma-ketliklar),
+  `-c` — baytlar. Hech qaysi berilmasa — uchalasi. Ustunlar tartibi doim: qator, so'z, bayt.
+- **Format:** har tanlangan ustun `%7ld`, oxirida probel va fayl nomi: `"%7ld%7ld%7ld %s\n"` shaklida
+  (faqat tanlangan ustunlar; `stdin` dan o'qilsa nom yozilmaydi va oxirgi probel ham bo'lmaydi).
+- **Bir nechta fayl** (`argv` da 1 dan ko'p fayl nomi) berilsa, oxirida `jami` qatori chiqadi (muvaffaqiyatli
+  o'qilgan fayllar yig'indisi, nomi `jami`).
+- **Ochilmagan fayl:** `mwc: <fayl>: <strerror>` xabari **stderr** ga, dastur davom etadi (qolgan fayllarni ham
+  ishlaydi), oxirida chiqish kodi **1**. Bunday fayl `jami` ga kirmaydi.
+- Fayl nomi berilmasa, `stdin` dan o'qiladi.
+
+**Kirish fayllari** (`darslik/loyihalar/19_mini_wc/`):
+
+`a.txt` (4 qator, oxirida `\n` bor):
+
+```text
+salom dunyo
+ikkinchi qator bor
+
+uchinchi
+```
+
+`b.txt` (**oxirida `\n` yo'q!**):
+
+```text
+bir
+ikki uch
+to'rt besh olti yetti
+```
+
+**1-sinov:** `./dastur a.txt`
+
+```text
+      4      6     41 a.txt
+```
+
+**2-sinov:** `./dastur -l -w a.txt b.txt`
+
+```text
+      4      6 a.txt
+      2      7 b.txt
+      6     13 jami
+```
+
+**3-sinov:** `./dastur -c a.txt yoq.txt b.txt 2>/dev/null; echo "chiqish kodi: $?"` va `./dastur -w < a.txt`
+
+```text
+     41 a.txt
+     34 b.txt
+     75 jami
+chiqish kodi: 1
+      6
+```
+
+**Maslahat** (yechim emas):
+- Har baytni o'qib (`getc`), holatni yuriting: `bayt++`; `c == '\n'` bo'lsa `qator++`; bo'shliqdan harfga o'tishda `soz++`.
+- Bo'shliq: `' '`, `'\t'`, `'\n'` (va istasangiz `'\r'`). "Oldingi belgi bo'shliqmi?" bayrog'i so'zlarni sanaydi.
+- `b.txt` oxirgi qatori `\n` siz — `-l` uni sanamaydi (`wc` ham shunday), lekin `-w` va `-c` hisobga oladi.
+- Ustunlarni chiqarishda "tanlanganmi" bayroqlarini tekshiring, yig'indilarni `long` da saqlang.
+- `stderr` ga `fprintf(stderr, ...)` yozing — `2>/dev/null` shu xabarni yashiradi.
+
+**Tekshirish:**
+
+```bash
+D=~/C_loyha/darslik/loyihalar/19_mini_wc
+cp $D/a.txt $D/b.txt .                      # kirish fayllarini o'z papkangizga oling
+gcc -Wall -Wextra -g -fsanitize=address,undefined mwc.c -o dastur
+./dastur a.txt | diff - $D/kutilgan.txt && echo "1: TO'G'RI"
+./dastur -l -w a.txt b.txt | diff - $D/kutilgan_2.txt && echo "2: TO'G'RI"
+(./dastur -c a.txt yoq.txt b.txt 2>/dev/null; echo "chiqish kodi: $?"; ./dastur -w < a.txt) | diff - $D/kutilgan_3.txt && echo "3: TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [20-bob. Sonlar kompyuterda](20-sonlar.md)

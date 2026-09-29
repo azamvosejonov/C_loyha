@@ -328,4 +328,211 @@ Tayyorgarlik uchun: ushbu bobdagi hamma tuzilmani C'da noldan yozing (mashqlar 1
   **48** (deadlock: grafda sikl topish).
 - Takrorlash: **13, 16, 17, 19, 21, 22, 32**.
 
+<!-- loyiha:boshi -->
+## Loyiha: so'z chastotasi (xesh jadval)
+
+**Maqsad:** xesh jadvalni noldan qurish va u **nega tez** ekanini ko'rish: kalit → xesh → "cho'ntak" (bucket) → qisqa zanjir. Python'dagi `dict` va
+`collections.Counter` ning ichi aynan shunday (28.3).
+**Bobdan ishlatiladi:** xesh funksiya, zanjirlash (chaining), bog'langan ro'yxat, `qsort` bilan saralash.
+
+**Talab:** matndagi har so'z necha marta uchrashini sanang va eng ko'p uchraydigan 5 tasini chiqaring; xesh jadval statistikasini
+(nechta cho'ntak band, eng uzun zanjir) ham ko'rsating.
+**Ma'lumotlar:** `struct tugun { char *soz; int soni; struct tugun *keyingi; }`; `jadval[16]` — zanjirlar boshlari.
+**Xesh:** `djb2`: `h = 5381; har belgi uchun h = h*33 + belgi`. Cho'ntak = `h % 16`.
+
+```c
+/* chastota.c - so'z chastotasi xesh jadval bilan */
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define KOVAKLAR 16
+
+struct tugun {
+    char *soz;
+    int soni;
+    struct tugun *keyingi;
+};
+static struct tugun *jadval[KOVAKLAR];
+static int noyob;
+
+static unsigned xesh(const char *s)
+{
+    unsigned h = 5381;
+    while (*s)
+        h = h * 33 + (unsigned char)*s++;
+    return h;
+}
+
+static void qosh(const char *soz)
+{
+    unsigned k = xesh(soz) % KOVAKLAR;
+    for (struct tugun *t = jadval[k]; t; t = t->keyingi)
+        if (strcmp(t->soz, soz) == 0) {         /* zanjirda bor: sanagichni oshiramiz */
+            t->soni++;
+            return;
+        }
+    struct tugun *yangi = malloc(sizeof(*yangi));
+    yangi->soz = strdup(soz);
+    yangi->soni = 1;
+    yangi->keyingi = jadval[k];                 /* zanjir boshiga qo'yamiz */
+    jadval[k] = yangi;
+    noyob++;
+}
+
+static int taqqosla(const void *pa, const void *pb)
+{
+    const struct tugun *a = *(struct tugun *const *)pa, *b = *(struct tugun *const *)pb;
+    if (a->soni != b->soni)
+        return b->soni - a->soni;               /* ko'pi oldin */
+    return strcmp(a->soz, b->soz);              /* teng bo'lsa alifbo */
+}
+
+int main(void)
+{
+    const char *matn = "Yadro dasturchisi yadro bilan ishlaydi. Yadro xotirani boshqaradi, yadro jarayonlarni "
+                       "rejalashtiradi. Dasturchi xotirani tushunishi kerak, jarayon esa xotirani ishlatadi.";
+    char soz[32];
+    int n = 0;
+    for (const char *p = matn;; p++) {
+        if (isalpha((unsigned char)*p) && n < 31) {
+            soz[n++] = (char)tolower((unsigned char)*p);
+        } else {
+            if (n > 0) {
+                soz[n] = '\0';
+                qosh(soz);
+                n = 0;
+            }
+            if (*p == '\0')
+                break;
+        }
+    }
+
+    struct tugun **hammasi = malloc((size_t)noyob * sizeof(*hammasi));
+    int k = 0, band = 0, eng_uzun = 0;
+    for (int i = 0; i < KOVAKLAR; i++) {
+        int uz = 0;
+        for (struct tugun *t = jadval[i]; t; t = t->keyingi) {
+            hammasi[k++] = t;
+            uz++;
+        }
+        band += uz > 0;
+        if (uz > eng_uzun)
+            eng_uzun = uz;
+    }
+    qsort(hammasi, (size_t)noyob, sizeof(*hammasi), taqqosla);
+
+    printf("Noyob so'zlar: %d\n", noyob);
+    printf("Eng ko'p uchraganlar:\n");
+    for (int i = 0; i < 5 && i < noyob; i++)
+        printf("  %-14s %d\n", hammasi[i]->soz, hammasi[i]->soni);
+    printf("Xesh jadval: %d/%d cho'ntak band, eng uzun zanjir %d\n", band, KOVAKLAR, eng_uzun);
+
+    for (int i = 0; i < KOVAKLAR; i++)
+        for (struct tugun *t = jadval[i], *keyingi; t; t = keyingi) {
+            keyingi = t->keyingi;
+            free(t->soz);
+            free(t);
+        }
+    free(hammasi);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined chastota.c -o chastota
+$ ./chastota
+Noyob so'zlar: 14
+Eng ko'p uchraganlar:
+  yadro          4
+  xotirani       3
+  bilan          1
+  boshqaradi     1
+  dasturchi      1
+Xesh jadval: 8/16 cho'ntak band, eng uzun zanjir 3
+```
+
+Qidirish `O(zanjir uzunligi)` — jadval to'lmasa, `O(1)`. Cho'ntaklar soni oshsa zanjirlar qisqaradi; shuning uchun real xesh jadval (Python `dict`, Linux `hlist`)
+to'lish darajasi oshganda **o'zi kengayadi** (rehash). `KOVAKLAR` ni 2 va 256 qiling — "eng uzun zanjir" qanday o'zgaradi?
+
+**Kengaytiring:** `qidir(soz)` funksiyasi va `ochir(soz)` yozing. Bog'langan ro'yxat o'rniga *ochiq manzillash* (bo'sh cho'ntakni qidirish) ni sinab ko'ring.
+
+## Mustaqil loyiha: labirintdan chiqish yo'li (BFS) ★★★
+
+**Vazifa:** labirintda `S` (boshlanish) dan `E` (chiqish) gacha **eng qisqa yo'l**ni toping va uni `*` bilan belgilab ko'rsating.
+Bu — graflarda **kenglik bo'yicha qidirish** (BFS, 28.7). Fayl: `labirint.c`.
+
+**Kirish** (`stdin`): bir yoki bir nechta labirint; ular **bo'sh qator** bilan ajratilgan. Belgilar: `#` — devor, `.` — yo'l, `S`, `E`.
+Har labirintda qatorlar bir xil uzunlikda, o'lcham 60×60 dan oshmaydi.
+
+**Kirish fayli** (`darslik/loyihalar/28_labirint/kirish.txt`):
+
+```text
+###########
+#S....#...#
+#.###.#.#.#
+#.#...#.#.#
+#.#.###.#.#
+#.#.....#E#
+###########
+
+#######
+#S#...#
+#.#.#.#
+###.#E#
+#######
+
+#####
+#S..#
+#...#
+#..E#
+#####
+```
+
+**Qoidalar:**
+- Harakat — faqat **to'rt tomonga** (diagonal yo'q), har qadam 1.
+- **Tanlov tartibi aniq:** qo'shnilarni har doim **yuqori, o'ng, past, chap** tartibida ko'ring (BFS navbatida shu tartibda qo'shing).
+  Bir necha teng qisqa yo'l bo'lsa, natija shu tartibga bog'liq. Katak birinchi marta ko'rilganda uning "otasi" yoziladi (keyin o'zgarmaydi).
+- Natija: `Labirint K: eng qisqa yo'l N qadam` va labirintning o'zi, yo'l katakchalari (`S` va `E` dan tashqari) `*` bilan.
+  Yo'l yo'q bo'lsa: `Labirint K: yo'l yo'q` (labirint chiqarilmaydi). Har labirint natijasidan keyin **bitta bo'sh qator**.
+
+**Kutilgan natija** (`./dastur < kirish.txt`) (`darslik/loyihalar/28_labirint/kutilgan.txt`):
+
+```text
+Labirint 1: eng qisqa yo'l 24 qadam
+###########
+#S****#***#
+#.###*#*#*#
+#.#***#*#*#
+#.#*###*#*#
+#.#*****#E#
+###########
+
+Labirint 2: yo'l yo'q
+
+Labirint 3: eng qisqa yo'l 4 qadam
+#####
+#S**#
+#..*#
+#..E#
+#####
+```
+
+**Maslahat** (yechim emas):
+- Navbat — massiv (`navbat[3600]`), `bosh`/`oxir` indekslari (8-bob emas, 5-bobdagi oddiy massiv). Har katak uchun `ota[qator][ustun]` va `masofa`.
+- BFS: `S` ni navbatga qo'ying. Sikl: navbat boshidan oling; 4 ta qo'shnini **U, R, D, L** tartibida tekshiring: chegara ichidami, devor emasmi, ko'rilmaganmi?
+  Ko'rilmagan bo'lsa — `ota` va `masofa` ni yozib navbatga qo'shing. `E` topilganda to'xtashingiz mumkin.
+- Yo'lni `E` dan `ota` zanjiri bo'ylab `S` gacha yuring, har katakni `*` qiling (`S`, `E` ni qoldirib).
+- Nega BFS eng qisqa yo'lni **kafolatlaydi**? (Har qadamda faqat bir xil masofadagi kataklar birinchi bo'lib ko'riladi.) DFS bilan bo'lmasdi.
+- Qatorlarni `fgets` bilan o'qing, oxiridagi `\\n` ni olib tashlang. Bo'sh qator — yangi labirint boshlanishi (yoki fayl oxiri).
+
+**Tekshirish:**
+
+```bash
+D=~/C_loyha/darslik/loyihalar/28_labirint
+gcc -Wall -Wextra -g -fsanitize=address,undefined labirint.c -o dastur && ./dastur < $D/kirish.txt | diff - $D/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [29-bob. Debug va profiling vositalari](29-debug-vositalari.md)

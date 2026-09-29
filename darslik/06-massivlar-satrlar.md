@@ -331,4 +331,112 @@ qanday dekodlashini `kernel/drivers/vt.c` da ko'rishingiz mumkin.
 - **09** — xavfsiz nusxalash. **10** — ikki ko'rsatkich usuli.
 - **11** — son → satr. **12** — satr → son.
 
+<!-- loyiha:boshi -->
+## Loyiha: ovoz berish natijalari
+
+**Maqsad:** massivni **hisoblagich** sifatida ishlatish — C dasturchining eng ko'p qo'llaydigan hiyla-si.
+**Bobdan ishlatiladi:** massiv, indeks bo'yicha murojaat, ikki o'lchamli `char` massivi (nomlar), `sizeof`.
+
+**Talab:** 15 ta ovoz berilgan, har biri nomzod raqami (0..3). Har nomzod nechta ovoz olganini hisoblang,
+gistogramma chizing va g'olibni aniqlang.
+**Ma'lumotlar:** `nomlar[4][8]` — ismlar; `ovozlar[]` — berilgan ovozlar; `hisob[4]` — hisoblagichlar.
+**Asosiy g'oya:** ovoz raqamining o'zi `hisob` massivining **indeksi**: `hisob[ovoz]++`. Sikl ichida `if` shart emas.
+
+```c
+/* sorov.c - ovoz berish natijalari */
+#include <stdio.h>
+
+int main(void)
+{
+    char nomlar[4][8] = { "Ali", "Vali", "Zarina", "Madina" };
+    int ovozlar[] = { 2, 0, 1, 2, 2, 3, 0, 2, 1, 3, 2, 2, 0, 3, 2 };
+    int n = sizeof(ovozlar) / sizeof(ovozlar[0]);   /* massiv e'lon qilingan joyda ishlaydi (6.1) */
+    int hisob[4] = { 0 };                           /* hammasi nol */
+
+    for (int i = 0; i < n; i++)
+        hisob[ovozlar[i]]++;                        /* ovoz raqami = indeks */
+
+    printf("Jami ovoz: %d\n", n);
+    int golib = 0;
+    for (int k = 0; k < 4; k++) {
+        printf("%-7s |", nomlar[k]);
+        for (int j = 0; j < hisob[k]; j++)
+            putchar('#');
+        printf(" %d\n", hisob[k]);
+        if (hisob[k] > hisob[golib])
+            golib = k;
+    }
+    printf("G'olib: %s (%d ovoz, %d%%)\n", nomlar[golib], hisob[golib], hisob[golib] * 100 / n);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined sorov.c -o sorov
+$ ./sorov
+Jami ovoz: 15
+Ali     |### 3
+Vali    |## 2
+Zarina  |####### 7
+Madina  |### 3
+G'olib: Zarina (7 ovoz, 46%)
+```
+
+**Kengaytiring:** `ovozlar` ga `7` ni qo'shing (mavjud bo'lmagan nomzod) va sanitizer bilan ishga tushiring — u
+`hisob[7]` chegaradan chiqishini ushlaydi (6.2). Haqiqiy dasturda `ovoz < 0 || ovoz > 3` ni oldindan tekshirasiz.
+
+## Mustaqil loyiha: palindrom, anagram va so'zlar ★★☆
+
+**Vazifa:** uchta satr funksiyasini yozing. Fayl: `satrlar.c`. `<string.h>` va `<ctype.h>` dan foydalanishingiz mumkin.
+
+1. `int palindrom_mi(const char s[])` — harflarni katta-kichikligiga **qaramay** o'qing; **harf bo'lmagan**
+   belgilarni (probel, tinish belgilari) e'tiborga olmang. `"A man a plan a canal Panama"` — palindrom.
+2. `int anagram_mi(const char a[], const char b[])` — ikki satr bir xil harflardan iborat (tartibi boshqa),
+   katta-kichik va harf bo'lmagan belgilarga qaramay. Massiv `int soni[26]` bilan hisoblang.
+3. `int sozlar_soni(const char s[])` — probel bilan ajratilgan so'zlar soni. Ketma-ket probellar,
+   boshidagi va oxiridagi probellar so'z bo'lib sanalmaydi. Belgi ajratgichi faqat probel.
+
+`main` ichida sinov ma'lumotlari sizniki (quyidagi natijaga qarab yozing) va aynan shunday chiqarsin:
+
+**Kutilgan natija** (`darslik/loyihalar/06_anagram/kutilgan.txt`):
+
+```text
+Palindrom tekshiruvi:
+  "Level" -> ha
+  "A man a plan a canal Panama" -> ha
+  "Salom" -> yo'q
+  "Was it a car or a cat I saw" -> ha
+  "abcd" -> yo'q
+Anagram tekshiruvi:
+  "listen" va "silent" -> ha
+  "Dormitory" va "dirty room" -> ha
+  "hello" va "world" -> yo'q
+  "aab" va "abb" -> yo'q
+  "Astronomer" va "Moon starer" -> ha
+So'zlar soni:
+  "  salom   dunyo  bu  C  " -> 4
+  "" -> 0
+  "bitta" -> 1
+  "bir, ikki; uch" -> 3
+```
+
+Sinov satrlari, tartib bilan: palindrom uchun `"Level"`, `"A man a plan a canal Panama"`, `"Salom"`,
+`"Was it a car or a cat I saw"`, `"abcd"`; anagram juftlari `listen/silent`, `Dormitory/dirty room`, `hello/world`,
+`aab/abb`, `Astronomer/Moon starer`; so'zlar uchun `"  salom   dunyo  bu  C  "`, `""` (bo'sh satr), `"bitta"`,
+`"bir, ikki; uch"`.
+
+**Maslahat** (yechim emas):
+- `isalpha`, `tolower` ga `(unsigned char)` cast bering — 6.7-bo'lim, nega?
+- Palindrom: ikki indeks (`i` boshdan, `j` oxirdan), ikkalasi ham harf bo'lmagan belgini o'tkazib yuboradi, `i < j` bo'lguncha.
+- Anagram: birinchi satr harflari uchun `soni[h - 'a']++`, ikkinchisi uchun `--`. Oxirida hammasi nolmi?
+- So'zlar: "so'z ichidamanmi?" degan bayroq (0/1). Probeldan harfga o'tgan joyda sanagich oshadi.
+- Bo'sh satr `""` uchun `strlen(s) - 1` — `size_t` bilan nima bo'ladi? (2.4-bo'lim: unsigned toshishi!)
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined satrlar.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/06_anagram/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [7-bob. Ko'rsatkichlar](07-korsatkichlar.md)

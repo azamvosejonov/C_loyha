@@ -1,0 +1,17 @@
+Palindrom tekshiruvi:
+  "Level" -> ha
+  "A man a plan a canal Panama" -> ha
+  "Salom" -> yo'q
+  "Was it a car or a cat I saw" -> ha
+  "abcd" -> yo'q
+Anagram tekshiruvi:
+  "listen" va "silent" -> ha
+  "Dormitory" va "dirty room" -> ha
+  "hello" va "world" -> yo'q
+  "aab" va "abb" -> yo'q
+  "Astronomer" va "Moon starer" -> ha
+So'zlar soni:
+  "  salom   dunyo  bu  C  " -> 4
+  "" -> 0
+  "bitta" -> 1
+  "bir, ikki; uch" -> 3

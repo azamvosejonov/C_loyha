@@ -284,4 +284,160 @@ Eng kichikni tez topish uchun jarayonlar **qizil-qora daraxtda** saqlanadi (O(lo
 - MyOS: `kernel/proc/process.c` dagi `sched_tick` va `scheduler_loop` ni o'qib, kvant qanday
   hisoblanishini toping; `spin` dasturidan ikkitasini ishga tushirib `ps` bilan kuzating.
 
+<!-- loyiha:boshi -->
+## Loyiha: Round Robin rejalashtiruvchi simulyatori
+
+**Maqsad:** yadro rejalashtiruvchisining ichki mantig'i: kim qachon ishlaydi, kim qancha kutadi. Metrikalar
+(aylanish vaqti, kutish, javob) rejalashtirish algoritmlarini taqqoslashning asosiy o'lchovi (23.5–23.6).
+**Bobdan ishlatiladi:** tayyor navbat, vaqt kvanti, jarayon holati, metrikalar.
+
+**Talab:** 4 ta jarayon: kelish vaqti va kerakli CPU vaqti berilgan. Kvant = 3. Har vaqt birligida kim ishlagani
+(Gantt chizig'i) va har jarayon uchun metrikalar chiqarilsin.
+
+| Jarayon | Kelish | CPU vaqti |
+|---|---|---|
+| A | 0 | 5 |
+| B | 1 | 3 |
+| C | 2 | 8 |
+| D | 3 | 2 |
+
+**Qoida:** kvant tugaganda jarayon navbat **oxiriga** qaytadi. Agar aynan shu paytda yangi jarayon kelsa, u **oldin**
+navbatga qo'yiladi (kvant davomida kelganlar hammasi avval, keyin tugatgan jarayonning o'zi).
+**Metrikalar:** `aylanish = tugash − kelish`; `kutish = aylanish − CPU vaqti`; `javob = birinchi marta ishlagan vaqt − kelish`.
+
+```c
+/* rr.c - Round Robin simulyatori */
+#include <stdio.h>
+
+#define N 4
+#define KVANT 3
+
+int main(void)
+{
+    const char nom[N] = { 'A', 'B', 'C', 'D' };
+    int kelish[N] = { 0, 1, 2, 3 };
+    int davomiylik[N] = { 5, 3, 8, 2 };
+    int qoldi[N], tugash[N], boshlash[N];
+    char gantt[128];
+    int navbat[64], bosh = 0, oxir = 0;
+    int t = 0, tugaganlar = 0, uz = 0;
+
+    for (int i = 0; i < N; i++) {
+        qoldi[i] = davomiylik[i];
+        boshlash[i] = -1;
+    }
+    for (int i = 0; i < N; i++)                 /* t = 0 da kelganlar */
+        if (kelish[i] == 0)
+            navbat[oxir++] = i;
+
+    while (tugaganlar < N) {
+        if (bosh == oxir) {                     /* navbat bo'sh: CPU bo'sh turadi */
+            gantt[uz++] = '.';
+            t++;
+            for (int i = 0; i < N; i++)
+                if (kelish[i] == t)
+                    navbat[oxir++] = i;
+            continue;
+        }
+        int p = navbat[bosh++];
+        if (boshlash[p] < 0)
+            boshlash[p] = t;
+        int ish = qoldi[p] < KVANT ? qoldi[p] : KVANT;
+        for (int k = 0; k < ish; k++) {
+            gantt[uz++] = nom[p];
+            t++;
+            for (int i = 0; i < N; i++)         /* ish davomida kelganlar avval navbatga */
+                if (kelish[i] == t)
+                    navbat[oxir++] = i;
+        }
+        qoldi[p] -= ish;
+        if (qoldi[p] > 0) {
+            navbat[oxir++] = p;                 /* keyin o'zi */
+        } else {
+            tugash[p] = t;
+            tugaganlar++;
+        }
+    }
+    gantt[uz] = '\0';
+
+    printf("Gantt: %s\n", gantt);
+    printf("Nom  Kelish  CPU  Tugash  Aylanish  Kutish  Javob\n");
+    double jami_aylanish = 0, jami_kutish = 0;
+    for (int i = 0; i < N; i++) {
+        int aylanish = tugash[i] - kelish[i];
+        int kutish = aylanish - davomiylik[i];
+        int javob = boshlash[i] - kelish[i];
+        printf("%c    %6d  %3d  %6d  %8d  %6d  %5d\n", nom[i], kelish[i], davomiylik[i], tugash[i], aylanish, kutish, javob);
+        jami_aylanish += aylanish;
+        jami_kutish += kutish;
+    }
+    printf("O'rtacha aylanish: %.2f, o'rtacha kutish: %.2f\n", jami_aylanish / N, jami_kutish / N);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined rr.c -o rr
+$ ./rr
+Gantt: AAABBBCCCDDAACCCCC
+Nom  Kelish  CPU  Tugash  Aylanish  Kutish  Javob
+A         0    5      13        13       8      0
+B         1    3       6         5       2      2
+C         2    8      18        16       8      4
+D         3    2      11         8       6      6
+O'rtacha aylanish: 10.50, o'rtacha kutish: 6.00
+```
+
+Gantt chizig'ida har harf — bir vaqt birligi. Kvant kichik bo'lsa — javob tez (hamma tezda birinchi marta ishlaydi), lekin
+kontekst almashishlar ko'p; katta bo'lsa — FCFS ga yaqinlashadi. `KVANT` ni 1 va 100 qiling va farqni ko'ring.
+
+**Kengaytiring:** kontekst almashishlar sonini sanang (Gantt'da qo'shni harflar o'zgargan joylar). Jarayonlarni `A(0,4) B(20,2)` qiling — `.` (bo'sh CPU) qanday ko'rinadi?
+
+## Mustaqil loyiha: SRTF (eng qisqa qolgan vaqt birinchi) ★★★
+
+**Vazifa:** **preemptiv** SJF (SRTF) ni simulyatsiya qiling. Har vaqt birligida, kelib bo'lgan va tugamagan jarayonlar ichidan
+**qolgan vaqti eng kam** bo'lganini ishlating. Yangi jarayon kelganda hozirgisidan qisqa bo'lsa — uni **to'xtatib** o'tadi. Fayl: `srtf.c`.
+
+| Jarayon | Kelish | CPU vaqti |
+|---|---|---|
+| A | 0 | 7 |
+| B | 2 | 4 |
+| C | 4 | 1 |
+| D | 5 | 4 |
+
+**Tanlash qoidasi (aniq):** har vaqt birligi boshida, tayyorlar orasidan `qoldi` eng kichigini oling. Teng bo'lsa:
+1) o'tgan birlikda ishlagan jarayonni saqlang (keraksiz almashish bo'lmasin); 2) u ham bo'lmasa — **kelishi oldinroq**, keyin ro'yxatdagi tartib.
+Hech kim tayyor bo'lmasa — Gantt'da `.`.
+
+**Chiqish:** Gantt chizig'i va jadval (formati RR loyihasidagi kabi, sarlavha va ustunlar o'sha yerdagidek),
+keyin o'rtacha aylanish va kutish (`%.2f`). Bundan tashqari **kontekst almashishlar soni** (Gantt'da qo'shni harflar farq qilgan
+joylar, `.` ham hisobga kiradi). Sarlavhalar va ustun kengliklari kutilgan natijada.
+
+**Kutilgan natija** (`darslik/loyihalar/23_srtf/kutilgan.txt`):
+
+```text
+Gantt: AABBCBBDDDDAAAAA
+Nom  Kelish  CPU  Tugash  Aylanish  Kutish  Javob
+A         0    7      16        16       9      0
+B         2    4       7         5       1      0
+C         4    1       5         1       0      0
+D         5    4      11         6       2      2
+O'rtacha aylanish: 7.00, o'rtacha kutish: 3.00
+Kontekst almashishlar: 5
+```
+
+**Maslahat** (yechim emas):
+- Sikl `t = 0, 1, 2, ...` — har `t` da bitta birlik: kim ishlaydi? `qoldi[p]--`. `qoldi` 0 bo'lsa `tugash[p] = t + 1`.
+- Tanlashda `oldingi` (o'tgan birlikdagi jarayon) o'zgaruvchisini saqlang va tenglikda uni afzal ko'ring.
+- Kutish `aylanish − CPU vaqti`, javob `birinchi ishlagan vaqt − kelish`.
+- Natijani qo'lda tekshiring: A(0,7) dan boshlanadi; `t=2` da B(4) kelganda A da 5 qolgan — B ustun, A to'xtaydi.
+- SRTF o'rtacha kutishni **minimal** qiladi (23.6) — qo'lda hisoblang va taqqoslang.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined srtf.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/23_srtf/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [24-bob. Virtual xotira nazariyasi](24-virtual-xotira.md)

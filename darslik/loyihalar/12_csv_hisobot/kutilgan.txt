@@ -1,0 +1,10 @@
+1. Madina      94.67
+2. Zarina      94.67
+3. Kamola      86.00
+4. Jasur       84.33
+5. Bobur       71.67
+6. Otabek      64.00
+Talabalar: 6, o'rtacha: 82.56, eng yaxshi: Madina, eng past: Otabek
+Xato qatorlar: 2
+  4-qator: noto'g'ri format
+  8-qator: ball oralig'ida emas

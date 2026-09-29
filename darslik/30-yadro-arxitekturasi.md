@@ -298,4 +298,157 @@ C va tizimlar (darslik)  ->  MyOS ichida (labs)  ->  o'z yadroingiz (QOLLANMA 11
   funksiyasini va Linux funksiyasini yonma-yon o'qing, farqlarini daftarga yozing.
 - Virtual mashinada 30.6-dagi modulni yig'ib yuklang.
 
+<!-- loyiha:boshi -->
+## Loyiha: kooperativ mini yadro
+
+**Maqsad:** yadroning eng kichik **yuragi**ni yasash: vazifalar jadvali (task table), rejalashtiruvchi (scheduler) va "vazifa bitta qadam bajaradi va
+boshqaruvni qaytaradi" tamoyili. Haqiqiy yadroda kontekst almashish apparat qo'llab-quvvatlaydi; bu yerda uni funksiya chaqiruvi bilan modellaymiz (30.1).
+**Bobdan ishlatiladi:** vazifa (task/process) tuzilmasi, holatlar, round-robin rejalashtirish, funksiya ko'rsatkichlari.
+
+**Talab:** 3 ta vazifa. Yadro sikli har "tik"da navbatdagi tayyor vazifaga **bitta qadam** bajartiradi. Vazifa xabar qaytaradi yoki tugaganini bildiradi.
+**Ma'lumotlar:** `struct vazifa { const char *nom; enum holat holat; int qadam; const char *(*ish)(struct vazifa *); }`.
+**Qoida:** vazifa `NULL` qaytarsa — u tugadi. Navbat aylanma (round-robin): oxirgi ishlagan vazifadan **keyingisi**dan qidiriladi.
+
+```c
+/* yadro.c - kooperativ mini yadro */
+#include <stdio.h>
+
+enum holat { TAYYOR, TUGADI };
+
+struct vazifa {
+    const char *nom;
+    enum holat holat;
+    int qadam;
+    const char *(*ish)(struct vazifa *);        /* bitta qadam; NULL - tugadi */
+};
+
+static const char *sanoq(struct vazifa *v)
+{
+    static const char *xabar[] = { "bir", "ikki", "uch" };
+    return v->qadam < 3 ? xabar[v->qadam++] : NULL;
+}
+
+static const char *salom(struct vazifa *v)
+{
+    static const char *xabar[] = { "salom, yadro!", "xayr!" };
+    return v->qadam < 2 ? xabar[v->qadam++] : NULL;
+}
+
+static const char *tez(struct vazifa *v)
+{
+    return v->qadam++ < 1 ? "men tezman" : NULL;
+}
+
+int main(void)
+{
+    struct vazifa jadval[] = {
+        { "sanoq", TAYYOR, 0, sanoq },
+        { "salom", TAYYOR, 0, salom },
+        { "tez", TAYYOR, 0, tez },
+    };
+    int n = sizeof(jadval) / sizeof(jadval[0]);
+    int qolgan = n, oxirgi = n - 1;
+
+    for (int tik = 0; qolgan > 0; tik++) {
+        int tanlov = -1;
+        for (int k = 1; k <= n; k++) {          /* oxirgi ishlagandan KEYINGI tayyor vazifa */
+            int i = (oxirgi + k) % n;
+            if (jadval[i].holat == TAYYOR) {
+                tanlov = i;
+                break;
+            }
+        }
+        struct vazifa *v = &jadval[tanlov];
+        const char *xabar = v->ish(v);          /* "kontekst almashish": vazifaga o'tdik */
+        if (xabar) {
+            printf("[tik %d] %-6s: %s\n", tik, v->nom, xabar);
+        } else {
+            v->holat = TUGADI;
+            qolgan--;
+            printf("[tik %d] %-6s tugadi\n", tik, v->nom);
+        }
+        oxirgi = tanlov;
+    }
+    printf("Hamma vazifa tugadi.\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined yadro.c -o yadro
+$ ./yadro
+[tik 0] sanoq : bir
+[tik 1] salom : salom, yadro!
+[tik 2] tez   : men tezman
+[tik 3] sanoq : ikki
+[tik 4] salom : xayr!
+[tik 5] tez    tugadi
+[tik 6] sanoq : uch
+[tik 7] salom  tugadi
+[tik 8] sanoq  tugadi
+Hamma vazifa tugadi.
+```
+
+Vazifalar navbat bilan ishlaydi (`sanoq`, `salom`, `tez`, `sanoq`, ...) — bitta CPUda ham "bir vaqtda" ishlayotgandek. Kamchilik: vazifa qadam ichida qotib qolsa
+(cheksiz sikl), butun yadro qotadi — shuning uchun real yadro **taymer uzilishi** bilan vazifani majburan to'xtatadi (**preemptive** rejalashtirish, 23-bob).
+
+**Kengaytiring:** yana bitta vazifa qo'shing. Bitta vazifaning `ish` funksiyasida cheksiz sikl yozib, yadro qotishini ko'ring (Ctrl+C).
+
+## Mustaqil loyiha: taymer uzilishi va uxlash navbati ★★★
+
+**Vazifa:** yuqoridagi yadroga **vaqt** tushunchasini qo'shing: har tik — taymer uzilishi. Vazifa `SLEEP n` bilan `n` tikka **uxlashi** mumkin; yadro
+uni uyg'otadi. Hech kim tayyor bo'lmasa — yadro **bo'sh turadi** (idle). Fayl: `taymer.c`.
+
+**Vazifalar** — "dastur" (buyruqlar ro'yxati). Buyruq turlari: `PRINT "matn"`, `SLEEP n`, `END`:
+
+| Vazifa | Buyruqlar |
+|---|---|
+| A | `PRINT "A1"`, `SLEEP 3`, `PRINT "A2"`, `END` |
+| B | `PRINT "B1"`, `PRINT "B2"`, `SLEEP 1`, `PRINT "B3"`, `END` |
+| C | `SLEEP 2`, `PRINT "C1"`, `END` |
+
+**Yadro qoidalari** (har tik `t = 0, 1, 2, ...` uchun, shu tartibda):
+1. **Uyg'otish:** uxlayotgan vazifalardan `uyg'onish_vaqti <= t` bo'lganlar `TAYYOR` bo'ladi.
+2. **Tanlash:** tayyorlar orasidan oxirgi ishlagan vazifadan **keyingisi** (aylanma, dastlab `A` dan boshlanadi; ya'ni "oxirgi" = oxirgisi, `C`).
+3. **Bajarish:** tanlangan vazifaning **bitta buyrug'i**:
+   - `PRINT` → chiqaradi, vazifa tayyor qoladi;
+   - `SLEEP n` → `uyg'onish_vaqti = t + n`, vazifa uxlaydi (buyruq shu tikni oladi);
+   - `END` → vazifa tugaydi.
+4. Hech kim tayyor bo'lmasa, lekin uxlayotgan vazifa bor → `idle`. Hech kim qolmasa → tugatish.
+
+**Chiqish shakli:** har tik uchun bitta qator (aniq shakl kutilgan natijada) va oxirida `Hamma vazifa tugadi (t = ...)`.
+
+**Kutilgan natija** (`darslik/loyihalar/30_taymer_yadro/kutilgan.txt`):
+
+```text
+t= 0: A yozdi "A1"
+t= 1: B yozdi "B1"
+t= 2: C uxlaydi (t=4 gacha)
+t= 3: A uxlaydi (t=6 gacha)
+t= 4: B yozdi "B2"
+t= 5: C yozdi "C1"
+t= 6: A yozdi "A2"
+t= 7: B uxlaydi (t=8 gacha)
+t= 8: C tugadi
+t= 9: A tugadi
+t=10: B yozdi "B3"
+t=11: B tugadi
+Hamma vazifa tugadi (t = 12)
+```
+
+**Maslahat** (yechim emas):
+- Vazifa tuzilmasi: `holat` (`TAYYOR`, `UXLAYDI`, `TUGADI`), `pc` (keyingi buyruq indeksi), `uyg` (uyg'onish vaqti), buyruqlar massivi.
+  Buyruq — `struct { enum {PRINT, SLEEP, END} tur; const char *matn; int n; }`.
+- Tik boshida faqat **uyg'otish** — uxlagan vazifa ayni `t` da `TAYYOR` ga o'tadi va o'sha tikning o'zida tanlanishi mumkin.
+- "Oxirgi ishlagan" vazifa indeksini saqlang. `idle` tikda o'zgarmaydi.
+- Qo'lda 6–7 tikni izlab chiqing: A1 (t=0), B1, C uxlaydi, A uxlaydi... Shunda qoidalarni to'g'ri tushunganingizni bilasiz.
+- Bu — Linux `schedule()`, `msleep()` va taymer uzilishi (`tick`) ning oddiy modeli (23-bob, 30.1).
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined taymer.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/30_taymer_yadro/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [31-bob. Lug'at: ingliz texnik atamalari](31-lugat.md)

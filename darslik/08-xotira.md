@@ -364,4 +364,121 @@ MyOS libc'si va 30-mashq — `NULL`.
 - **18** — xotira xatolarini topish (bu bobning asosiy mashqi).
 - **30** — o'z `malloc`'ingiz.
 
+<!-- loyiha:boshi -->
+## Loyiha: o'suvchi satr (string builder)
+
+**Maqsad:** Python'dagi `s += "..."` ning C'dagi ichki tuzilishini yozish: bufer to'lganda **ikki barobar**
+kattaroq joy so'rash (`realloc`). Bu yadroning `kmalloc` + o'suvchi buferlarining kichik nusxasi.
+**Bobdan ishlatiladi:** `malloc`/`realloc`/`free`, `NULL` tekshiruvi, egalik, sanitizer.
+
+**Talab:** `qosh(s)` funksiyasi satrni oxiriga qo'shsin; kerak bo'lsa bufer o'zi o'ssin.
+**Ma'lumotlar:** `satr` (ko'rsatkich), `uzunlik` (ishlatilgan), `sigim` (ajratilgan).
+**Qoida:** har doim `uzunlik + 1 <= sigim` (`'\0'` uchun joy!). Sig'im tugasa — 2 barobar oshiramiz.
+
+```c
+/* quruvchi.c - o'suvchi satr */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static char *satr;                              /* dinamik satr (heap'da) */
+static size_t uzunlik, sigim;
+
+static void qosh(const char *s)
+{
+    size_t k = strlen(s);
+    if (uzunlik + k + 1 > sigim) {              /* sig'maydi: kattalashtiramiz */
+        size_t yangi = sigim ? sigim : 8;
+        while (yangi < uzunlik + k + 1)
+            yangi *= 2;
+        char *p = realloc(satr, yangi);         /* natijani ALOHIDA o'zgaruvchiga oling */
+        if (!p) {
+            perror("realloc");
+            exit(1);
+        }
+        satr = p;
+        sigim = yangi;
+        printf("  [sig'im %zu bayt ga oshdi]\n", sigim);
+    }
+    memcpy(satr + uzunlik, s, k + 1);           /* '\0' ham ko'chadi */
+    uzunlik += k;
+}
+
+int main(void)
+{
+    for (int i = 1; i <= 8; i++) {
+        char raqam[16];
+        snprintf(raqam, sizeof(raqam), "%d", i * i);
+        if (i > 1)
+            qosh(",");
+        qosh(raqam);
+    }
+    printf("natija: \"%s\"\n(uzunlik %zu, sig'im %zu)\n", satr, uzunlik, sigim);
+    free(satr);                                 /* egasi - biz */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined quruvchi.c -o quruvchi
+$ ./quruvchi
+  [sig'im 8 bayt ga oshdi]
+  [sig'im 16 bayt ga oshdi]
+  [sig'im 32 bayt ga oshdi]
+natija: "1,4,9,16,25,36,49,64"
+(uzunlik 20, sig'im 32)
+```
+
+Nega ikki barobar? Har `qosh` da 8 baytdan oshirsak, 1000 marta qo'shishda 1000 marta `realloc` bo'lardi.
+Ikki barobarda — atigi ~10 marta. Bu **amortizatsiyalangan O(1)** (28-bob).
+`p` ni alohida oldik: `satr = realloc(satr, ...)` yozsak va `realloc` `NULL` qaytarsa, eski `satr` yo'qoladi (leak).
+
+**Kengaytiring:** `free(satr);` qatorini o'chirib, sanitizer xabarini o'qing. `qosh` ga `%d` formatli `qosh_son(int)` qo'shing.
+
+## Mustaqil loyiha: qavslar tekshiruvchisi ★★★
+
+**Vazifa:** matndagi `()`, `[]`, `{}` qavslar to'g'ri joylashganini tekshiring. Kompilyator ham, JSON o'qigich
+ham shunday qiladi. **Stek** kerak — va u **cheksiz o'sishi** kerak (oldindan 100 ta deb bo'lmaydi). Fayl: `qavslar.c`.
+
+**Talab:**
+1. Dinamik stek: `malloc`/`realloc` bilan o'suvchi `char` massivi (sig'im 4 dan boshlab, kerak bo'lsa 2 barobar).
+   Funksiyalar: `stek_qosh(char)`, `stek_ol()`, `stek_bosh_bormi()`; oxirida hammasi `free` qilinsin.
+2. `int tekshir(const char *s)` — quyidagi to'rt natijadan birini bildirsin va **xato joyini** chiqarsin:
+   - to'g'ri;
+   - yopuvchi qavs turi **mos emas** (`([)]`: 3-belgi `)` ga `[` ochiq turibdi);
+   - yopuvchi qavs **ortiqcha** (stek bo'sh);
+   - oxirida ba'zi qavslar **yopilmagan**.
+3. Qavs bo'lmagan belgilar (harflar, probellar) e'tiborga olinmaydi, lekin belgi tartib raqami ularni ham sanaydi (1 dan).
+4. **Uzun sinov:** `n = 100000` ta `(` keyin `n` ta `)`. Qator `malloc` bilan yig'iladi (200000 belgi). Natija to'g'ri
+   va stekning **eng katta chuqurligi** chiqarilsin.
+
+**Kutilgan natija** (`darslik/loyihalar/08_qavslar/kutilgan.txt`):
+
+```text
+"([]{})": to'g'ri
+"{[()()]}": to'g'ri
+"([)]": xato, 3-belgi ')' mos emas
+"())": xato, 3-belgi ')' ortiqcha
+"((": xato, 2 ta qavs yopilmagan
+"a(b[c]{d}e)f": to'g'ri
+"": to'g'ri
+Uzun sinov (200000 belgi): to'g'ri, eng katta chuqurlik 100000
+```
+
+Sinov satrlari, tartib bilan: `([]{})`, `{[()()]}`, `([)]`, `())`, `((`, `a(b[c]{d}e)f` va bo'sh satr.
+Aynan shu chiqish shakli kerak, shu jumladan qo'shtirnoq va `-belgi` so'zi.
+
+**Maslahat** (yechim emas):
+- Ochuvchi qavsni stekka qo'ying; yopuvchi kelganda stek tepasidagi mos juftmi? Mos kelmasa — xato, bo'sh bo'lsa — ortiqcha.
+- Stek o'sganda `realloc` natijasini **alohida** o'zgaruvchiga oling (leak bo'lmasin).
+- `-fsanitize=address` chiqishi jim bo'lishi kerak — hech qanday leak yo'q.
+- 100000 chuqurlik uchun oddiy rekursiya ishlamaydi (stek to'lib ketadi, 5-bob) — nega dinamik stek buni hal qiladi?
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined qavslar.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/08_qavslar/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [9-bob. Struct, union, enum](09-struct.md)

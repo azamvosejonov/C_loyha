@@ -1,0 +1,11 @@
+Sinf: ELF64, little-endian
+Turi: REL
+Mashina: x86-64
+Bo'limlar soni: 6
+Nomlar jadvali: 5-bo'lim
+[ 0]            NULL            offset=0     hajm=0
+[ 1] .text      PROGBITS  AX    offset=64    hajm=16
+[ 2] .data      PROGBITS  WA    offset=80    hajm=8
+[ 3] .bss       NOBITS    WA    offset=88    hajm=4096
+[ 4] .rodata    PROGBITS  A     offset=88    hajm=12
+[ 5] .shstrtab  STRTAB          offset=100   hajm=36

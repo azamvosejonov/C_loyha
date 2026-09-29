@@ -307,4 +307,203 @@ Har biri 50–200 qator va batafsil izohlangan. `switch.asm` dan boshlang — u 
 - `gdb` da `layout asm` va `stepi` bilan dasturni buyruqma-buyruq bajaring, `info registers` ni kuzating.
 - `kernel/proc/switch.asm` ni o'qib, har bir qatorni o'z so'zingiz bilan yozing.
 
+<!-- loyiha:boshi -->
+## Loyiha: stekli virtual mashina
+
+**Maqsad:** protsessor ichidagi tsiklni — **chaqir → dekodla → bajar** — o'z qo'lingiz bilan yozish. Assembly'da
+`push`, `add`, `jnz` nima qilishini bu mashinada C bilan ko'rasiz.
+**Bobdan ishlatiladi:** buyruq (opcode) va operand, stek, dastur hisoblagichi (`pc`), shartli sakrash (17.1–17.2).
+
+**Talab:** kichik "dasturlash tili" (bayt-kod): `PUSH n`, `POP`, `ADD`, `SUB`, `MUL`, `DUP`, `PRINT`, `JNZ manzil`, `HALT`.
+- **Stek** hisoblash joyi: `ADD` yuqoridagi ikkitasini olib, yig'indisini qo'yadi.
+- **`JNZ manzil`** stek tepasini oladi; **nol emas** bo'lsa `pc = manzil`. Sikl shu bilan quriladi.
+- Har bir xato (stek bo'shab qolishi yoki to'lishi, noma'lum buyruq, cheksiz sikl) aniqlansin.
+
+**Ma'lumotlar:** `struct komanda { enum op op; int arg; }`, `int stek[32]`, `sp` (stek ko'rsatkichi), `pc`.
+
+```c
+/* vm.c - stekli virtual mashina */
+#include <stdio.h>
+
+enum op { PUSH, POP, ADD, SUB, MUL, DUP, PRINT, JNZ, HALT };
+static const char *nomlar[] = { "PUSH", "POP", "ADD", "SUB", "MUL", "DUP", "PRINT", "JNZ", "HALT" };
+
+struct komanda {
+    enum op op;
+    int arg;
+};
+
+static void stek_chiqar(const int *stek, int sp)
+{
+    printf("stek:");
+    for (int i = 0; i < sp; i++)
+        printf(" %d", stek[i]);
+    printf("\n");
+}
+
+static int yur(const struct komanda *dastur, int iz)
+{
+    int stek[32], sp = 0, pc = 0;
+    for (int qadam = 0; qadam < 1000; qadam++) {        /* qadam chegarasi: cheksiz siklga qarshi */
+        struct komanda k = dastur[pc++];
+        int a, b;
+        switch (k.op) {
+        case PUSH:
+            if (sp == 32) { printf("XATO: stek to'ldi\n"); return -1; }
+            stek[sp++] = k.arg;
+            break;
+        case POP:
+            if (sp < 1) { printf("XATO: stek bo'sh\n"); return -1; }
+            sp--;
+            break;
+        case ADD: case SUB: case MUL:
+            if (sp < 2) { printf("XATO: stekda 2 ta qiymat yo'q\n"); return -1; }
+            b = stek[--sp];
+            a = stek[--sp];
+            stek[sp++] = k.op == ADD ? a + b : k.op == SUB ? a - b : a * b;
+            break;
+        case DUP:
+            if (sp < 1 || sp == 32) { printf("XATO: DUP\n"); return -1; }
+            stek[sp] = stek[sp - 1];
+            sp++;
+            break;
+        case PRINT:
+            if (sp < 1) { printf("XATO: stek bo'sh\n"); return -1; }
+            printf("  => %d\n", stek[--sp]);
+            break;
+        case JNZ:
+            if (sp < 1) { printf("XATO: stek bo'sh\n"); return -1; }
+            if (stek[--sp] != 0)
+                pc = k.arg;
+            break;
+        case HALT:
+            return 0;
+        default:
+            printf("XATO: noma'lum buyruq\n");
+            return -1;
+        }
+        if (iz) {
+            printf("  %-5s %-3d | ", nomlar[k.op], k.arg);
+            stek_chiqar(stek, sp);
+        }
+    }
+    printf("XATO: qadamlar chegarasi (cheksiz sikl?)\n");
+    return -1;
+}
+
+int main(void)
+{
+    /* (2 + 3) * 4 */
+    struct komanda hisob[] = { { PUSH, 2 }, { PUSH, 3 }, { ADD, 0 }, { PUSH, 4 }, { MUL, 0 },
+                               { PRINT, 0 }, { HALT, 0 } };
+    printf("Dastur 1: (2 + 3) * 4, izlash bilan\n");
+    yur(hisob, 1);
+
+    /* 5 dan 1 gacha sanash: sikl JNZ bilan */
+    struct komanda sanoq[] = { { PUSH, 5 },                  /* 0 */
+                               { DUP, 0 },                   /* 1  <- sikl boshi */
+                               { PRINT, 0 },                 /* 2 */
+                               { PUSH, 1 }, { SUB, 0 },      /* 3, 4 */
+                               { DUP, 0 },                   /* 5 */
+                               { JNZ, 1 },                   /* 6: nol emas bo'lsa 1 ga qayt */
+                               { HALT, 0 } };                /* 7 */
+    printf("Dastur 2: 5 dan 1 gacha sanash\n");
+    yur(sanoq, 0);
+
+    struct komanda xato[] = { { ADD, 0 }, { HALT, 0 } };
+    printf("Dastur 3: xato\n");
+    yur(xato, 0);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined vm.c -o vm
+$ ./vm
+Dastur 1: (2 + 3) * 4, izlash bilan
+  PUSH  2   | stek: 2
+  PUSH  3   | stek: 2 3
+  ADD   0   | stek: 5
+  PUSH  4   | stek: 5 4
+  MUL   0   | stek: 20
+  => 20
+  PRINT 0   | stek:
+Dastur 2: 5 dan 1 gacha sanash
+  => 5
+  => 4
+  => 3
+  => 2
+  => 1
+Dastur 3: xato
+XATO: stekda 2 ta qiymat yo'q
+```
+
+Bu — protsessorning **modeli**: `switch` — dekodlovchi, `stek[]` — registrlar/stek, `pc` — dastur hisoblagichi, `JNZ` — xuddi x86 dagi
+shartli sakrash (`jnz`). JVM va Python bayt-kodi ham aynan shu tuzilishda.
+
+**Kengaytiring:** `JZ` (nol bo'lsa sakra) va `SWAP` buyruqlarini qo'shing. 1 dan 5 gacha faktorial dasturini yozing.
+
+## Mustaqil loyiha: 8 bitli ALU va bayroqlar ★★★
+
+**Vazifa:** protsessorning arifmetik qurilmasi (ALU) natijaning o'zini ham, **bayroqlarni** ham beradi. Har
+shartli sakrash buyrug'i (`jz`, `jc`, `jo`, `js`) shu bayroqlarga qaraydi. Sizning vazifangiz — 8 bitli
+`add`, `sub`, `adc` ni bayroqlar bilan yozish. Fayl: `alu.c`.
+
+**Tuzilma:** `struct natija { uint8_t q; int z, c, n, v; };` — `q` natija; bayroqlar `0` yoki `1`:
+
+| Bayroq | Ma'nosi |
+|---|---|
+| `Z` (zero) | natija `0` |
+| `C` (carry) | qo'shishda: 8-bitdan **ortiqcha tashish** bor. Ayirishda: **qarz** (borrow) bor, ya'ni `a < b` (ishorasiz) |
+| `N` (negative) | natijaning eng katta biti (7-bit) `1` |
+| `V` (overflow) | ishorali (`int8_t`) hisobda **toshish**: musbat+musbat=manfiy yoki manfiy+manfiy=musbat (ayirishda mos qoida) |
+
+**Funksiyalar:**
+- `struct natija add8(uint8_t a, uint8_t b)`
+- `struct natija sub8(uint8_t a, uint8_t b)` (`a − b`)
+- `struct natija adc8(uint8_t a, uint8_t b, int tashish)` — `a + b + tashish` (16 bitli qo'shish uchun)
+
+**16 bitli qo'shish:** `add8` bilan pastki baytlar, keyin `adc8` bilan yuqori baytlar (pastkidan chiqqan `C` ni uzating).
+
+**Chiqish shakli aniq:**
+
+**Kutilgan natija** (`darslik/loyihalar/17_alu/kutilgan.txt`):
+
+```text
+Qo'shish:
+add8(0x7F, 0x01) = 0x80  Z=0 C=0 N=1 V=1
+add8(0xFF, 0x01) = 0x00  Z=1 C=1 N=0 V=0
+add8(0x80, 0x80) = 0x00  Z=1 C=1 N=0 V=1
+add8(0x10, 0x20) = 0x30  Z=0 C=0 N=0 V=0
+add8(0xC8, 0x64) = 0x2C  Z=0 C=1 N=0 V=0
+Ayirish:
+sub8(0x05, 0x03) = 0x02  Z=0 C=0 N=0 V=0
+sub8(0x03, 0x05) = 0xFE  Z=0 C=1 N=1 V=0
+sub8(0x80, 0x01) = 0x7F  Z=0 C=0 N=0 V=1
+sub8(0x00, 0x00) = 0x00  Z=1 C=0 N=0 V=0
+sub8(0x7F, 0xFF) = 0x80  Z=0 C=1 N=1 V=1
+16 bitli qo'shish:
+  0x12FF + 0x0001 = 0x1300  (chiqish tashishi C=0)
+  0xFFFF + 0x0001 = 0x0000  (chiqish tashishi C=1)
+```
+
+Sinovlar: `add8` — `(0x7F,0x01)`, `(0xFF,0x01)`, `(0x80,0x80)`, `(0x10,0x20)`, `(0xC8,0x64)`;
+`sub8` — `(0x05,0x03)`, `(0x03,0x05)`, `(0x80,0x01)`, `(0x00,0x00)`, `(0x7F,0xFF)`;
+16 bitli — `0x12FF + 0x0001` va `0xFFFF + 0x0001`.
+
+**Maslahat** (yechim emas):
+- Natijani 9 bitda hisoblang: `unsigned t = a + b;` — 8-bitdan ortiqcha bit (`t > 0xFF`) — bu `C`. `q = (uint8_t)t`.
+- `V` qoidasi qo'shishda: `a` va `b` **bir xil** ishorali, natijaning ishorasi ularnikidan **boshqa**:
+  `((a ^ q) & (b ^ q) & 0x80) != 0`. Qog'ozda `0x7F + 0x01` da tekshiring.
+- Ayirishda `V`: `a` va `b` **turli** ishorali va natijaning ishorasi `a` nikidan boshqa: `((a ^ b) & (a ^ q) & 0x80) != 0`.
+- `adc8` qo'shishga o'xshash, faqat uchinchi qo'shiluvchi. `C` ni to'g'ri hisoblash uchun `unsigned t = a + b + tashish`.
+- Bayroqlarni qo'lda tasdiqlash: `int8_t` ga cast qilib ishorali qiymatni o'ylang: `0x7F` = 127, `0x80` = −128.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined alu.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/17_alu/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [18-bob. Freestanding C: yadroga ko'prik](18-yadroga-koprik.md)

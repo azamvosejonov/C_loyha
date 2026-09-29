@@ -1,0 +1,8 @@
+"([]{})": to'g'ri
+"{[()()]}": to'g'ri
+"([)]": xato, 3-belgi ')' mos emas
+"())": xato, 3-belgi ')' ortiqcha
+"((": xato, 2 ta qavs yopilmagan
+"a(b[c]{d}e)f": to'g'ri
+"": to'g'ri
+Uzun sinov (200000 belgi): to'g'ri, eng katta chuqurlik 100000

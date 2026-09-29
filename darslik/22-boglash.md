@@ -265,4 +265,150 @@ amalga oshirishni almashtirish uchun.
 - MyOS'da: `readelf -l build/kernel.elf` — segmentlar manzillari (`0xffffffff80...`) va linker skripti bilan solishtiring.
 - **36-mashq** (ELF tahlilchisi) — agar hali qilmagan bo'lsangiz.
 
+<!-- loyiha:boshi -->
+## Loyiha: ELF sarlavha o'quvchisi (mini `readelf -h`)
+
+**Maqsad:** har bir dastur va `.o` fayl ichida nima borligini **o'zingiz o'qish**. ELF — Linux'dagi barcha bajariladigan
+fayllarning formati; yadro `exec` da aynan shu sarlavhani o'qiydi (22.1, 22.7).
+**Bobdan ishlatiladi:** ELF sarlavhasi, `e_type` (REL/EXEC/DYN), `e_entry`, bo'limlar va segmentlar soni.
+
+**Talab:** `elfbosh [fayl]` — fayl (yoki o'zining bajariladigan fayli, `/proc/self/exe`) ning ELF sarlavhasini o'qib, asosiy
+maydonlarni chiqarsin. Fayl ELF bo'lmasa — xabar va chiqish kodi 1.
+**Asosiy g'oya:** fayl boshidagi `Elf64_Ehdr` tuzilmasi (`<elf.h>` da tayyor) — 64 bayt; uni `fread` bilan shunchaki **tuzilmaga** o'qiymiz.
+Birinchi 4 bayt — sehrli (magic): `0x7F 'E' 'L' 'F'`.
+
+```c
+/* elfbosh.c - ELF sarlavhasini o'qish */
+#include <elf.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(int argc, char **argv)
+{
+    const char *yol = argc > 1 ? argv[1] : "/proc/self/exe";
+    FILE *f = fopen(yol, "rb");
+    if (!f) {
+        perror(yol);
+        return 1;
+    }
+    Elf64_Ehdr h;
+    size_t o = fread(&h, sizeof(h), 1, f);
+    fclose(f);
+    if (o != 1 || memcmp(h.e_ident, ELFMAG, SELFMAG) != 0) {
+        printf("%s: ELF emas\n", yol);
+        return 1;
+    }
+
+    printf("Sehrli belgilar : %02x %c%c%c\n", h.e_ident[0], h.e_ident[1], h.e_ident[2], h.e_ident[3]);
+    printf("Sinf            : %s\n", h.e_ident[EI_CLASS] == ELFCLASS64 ? "ELF64" : "ELF32");
+    printf("Bayt tartibi    : %s\n", h.e_ident[EI_DATA] == ELFDATA2LSB ? "little-endian" : "big-endian");
+    const char *tur = h.e_type == ET_REL ? "REL (obyekt fayl, .o)"
+                      : h.e_type == ET_EXEC ? "EXEC (bajariladigan)"
+                      : h.e_type == ET_DYN ? "DYN (PIE yoki .so)" : "boshqa";
+    printf("Turi            : %s\n", tur);
+    const char *mashina = h.e_machine == EM_X86_64 ? "x86-64"
+                          : h.e_machine == EM_AARCH64 ? "AArch64"
+                          : h.e_machine == EM_RISCV ? "RISC-V" : "boshqa";
+    printf("Mashina         : %s\n", mashina);
+    printf("Kirish nuqtasi  : 0x%lx\n", (unsigned long)h.e_entry);
+    printf("Segmentlar soni : %u (yuklovchi uchun)\n", h.e_phnum);
+    printf("Bo'limlar soni  : %u (linker uchun)\n", h.e_shnum);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g elfbosh.c -o elfbosh
+$ ./elfbosh
+Sehrli belgilar : 7f ELF
+Sinf            : ELF64
+Bayt tartibi    : little-endian
+Turi            : DYN (PIE yoki .so)
+Mashina         : x86-64
+Kirish nuqtasi  : 0x1120
+Segmentlar soni : 13 (yuklovchi uchun)
+Bo'limlar soni  : 37 (linker uchun)
+$ readelf -h ./elfbosh | grep -E "Class|Data:|Type|Machine|Entry"
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Type:                              DYN (Position-Independent Executable file)
+  Machine:                           Advanced Micro Devices X86-64
+  Entry point address:               0x1120
+$ gcc -c elfbosh.c -o e.o && ./elfbosh e.o | grep -E "Turi|Segment|Bo'lim"
+Turi            : REL (obyekt fayl, .o)
+Segmentlar soni : 0 (yuklovchi uchun)
+Bo'limlar soni  : 14 (linker uchun)
+$ ./elfbosh elfbosh.c; echo "chiqish kodi: $?"
+elfbosh.c: ELF emas
+chiqish kodi: 1
+```
+
+Sizning dasturingiz `readelf -h` bilan bir xil ma'lumot beradi. `.o` faylda **segmentlar 0** (yuklanmaydi), bo'limlar bor;
+tayyor dasturda esa ikkalasi ham bor (22.1). `Kirish nuqtasi` `main` emas, `_start` — `main` ni libc chaqiradi (22.7).
+
+**Kengaytiring:** `e_shoff` (bo'limlar jadvali offseti) va `e_shstrndx` ni ham chiqaring. `/bin/ls` bilan sinang.
+
+## Mustaqil loyiha: bo'limlar ro'yxati (`readelf -S`) ★★★
+
+**Vazifa:** ELF faylning **bo'limlar jadvalini** o'qib, har bir bo'lim nomi, turi, bayrog'i, offseti va hajmini chiqaring.
+Fayl: `bolimlar.c`. Aniq, o'zgarmaydigan natija uchun sizga tayyor **kichik ELF fayl** beriladi:
+`darslik/loyihalar/22_elf_bolimlar/namuna.elf` (kompilyatorga bog'liq emas — qo'lda yasalgan, 6 ta bo'lim, taxminan 500 bayt).
+
+**Bilimingiz kerak:**
+- `Elf64_Ehdr.e_shoff` — bo'limlar jadvali fayl boshidan qancha uzoqda; `e_shnum` — nechta; `e_shentsize` — har biri necha bayt;
+  `e_shstrndx` — **nomlar jadvali** (`.shstrtab`) bo'limining indeksi.
+- Har bir yozuv — `Elf64_Shdr`: `sh_name` (nomning `.shstrtab` ichidagi **offseti**), `sh_type`, `sh_flags`, `sh_offset`, `sh_size`.
+- Nom — `.shstrtab` ma'lumotining `sh_name` baytidan boshlanuvchi `'\0'` bilan tugaydigan satr.
+
+**Talab:**
+1. `argv[1]` — fayl. Sehrli belgilarni, `ELFCLASS64` va little-endian ni tekshiring; bo'lmasa aynan `ELF emas` deb chiqarib, kod **1** bilan chiqing.
+2. Sarlavha qatorlari (aniq shakl kutilgan natijada), keyin **har bo'lim uchun bitta qator**:
+   `"[%2d] %-10s %-9s %-5s offset=%-5lu hajm=%lu\n"` — tartib raqami, nomi, turi, bayroqlari, offseti, hajmi.
+3. Tur nomlari: `NULL`, `PROGBITS`, `NOBITS`, `STRTAB`, `SYMTAB` (boshqasi `BOSHQA`).
+4. Bayroq harflari (`sh_flags`): `W` (yozish, `SHF_WRITE`), `A` (xotiraga yuklanadi, `SHF_ALLOC`), `X` (bajariladi, `SHF_EXECINSTR`) —
+   shu tartibda; yo'q bayroqlar tushirib qoldiriladi.
+5. Sarlavha qatorlari: `Sinf: ELF64, little-endian`, `Turi: REL` (yoki `EXEC`/`DYN`), `Mashina: x86-64`,
+   `Bo'limlar soni: N`, `Nomlar jadvali: K-bo'lim`.
+
+**1-sinov:** `./dastur namuna.elf`
+
+```text
+Sinf: ELF64, little-endian
+Turi: REL
+Mashina: x86-64
+Bo'limlar soni: 6
+Nomlar jadvali: 5-bo'lim
+[ 0]            NULL            offset=0     hajm=0
+[ 1] .text      PROGBITS  AX    offset=64    hajm=16
+[ 2] .data      PROGBITS  WA    offset=80    hajm=8
+[ 3] .bss       NOBITS    WA    offset=88    hajm=4096
+[ 4] .rodata    PROGBITS  A     offset=88    hajm=12
+[ 5] .shstrtab  STRTAB          offset=100   hajm=36
+```
+
+**2-sinov:** `./dastur emas.txt; echo "chiqish kodi: $?"` (matnli fayl, `darslik/loyihalar/22_elf_bolimlar/emas.txt`)
+
+```text
+ELF emas
+chiqish kodi: 1
+```
+
+**Maslahat** (yechim emas):
+- Avval sarlavhani `Elf64_Ehdr` ga o'qing. `fseek(f, e_shoff, SEEK_SET)` bilan jadvalga o'ting va `e_shnum` ta `Elf64_Shdr` ni massivga o'qing.
+- Nomlar: `shstr = bo'limlar[e_shstrndx]`; uning `sh_offset` iga `fseek` qilib, `sh_size` bayt o'qing; keyin `nomlar + sh_name`.
+- `NOBITS` (`.bss`) bo'limining `sh_size` i bor, lekin faylda joy yo'q — bu yozuvda ko'rasiz (22.2).
+- Natijani `readelf -S namuna.elf` bilan solishtiring — nomlari va hajmlari mos kelishi kerak.
+- Har `fread` natijasini tekshiring; buzuq fayl uchun ham dastur qulamasin.
+
+**Tekshirish:**
+
+```bash
+D=~/C_loyha/darslik/loyihalar/22_elf_bolimlar
+gcc -Wall -Wextra -g -fsanitize=address,undefined bolimlar.c -o dastur
+./dastur $D/namuna.elf | diff - $D/kutilgan.txt && echo "1: TO'G'RI"
+(./dastur $D/emas.txt; echo "chiqish kodi: $?") | diff - $D/kutilgan_2.txt && echo "2: TO'G'RI"
+readelf -S $D/namuna.elf        # qiyoslash uchun
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [23-bob. Jarayonlar va rejalashtirish (scheduling)](23-jarayonlar-scheduling.md)

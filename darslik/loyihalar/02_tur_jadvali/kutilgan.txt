@@ -1,0 +1,6 @@
+Bitta kadr:           6220800 bayt
+Bir soniya:           373248000 bayt
+Butun video:          223948800000 bayt
+Hajmi:                208.57 GiB
+int eng kattasi:      2147483647
+int ga sig'maydi:     104 barobar katta

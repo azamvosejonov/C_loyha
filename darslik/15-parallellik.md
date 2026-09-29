@@ -312,4 +312,157 @@ uzunligi) — qulf.
 - **34** — o'z spinlock'ingiz (atomiklar bilan).
 - MyOS: `kernel/lib/spinlock.c` ni o'qing, keyin spinlock lab'ini bajaring (`tools/lab.py boshla spinlock`).
 
+<!-- loyiha:boshi -->
+## Loyiha: parallel yig'indi
+
+**Maqsad:** ishni oqimlarga bo'lish va **umumiy holat** (umumiy o'zgaruvchi) qanchalik qimmatligini o'z ko'zingiz bilan ko'rish.
+**Bobdan ishlatiladi:** `pthread_create`/`join`, mutex, "har oqim o'z qismini hisoblasin" naqshi.
+
+**Talab:** 1 dan 4 000 000 gacha har son uchun `qiymat(i)` ni hisoblab, yig'indisini 4 oqimda toping. Ikki usul:
+1. **Qulf bilan:** har qo'shishda umumiy `umumiy += i` (mutex ichida). To'g'ri, lekin har qo'shishda 4 oqim navbat kutadi.
+2. **Qismiy:** har oqim o'z qismini **lokal** o'zgaruvchida yig'adi va oxirida bitta marta natijasini yozadi. Qulf kerak emas —
+   har oqim faqat o'z `qismiy[id]` katagiga yozadi.
+
+**Asosiy saboq:** parallellikda eng tez yechim — **bo'lishmaslik**. Umumiy narsani kamroq ishlating.
+
+```c
+/* parallel.c - parallel yig'indi: qulf bilan va qismiy */
+#include <pthread.h>
+#include <stdio.h>
+#include <time.h>
+
+#define OQIMLAR 4
+#define N 4000000L
+
+static long umumiy;
+static pthread_mutex_t kalit = PTHREAD_MUTEX_INITIALIZER;
+static long qismiy[OQIMLAR];
+
+/* oddiy bo'lmagan qiymat: kompilyator siklni formulaga aylantira olmasin */
+static long qiymat(long i)
+{
+    return (i ^ (i >> 3)) % 1000;
+}
+
+static double hozir(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
+}
+
+static void *qulf_bilan(void *arg)              /* 1-usul */
+{
+    long id = (long)arg;
+    for (long i = id * (N / OQIMLAR) + 1; i <= (id + 1) * (N / OQIMLAR); i++) {
+        pthread_mutex_lock(&kalit);
+        umumiy += qiymat(i);
+        pthread_mutex_unlock(&kalit);
+    }
+    return NULL;
+}
+
+static void *qismiy_bilan(void *arg)            /* 2-usul */
+{
+    long id = (long)arg;
+    long s = 0;                                 /* lokal - boshqa oqim ko'rmaydi */
+    for (long i = id * (N / OQIMLAR) + 1; i <= (id + 1) * (N / OQIMLAR); i++)
+        s += qiymat(i);
+    qismiy[id] = s;                             /* bitta marta yozish */
+    return NULL;
+}
+
+static void ishga_tush(void *(*ish)(void *))
+{
+    pthread_t t[OQIMLAR];
+    for (long i = 0; i < OQIMLAR; i++)
+        pthread_create(&t[i], NULL, ish, (void *)i);
+    for (int i = 0; i < OQIMLAR; i++)
+        pthread_join(t[i], NULL);
+}
+
+int main(void)
+{
+    double t0 = hozir();
+    long kutilgan = 0;
+    for (long i = 1; i <= N; i++)               /* taqqoslash uchun: bitta oqimda */
+        kutilgan += qiymat(i);
+    double t1 = hozir();
+    ishga_tush(qulf_bilan);
+    double t2 = hozir();
+    ishga_tush(qismiy_bilan);
+    double t3 = hozir();
+
+    long jami = 0;
+    for (int i = 0; i < OQIMLAR; i++)
+        jami += qismiy[i];
+
+    printf("bitta oqim  : %ld, %.3f s\n", kutilgan, t1 - t0);
+    printf("qulf bilan  : %ld, %.3f s\n", umumiy, t2 - t1);
+    printf("qismiy      : %ld, %.3f s\n", jami, t3 - t2);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -pthread parallel.c -o parallel
+$ ./parallel
+bitta oqim  : 1997978112, 0.004 s
+qulf bilan  : 1997978112, 0.255 s
+qismiy      : 1997978112, 0.002 s
+$ gcc -Wall -Wextra -O2 -pthread -fsanitize=thread parallel.c -o parallel_tsan && ./parallel_tsan | head -1
+bitta oqim  : 1997978112, 0.004 s
+```
+
+Uchala yig'indi bir xil. Qulfli usul **bitta oqimdan ham sekin** (har qo'shishda qulf uchun kurash), qismiy usul esa
+yadrolar soniga yaqin barobar tez (vaqtlar kompyuterga qarab farq qiladi).
+ThreadSanitizer hech narsa demadi — `qismiy[id]` katagiga har oqim faqat o'zi yozadi, poyga yo'q.
+
+**Kengaytiring:** `OQIMLAR` ni 1, 2, 8 qiling. `qismiy` ni `static long qismiy[OQIMLAR]` dan har oqimda alohida
+`long` ga o'zgartirib bo'lmaydi-mi? (Yadro ham shu g'oya bilan "per-CPU" o'zgaruvchilar ishlatadi, 15.8-bo'lim.)
+
+## Mustaqil loyiha: deadlock'siz bank ★★★
+
+**Vazifa:** 4 ta hisob, 4 ta oqim. Har oqim bir-biriga qarama-qarshi yo'nalishda pul o'tkazadi. Naive yozilsa dastur
+**qotib qoladi (deadlock)**. Sizning vazifangiz — uni to'g'ri yozish. Fayl: `bank.c`.
+
+**Ma'lumotlar:** `balans[4]`, boshlang'ich har biri 1000. Har hisobda **o'z mutex**i.
+
+**`otkazma(dan, ga, summa)`:** `balans[dan] -= summa; balans[ga] += summa;` — ikkala hisobni **bir vaqtda**
+qulflab. Balans yetmasa ham o'tkaziladi (manfiy bo'lishi mumkin) — mantiq oddiy bo'lsin.
+
+**Oqim `t` (t = 0..3)** `K = 50000` marta takrorlaydi (i = 0, 1, 2, ...):
+- `i` juft bo'lsa: `otkazma(t, (t+1)%4, t+1)`;
+- `i` toq bo'lsa: `otkazma((t+1)%4, t, 1)`.
+
+**Qulflash tartibi:** deadlock'ni oldini olish uchun ikkita qulfni **doim bir xil (raqami kichik birinchi) tartibda**
+oling (26.9: aylanma kutishni buzish). Aks holda oqim `t` avval `t` ni, oqim `t+1` avval `t+1` ni ushlab, hammasi bir-birini kutadi.
+
+**Chiqarish:** har hisob balansi va jami:
+
+**Kutilgan natija** (`darslik/loyihalar/15_bank_oqimlar/kutilgan.txt`):
+
+```text
+Hisob 0: 76000
+Hisob 1: -24000
+Hisob 2: -24000
+Hisob 3: -24000
+Jami: 4000 (o'zgarmadi)
+```
+
+**Maslahat** (yechim emas):
+- Avval qog'ozda `t = 0` uchun ikki iteratsiyani yozing: qaysi hisob nimaga o'zgaradi?
+- `int a = dan < ga ? dan : ga;` va `int b = dan < ga ? ga : dan;` — birinchi `a` ni, keyin `b` ni qulflang. Qulfni qaytarish tartibi muhim emas, lekin odatda teskari.
+- "Jami 4000 (o'zgarmadi)" — oqimlar to'g'ri ishlaganining belgisi (poyga bo'lsa yig'indi buziladi).
+- Avval **ataylab noto'g'ri** yozib ko'ring (`dan` ni birinchi, `ga` ni ikkinchi qulflab) va dastur qotib qolishini ko'ring
+  (`timeout 10` bilan ishga tushiring). Keyin tuzating.
+- `-fsanitize=thread` bilan yig'ing: poyga bo'lmasligi kerak.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -O2 -g -pthread bank.c -o dastur && timeout 20 ./dastur | diff - ~/C_loyha/darslik/loyihalar/15_bank_oqimlar/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [16-bob. Bitlar va apparat](16-bitlar-apparat.md)

@@ -304,4 +304,143 @@ Yo'q — kompilyator buni o'zi qiladi. Ma'nosi bo'yicha yozing: arifmetika uchun
 - **04** (bitlar) — bu bobning asosiy mashqi. Hal qilgach, `kernel/mm/vmm.c` ni oching va bitli
   amallarni topib, har birini o'qib chiqing.
 
+<!-- loyiha:boshi -->
+## Loyiha: Unix fayl ruxsatlari (chmod)
+
+**Maqsad:** `chmod`, `umask` va `ls -l` dagi `rw-r--r--` yozuvi ostida nima borligini bitli amallar bilan ko'rish.
+**Bobdan ishlatiladi:** `|`, `&`, `~`, `^`, `?:`, sakkizlik son (`0644`), `%o`.
+
+**Talab:** fayl rejimi (mode) — bitta son. Uni `chmod` buyruqlari kabi o'zgartiring va har safar
+`ls -l` ko'rinishida chiqaring.
+**Ma'lumotlar:** 9 bit: har uch bit (egasi, guruh, boshqalar) — `r` (4), `w` (2), `x` (1).
+Ya'ni `0644` = egasi `rw-` (6), guruh `r--` (4), boshqalar `r--` (4).
+**Qadamlar:** o'qish/yozish/bajarish bitlarini `&` bilan tekshirish, `|=` bilan yoqish, `&= ~` bilan o'chirish.
+
+```c
+/* ruxsat.c - chmod bitlarda */
+#include <stdio.h>
+
+int main(void)
+{
+    unsigned mode = 0644;                       /* rw-r--r-- */
+
+    printf("boshida:      %04o = %c%c%c%c%c%c%c%c%c\n", mode,
+           (mode & 0400) ? 'r' : '-', (mode & 0200) ? 'w' : '-', (mode & 0100) ? 'x' : '-',
+           (mode & 0040) ? 'r' : '-', (mode & 0020) ? 'w' : '-', (mode & 0010) ? 'x' : '-',
+           (mode & 0004) ? 'r' : '-', (mode & 0002) ? 'w' : '-', (mode & 0001) ? 'x' : '-');
+
+    mode |= 0100;                               /* chmod u+x  : egasi bajara olsin */
+    printf("chmod u+x:    %04o = %c%c%c%c%c%c%c%c%c\n", mode,
+           (mode & 0400) ? 'r' : '-', (mode & 0200) ? 'w' : '-', (mode & 0100) ? 'x' : '-',
+           (mode & 0040) ? 'r' : '-', (mode & 0020) ? 'w' : '-', (mode & 0010) ? 'x' : '-',
+           (mode & 0004) ? 'r' : '-', (mode & 0002) ? 'w' : '-', (mode & 0001) ? 'x' : '-');
+
+    mode &= ~0044;                              /* chmod go-r : guruh va boshqalar o'qiy olmasin */
+    printf("chmod go-r:   %04o = %c%c%c%c%c%c%c%c%c\n", mode,
+           (mode & 0400) ? 'r' : '-', (mode & 0200) ? 'w' : '-', (mode & 0100) ? 'x' : '-',
+           (mode & 0040) ? 'r' : '-', (mode & 0020) ? 'w' : '-', (mode & 0010) ? 'x' : '-',
+           (mode & 0004) ? 'r' : '-', (mode & 0002) ? 'w' : '-', (mode & 0001) ? 'x' : '-');
+
+    mode ^= 0020;                               /* guruhning yozish bitini almashtirish */
+    printf("g+w (xor):    %04o = %c%c%c%c%c%c%c%c%c\n", mode,
+           (mode & 0400) ? 'r' : '-', (mode & 0200) ? 'w' : '-', (mode & 0100) ? 'x' : '-',
+           (mode & 0040) ? 'r' : '-', (mode & 0020) ? 'w' : '-', (mode & 0010) ? 'x' : '-',
+           (mode & 0004) ? 'r' : '-', (mode & 0002) ? 'w' : '-', (mode & 0001) ? 'x' : '-');
+
+    unsigned yangi_fayl = 0666, umask = 022;    /* umask: "olib tashlanadigan" ruxsatlar */
+    printf("\numask %03o bilan yangi fayl: 0666 & ~022 = %04o\n", umask, yangi_fayl & ~umask);
+    printf("egasi yoza oladimi? %s\n", (mode & 0200) ? "ha" : "yo'q");
+    printf("boshqalar bajara oladimi? %s\n", (mode & 0001) ? "ha" : "yo'q");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ruxsat.c -o ruxsat
+$ ./ruxsat
+boshida:      0644 = rw-r--r--
+chmod u+x:    0744 = rwxr--r--
+chmod go-r:   0700 = rwx------
+g+w (xor):    0720 = rwx-w----
+
+umask 022 bilan yangi fayl: 0666 & ~022 = 0644
+egasi yoza oladimi? ha
+boshqalar bajara oladimi? yo'q
+$ touch sinov.txt && chmod 640 sinov.txt && ls -l sinov.txt | cut -c1-10
+-rw-r-----
+```
+
+Oxirgi buyruq haqiqiy `ls -l` ni ko'rsatadi: `640` = `rw-r-----`. Bir xil `printf` to'rt marta takrorlandi —
+bu 5-bobda **funksiyaga** aylanadigan takror. Hozircha shu ham yaxshi: har bir bit qanday yozilayotgani ko'rinib turibdi.
+
+**Kengaytiring:** `chmod 755` ni bitta qiymat tayinlash bilan bering (`mode = 0755;`). `umask 077` bilan 0666 nima bo'ladi?
+
+## Mustaqil loyiha: IP manzil hisoblagichi ★★☆
+
+**Vazifa:** tarmoq muhandislari har kuni hisoblaydigan narsa — IP manzil va prefiks (`/26`) berilganda
+tarmoq manzili, broadcast va host'lar sonini topish. Fayl: `ip.c`. Sikl va massiv **kerak emas** —
+faqat bitli amallar (`<<`, `>>`, `&`, `|`, `~`).
+
+**Ma'lumotlar** (kod boshida): `o1 = 192, o2 = 168, o3 = 10, o4 = 77`, prefiks `26`.
+
+**Talab:**
+1. To'rt oktetni bitta `uint32_t` ga joylang (`o1` — eng yuqori bayt).
+2. Maska — yuqori `prefiks` ta bit 1: 26 uchun `255.255.255.192`.
+3. Tarmoq manzili = ip & maska. Broadcast = tarmoq | ~maska.
+4. Birinchi host = tarmoq + 1, oxirgi host = broadcast − 1. Hostlar soni = 2^(32−prefiks) − 2.
+5. Har bir manzilni `a.b.c.d` ko'rinishida chiqaring: har oktet uchun `(x >> 24) & 255` kabi ifoda.
+6. Format: yorliq `%-11s`, keyin qiymat.
+
+**Kutilgan natija** (`darslik/loyihalar/03_ip_hisoblagich/kutilgan.txt`):
+
+```text
+IP:        192.168.10.77/26
+Maska:     255.255.255.192
+Tarmoq:    192.168.10.64
+Broadcast: 192.168.10.127
+Birinchi:  192.168.10.65
+Oxirgi:    192.168.10.126
+Hostlar:   62
+```
+
+**Qo'shimcha sinovlar.** `10.1.2.3/8`:
+
+```text
+IP:        10.1.2.3/8
+Maska:     255.0.0.0
+Tarmoq:    10.0.0.0
+Broadcast: 10.255.255.255
+Birinchi:  10.0.0.1
+Oxirgi:    10.255.255.254
+Hostlar:   16777214
+```
+
+`172.16.5.9/30`:
+
+```text
+IP:        172.16.5.9/30
+Maska:     255.255.255.252
+Tarmoq:    172.16.5.8
+Broadcast: 172.16.5.11
+Birinchi:  172.16.5.9
+Oxirgi:    172.16.5.10
+Hostlar:   2
+```
+
+**Maslahat** (yechim emas):
+- `~0u << (32 - prefiks)` — yuqori bitlari 1 bo'lgan maska. Prefiks 0 bo'lsa nima bo'ladi? (32 ga siljitish — UB, 13-bob;
+  bu mashqda prefiks 1..30.)
+- Ipni yig'ish: `(uint32_t)o1 << 24 | o2 << 16 | ...` — qavslar va tur haqida o'ylang: `o1 << 24` `int` da hisoblansa-chi?
+- Hostlar sonini `(1u << (32 - prefiks)) - 2` bilan toping.
+- Bir xil `printf` ni besh marta yozasiz — charchatadimi? 5-bobda buni funksiya bilan qisqartirasiz. Hozir shunday qiling.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g ip.c -o dastur && ./dastur | diff - ~/C_loyha/darslik/loyihalar/03_ip_hisoblagich/kutilgan.txt && echo "TO'G'RI"
+```
+
+Qo'shimcha sinovlar uchun `o1..o4` va prefiksni o'zgartirib, `kutilgan_2.txt` va `kutilgan_3.txt` bilan solishtiring.
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [4-bob. Boshqaruv oqimi](04-boshqaruv.md)

@@ -1,0 +1,7 @@
+IP:        172.16.5.9/30
+Maska:     255.255.255.252
+Tarmoq:    172.16.5.8
+Broadcast: 172.16.5.11
+Birinchi:  172.16.5.9
+Oxirgi:    172.16.5.10
+Hostlar:   2

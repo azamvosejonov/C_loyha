@@ -1,0 +1,10 @@
+# ism,ball1,ball2,ball3
+Jasur,78,85,90
+Madina,95,92,97
+Salim,abc,80,90
+
+Otabek,64,70,58
+Zarina,95,92,97
+Nodir,101,50,60
+Kamola,88,91,79
+Bobur,70,65,80

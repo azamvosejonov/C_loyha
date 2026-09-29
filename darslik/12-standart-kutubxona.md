@@ -310,4 +310,160 @@ Faqat bir nechta sarlavha freestanding'da ham bor, chunki ular faqat tur va makr
 - Qo'shimcha: `va_list` bilan o'z mini-`printf`ingizni yozing: `%d`, `%s`, `%x`, `%c`, `%%` —
   chiqarish uchun faqat `putchar` ishlating. Keyin MyOS `kernel/lib/kprintf.c` bilan solishtiring.
 
+<!-- loyiha:boshi -->
+## Loyiha: server log tahlilchisi
+
+**Maqsad:** matnli faylni satrma-satr o'qib, undan ma'lumot ajratish va hisobot chiqarish. Real hayotda log tahlili —
+har kuni bajariladigan ish.
+**Bobdan ishlatiladi:** `fopen`/`fgets`/`fprintf`/`fclose`, `sscanf` bilan bo'lish, `strcmp`, `errno`/`strerror`, `remove`.
+
+**Talab:** `server.log` faylida har qator: `SANA VAQT DARAJA METOD YO'L NNms`. Dastur:
+1. namunaviy logni **o'zi yaratadi** (dastur mustaqil bo'lsin),
+2. o'qib, INFO/WARN/ERROR sonini, o'rtacha va eng sekin javob vaqtini topadi,
+3. noto'g'ri formatdagi qatorni topib xabar beradi,
+4. faylni o'chiradi.
+
+**Asosiy usul:** `sscanf` qiymatlar sonini qaytaradi — 6 ta kutilsa, `!= 6` bo'lsa qator buzuq.
+
+```c
+/* logtahlil.c - server log tahlilchisi */
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    const char *fayl = "server.log";
+    FILE *f = fopen(fayl, "w");
+    if (!f) {
+        perror(fayl);
+        return 1;
+    }
+    fprintf(f, "2026-09-01 10:00:01 INFO GET /index 12ms\n");
+    fprintf(f, "2026-09-01 10:00:02 INFO GET /rasm.png 45ms\n");
+    fprintf(f, "2026-09-01 10:00:03 WARN POST /kirish 230ms\n");
+    fprintf(f, "buzuq qator\n");
+    fprintf(f, "2026-09-01 10:00:05 ERROR GET /hisobot 1500ms\n");
+    fprintf(f, "2026-09-01 10:00:06 INFO GET /index 9ms\n");
+    fclose(f);                                  /* bufer diskka yoziladi */
+
+    f = fopen(fayl, "r");
+    if (!f) {
+        perror(fayl);
+        return 1;
+    }
+    char qator[128];
+    int info = 0, ogoh = 0, xato = 0, tartib = 0, jami_ms = 0, n = 0;
+    int eng_sekin = 0;
+    char eng_sekin_yol[64] = "";
+    while (fgets(qator, sizeof(qator), f)) {
+        tartib++;
+        char sana[16], vaqt[16], daraja[16], metod[8], yol[64];
+        int ms;
+        if (sscanf(qator, "%15s %15s %15s %7s %63s %dms", sana, vaqt, daraja, metod, yol, &ms) != 6) {
+            qator[strcspn(qator, "\n")] = '\0';
+            printf("  %d-qator buzuq: \"%s\"\n", tartib, qator);
+            continue;
+        }
+        n++;
+        jami_ms += ms;
+        if (strcmp(daraja, "INFO") == 0)
+            info++;
+        else if (strcmp(daraja, "WARN") == 0)
+            ogoh++;
+        else if (strcmp(daraja, "ERROR") == 0)
+            xato++;
+        if (ms > eng_sekin) {
+            eng_sekin = ms;
+            snprintf(eng_sekin_yol, sizeof(eng_sekin_yol), "%s", yol);
+        }
+    }
+    fclose(f);
+    remove(fayl);
+
+    printf("Tahlil qilingan qatorlar: %d\n", n);
+    printf("INFO: %d, WARN: %d, ERROR: %d\n", info, ogoh, xato);
+    printf("O'rtacha javob: %d ms\n", jami_ms / n);
+    printf("Eng sekin: %s (%d ms)\n", eng_sekin_yol, eng_sekin);
+
+    if (!fopen("yoq.log", "r"))
+        printf("yoq.log: %s (errno = %d)\n", strerror(errno), errno);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g logtahlil.c -o logtahlil
+$ ./logtahlil
+  4-qator buzuq: "buzuq qator"
+Tahlil qilingan qatorlar: 5
+INFO: 3, WARN: 1, ERROR: 1
+O'rtacha javob: 359 ms
+Eng sekin: /hisobot (1500 ms)
+yoq.log: No such file or directory (errno = 2)
+```
+
+**Kengaytiring:** `fgets` uzunroq qatorni ikkiga bo'lib beradi (bufer 128 bayt) — 6.9-bo'limdagi tuzoq. Fayl oxirida
+`\n` bo'lmasa ham to'g'ri ishlashiga ishonch hosil qiling. `n == 0` bo'lsa `jami_ms / n` nima bo'ladi? Himoya yozing.
+
+## Mustaqil loyiha: CSV baholar hisoboti ★★★
+
+**Vazifa:** talabalar baholari fayli (`kirish.txt`) standart kirishdan (`stdin`) o'qiladi. Hisobot tuzing.
+Fayl: `hisobot.c`. Har qator: `ism,ball1,ball2,ball3`.
+
+**Kirish** (`darslik/loyihalar/12_csv_hisobot/kirish.txt`):
+
+```text
+# ism,ball1,ball2,ball3
+Jasur,78,85,90
+Madina,95,92,97
+Salim,abc,80,90
+
+Otabek,64,70,58
+Zarina,95,92,97
+Nodir,101,50,60
+Kamola,88,91,79
+Bobur,70,65,80
+```
+
+**Qoidalar:**
+1. `#` bilan boshlangan va bo'sh qatorlar **jimgina** o'tkazib yuboriladi (lekin qator raqamiga kiradi).
+2. Buzuq qator — 4 ta qiymatga bo'linmaydigan yoki ball son bo'lmagan: `<k>-qator: noto'g'ri format`.
+3. Ball 0..100 oralig'ida bo'lmasa: `<k>-qator: ball oralig'ida emas`. Bunday qator hisobga kirmaydi.
+4. To'g'ri qatorlarning o'rtachasi = `(ball1+ball2+ball3) / 3.0`.
+5. Talabalar **o'rtachasi kamayish** tartibida chiqadi; teng bo'lsa — **ism alifbo tartibida** (`qsort` va `strcmp`).
+6. Ism uzunligi 31 belgidan oshmaydi (bufer o'lchamiga ehtiyot bo'ling!).
+
+**Chiqish tartibi:** avval jadval (`%d. %-10s %6.2f`), keyin umumiy qator, keyin xatolar ro'yxati.
+
+**Kutilgan natija** (`./dastur < kirish.txt`) (`darslik/loyihalar/12_csv_hisobot/kutilgan.txt`):
+
+```text
+1. Madina      94.67
+2. Zarina      94.67
+3. Kamola      86.00
+4. Jasur       84.33
+5. Bobur       71.67
+6. Otabek      64.00
+Talabalar: 6, o'rtacha: 82.56, eng yaxshi: Madina, eng past: Otabek
+Xato qatorlar: 2
+  4-qator: noto'g'ri format
+  8-qator: ball oralig'ida emas
+```
+
+**Maslahat** (yechim emas):
+- `fgets(qator, sizeof qator, stdin)` — qator raqamini o'zingiz sanaysiz.
+- `sscanf(qator, "%31[^,],%d,%d,%d", ism, &a, &b, &c) == 4` — `%[^,]` "vergulgacha hamma belgi" degani.
+  Buzuq qator (`abc`) 2 ta qiymat o'qib to'xtaydi — natija 4 emas.
+- Talaba tuzilmasi: `struct talaba { char ism[32]; double ortacha; };` va `taqqosla` funksiyasi (12.5).
+- `double` larni `==` bilan solishtirmang (20-bob) — bu yerda ikkita 94.67 bir xil formuladan chiqqani uchun teng keladi, lekin `>` orqali tartiblash xavfsizroq.
+- `qsort` ning solishtirish funksiyasi `const void *` oladi.
+
+**Tekshirish:**
+
+```bash
+gcc -Wall -Wextra -g -fsanitize=address,undefined hisobot.c -o dastur && ./dastur < ~/C_loyha/darslik/loyihalar/12_csv_hisobot/kirish.txt | diff - ~/C_loyha/darslik/loyihalar/12_csv_hisobot/kutilgan.txt && echo "TO'G'RI"
+```
+<!-- loyiha:oxiri -->
+
 Keyingi bob: [13-bob. Aniqlanmagan xatti-harakat va xavfsizlik](13-ub-xavfsizlik.md)

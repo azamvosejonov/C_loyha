@@ -1,0 +1,8 @@
+Jurnal bilan (otkazma 0 -> 1, 30 so'm; boshida 100, 50):
+  avariya 0 qadamdan keyin: A=100 B=50 jami=150 (tiklash kerak emas)
+  avariya 1 qadamdan keyin: A=100 B=50 jami=150 (jurnal tashlandi)
+  avariya 2 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 3 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 4 qadamdan keyin: A=70 B=80 jami=150 (jurnal qayta o'ynaldi)
+  avariya 5 qadamdan keyin: A=70 B=80 jami=150 (tiklash kerak emas)
+Jurnalsiz, 1-yozuvdan keyin avariya: A=70 B=50 jami=120 (BUZILDI)

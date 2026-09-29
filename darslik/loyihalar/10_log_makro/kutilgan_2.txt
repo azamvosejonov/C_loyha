@@ -1,0 +1,10 @@
+[XATO] xato yuz berdi
+[OGOH] ogohlantirish
+[INFO] ma'lumot: 42
+[DEBUG] tuzatish: 7
+BIT(5) = 32, BIT(0) = 1
+MASKA(7, 4) = 240 (0xF0)
+MASKA(31, 0) = 4294967295
+ARRAY_SIZE(t) = 6
+MIN(i++, 10) = 5, i = 6
+MAX(3, 9) = 9
