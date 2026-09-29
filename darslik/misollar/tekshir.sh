@@ -42,7 +42,7 @@ yig 13_ub.c -Wno-error                           # ataylab UB - ogohlantirish ku
 yig 29_xatoli.c -O0 -Wno-error                   # ataylab xatoli - faqat yig'ilishi tekshiriladi
 yig 18_libcsiz.c -ffreestanding -nostdlib -static -fno-stack-protector
 
-for f in 00_salom.c 02_turlar.c 03_bitlar.c 04_boshqaruv.c 05_funksiyalar.c 06_satrlar.c \
+for f in 00_salom.c 00_massiv_N.c 02_turlar.c 03_bitlar.c 04_boshqaruv.c 05_funksiyalar.c 06_satrlar.c \
          07_korsatkichlar.c 08_xotira.c 09_struct.c 10_makrolar.c 12_stdlib.c 16_bitlar_apparat.c \
          17_assembly.c 20_sonlar.c 22_boglash.c 24_virtual_xotira.c 25_malloc_ichi.c 27_fayllar.c; do
     ishla "$f"

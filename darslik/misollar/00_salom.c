@@ -14,18 +14,10 @@
  *      3) \n larni olib tashlab, natija qanday o'zgarishini ko'ring.
  * ============================================================================= */
 #include <stdio.h>
-#define N 10
 
 int main(void)
 {
-    int massiv[N];
-    for (int i = 0; i < N; i++) {
-        massiv[i] = i * i;
-
-    }
-
-    for (int i = 0; i < N; i++) {
-        printf("massiv[%d] = %d\n", i, massiv[i]);
-    }
+    printf("Salom, dunyo!\n");
+    printf("Men C tilida yozilgan dasturman. 2 + 3 = %d\n", 2 + 3);
     return 0;
 }

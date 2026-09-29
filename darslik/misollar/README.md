@@ -29,6 +29,7 @@ qayta yig'ing va natija qanday o'zgarganini kuzating. Faylni buzib qo'ysangiz �
 | Bob | Misol | Nimani ko'rsatadi | Buyruq |
 |---|---|---|---|
 | [0](../00-kirish.md) | [00_salom.c](00_salom.c) | Birinchi dastur, `printf` | `gcc -Wall -Wextra -g 00_salom.c -o salom && ./salom` |
+| [0](../00-kirish.md) | [00_massiv_N.c](00_massiv_N.c) | `#define N`, massivni to'ldirish va chiqarish (o'quvchining o'zi yozgan variant) | `gcc -Wall -Wextra -g 00_massiv_N.c -o massiv_n && ./massiv_n` |
 | [1](../01-kompilyatsiya.md) | [01_kompilyatsiya.sh](01_kompilyatsiya.sh) | `-E`, `-S`, `-c`, bog'lash: har bosqich natijasini qanday ko'rish (`.i` — matn, `.o` — `nm`/`objdump` bilan) | `sh 01_kompilyatsiya.sh` |
 | [2](../02-turlar.md) | [02_turlar.c](02_turlar.c) | `sizeof`, toshish, butun bo'lish, sakkizlik son | `gcc -Wall -Wextra -g 02_turlar.c -o turlar && ./turlar` |
 | [3](../03-operatorlar.md) | [03_bitlar.c](03_bitlar.c) | Bayroqlar (`\|`, `&`, `~`), sahifaga tekislash, bitlarni sanash | `gcc -Wall -Wextra -g 03_bitlar.c -o bitlar && ./bitlar` |
