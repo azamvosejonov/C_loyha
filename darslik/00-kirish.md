@@ -452,7 +452,11 @@ Keyingi argumentlar shu bo'sh joylarga **tartib bilan** qo'yiladi: 1-`%d` ← `y
 | `%s` | matn | `Ali` |
 | `%p` | manzil (ko'rsatkich) | `0x7ffd5e8e3a4c` |
 | `%f` / `%.2f` | kasr son / 2 xonali kasr | `1.750000` / `1.75` |
-| `%%` | `%` belgisining o'zi | `%` |
+| `%%` | ekranda oddiy `%` belgisi (pastda tushuntirilgan) | `%` |
+
+**Maxsus holat — `%%`.** Umumiy qoida: `printf` qolipida `%` belgisi "bu yerga qiymat qo'y" degan **buyruq** hisoblanadi. Shuning uchun ekranda **oddiy `%` harfini**
+ko'rsatmoqchi bo'lsangiz, uni **ikkita** yozasiz: `%%`. Masalan, `printf("QQS 12%%\n");` ekranga `QQS 12%` chiqaradi. Bu faqat `printf` qolipi ichida;
+hisoblashdagi `%` (qoldiq, 3-bob) — butunlay boshqa narsa.
 
 **Muhim:** format bilan argument **turi mos bo'lishi** kerak (`%d` ga `long` berib bo'lmaydi) — aks holda natija
 noto'g'ri (aniqlanmagan xatti-harakat). `-Wall` buni ogohlantiradi. Python'dagi f-string kabi avtomatik moslashuv **yo'q**.
