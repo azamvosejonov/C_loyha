@@ -1,49 +1,102 @@
 # 24-bob. Virtual xotira nazariyasi
 
-> **Bu bobdan keyin:** manzil maydoni g'oyasini, base/bounds va segmentatsiyadan sahifalashgacha
-> bo'lgan yo'lni, ko'p darajali sahifa jadvallarini, page fault'ni qayta ishlashni, talab bo'yicha
-> sahifalash (demand paging), almashtirish algoritmlarini (OPT, FIFO, LRU, Clock), thrashing'ni,
-> copy-on-write va `mmap` ni bilasiz. (OSTEP virtualizatsiya qismi + CS:APP 9-bob.) Mashqlar: 31, 43.
+> **Bu bobda nima o'rganasiz:** manzil maydoni g'oyasini; base/bounds va segmentatsiyadan sahifalashgacha bo'lgan yo'lni; ko'p darajali sahifa jadvallarini; page fault'ni qayta ishlashni; talab bo'yicha sahifalash
+> (demand paging); almashtirish algoritmlarini (OPT, FIFO, LRU, Clock); thrashing'ni; copy-on-write va `mmap` ni. (OSTEP virtualizatsiya qismi + CS:APP 9-bob.)
+> **Oldindan nima kerak:** 7-, 8-, 14-, 20-, 21-boblar.   **Vaqt:** 7–9 soat.
+> Mashqlar: 31, 43.
 
 > **To'liq ishlaydigan misol:** [misollar/24_virtual_xotira.c](misollar/24_virtual_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Virtual manzil — mehmonxona xona raqami (24.1).** Kalitingizda "305" deb yozilgan. Xona binoning qaysi
-qanotida, qaysi qavatda ekanini bilishingiz shart emas — qabulxona biladi. Boshqa mehmonxonada ham
-"305" xona bo'lishi mumkin — ular bir-biriga xalaqit bermaydi. Har bir jarayonning manzillari ham
-shunday: ikkala dasturda `0x400000` manzil bor, lekin ular RAM'ning **turli** joylariga to'g'ri keladi.
+7-bobda aytdik: dasturdagi manzillar "virtual" — haqiqiy RAM manzillari emas. Bu bobda shu "virtual"ning **hammasini** ochamiz: kim, qanday va nega virtual manzilni fizik manzilga aylantiradi, `malloc(1 GB)` nega
+darhol 1 GB egallamaydi, `fork` nega bir zumda bajariladi.
+
+**Hayotdan misol: mehmonxona xona raqami.** Kalitingizda "305" deb yozilgan. Xona binoning qaysi qanotida, qaysi qavatda ekanini bilishingiz shart emas — qabulxona biladi. Boshqa mehmonxonada ham "305" xona
+bo'lishi mumkin — ular bir-biriga xalaqit bermaydi. Har bir jarayonning manzillari ham shunday: ikkala dasturda `0x400000` manzil bor, lekin ular RAM'ning **turli** joylariga to'g'ri keladi.
 Bir jarayon boshqasining xotirasiga umuman yeta olmaydi — bu himoya.
 
-**Sahifa jadvali — qabulxona jurnali (24.3).** Jurnalda yozilgan: "305-xona → Sharqiy qanot, 3-qavat,
-12-eshik". Protsessor har bir manzilni sahifa jadvali orqali tarjima qiladi. Xotira 4 KB lik
-**sahifalarga** bo'lingan — xuddi mehmonxona xonalarga bo'lingandek. Manzilning yuqori qismi —
-xona raqami (sahifa), pastki qismi — xona ichidagi joy (siljish).
+| Mehmonxonada | Kompyuterda |
+|---|---|
+| xona raqami "305" (kalit) | **virtual manzil** |
+| xonaning haqiqiy joyi (qanot, qavat) | **fizik manzil** (RAM) |
+| qabulxona jurnali | **sahifa jadvali** (yadro boshqaradi) |
+| qabulxona xodimi | **MMU** (CPU ichida: tarjima qiladi) |
+| boshqa mehmonxonada ham "305" | boshqa jarayonda ham `0x400000` |
 
-**Page fault — kutubxonada kitob javonda yo'q (24.4).** Kutubxonachidan kitob so'radingiz — javonda yo'q.
-Bu xato emas: kutubxonachi omborga borib, kitobni olib keladi va sizga beradi. Siz faqat biroz kutasiz.
-Page fault ham shunday: sahifa hali xotirada yo'q — yadro uni tayyorlaydi (nol bilan to'ldiradi yoki
-diskdan o'qiydi) va dastur hech narsani sezmay davom etadi. Faqat haqiqatan ruxsat etilmagan manzil
-bo'lsa — Segmentation fault.
+## 24.1. Nega virtual xotira
 
-**Talab bo'yicha sahifalash — mebelni kerak bo'lganda olib kelish (24.5).** Yangi uyga ko'chdingiz
-va 100 xonali saroy "ijaraga oldingiz" (`mmap` 100 MB). Hamma xonaga birdaniga mebel olib kelinmaydi —
-qaysi xonaga birinchi marta kirsangiz, o'shanga olib kelinadi. Kirmagan xonalar hech narsaga tushmaydi.
+Agar har bir dastur fizik xotirani to'g'ridan-to'g'ri ishlatsa:
 
-**Swap — garaj (24.5).** Uyda joy qolmasa, kam ishlatiladigan narsalarni garajga olib chiqasiz. Kerak
-bo'lsa — qaytib olib kelasiz (sekin). Garajga borib-kelish juda ko'payib ketsa, ish umuman oldinga
-siljimaydi — bu **thrashing** (24.7).
+1. **Himoya yo'q** — bir dastur boshqasining (yoki yadroning) xotirasini buzadi;
+2. **Joylashtirish qiyin** — har bir dastur qayerga yuklanishini oldindan bilishi kerak;
+3. **Xotira yetmasa** — hech narsa qilib bo'lmaydi.
 
-**Copy-on-write — umumiy darslik (24.8).** Aka-uka bitta darslikdan o'qiydi — nusxa shart emas. Uka
-kitobga nimadir **yozmoqchi** bo'lsa, faqat o'sha sahifaning nusxasini oladi va o'z nusxasiga yozadi.
-`fork` aynan shunday: bola otaning barcha sahifalarini bo'lishadi, faqat yozilgan sahifa nusxalanadi.
-Shuning uchun 1 GB xotirali jarayonni `fork` qilish bir zumda bo'ladi.
+Yechim: har bir jarayon o'zining **virtual manzil maydonini** ko'radi (0 dan 2⁴⁷ gacha), CPU'dagi **MMU** har bir murojaatda virtual manzilni fizikka aylantiradi, tarjima jadvalini esa **yadro** boshqaradi.
+Jarayon boshqalarning xotirasini hatto "ko'ra" olmaydi — uning manzillari boshqa joyga tarjima qilinadi.
 
-### To'liq dastur: manzil tarjimasi simulyatori
+Buni ikki jarayonda ko'ramiz — **bir xil manzil, turli ma'lumot**:
 
-Kichik o'yinchoq kompyuter: 16 bitli virtual manzil, 256 baytlik sahifalar. Protsessor har bir manzil
-uchun aynan shu hisobni bajaradi — faqat apparat ichida va 4 KB lik sahifalar bilan.
+```c
+/* ikki_manzil.c - bir xil virtual manzil, turli fizik xotira */
+#include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int son = 100;                                  /* global o'zgaruvchi */
+
+int main(void)
+{
+    printf("fork dan oldin: son manzili %p, qiymati %d\n", (void *)&son, son);
+    fflush(stdout);
+
+    if (fork() == 0) {                          /* BOLA */
+        son = 999;                              /* faqat bolaning nusxasi o'zgaradi */
+        printf("bola: son manzili %p, qiymati %d\n", (void *)&son, son);
+        return 0;
+    }
+    wait(NULL);                                 /* ota bolani kutadi */
+    printf("ota:  son manzili %p, qiymati %d\n", (void *)&son, son);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ikki_manzil.c -o ikki_manzil
+$ ./ikki_manzil | sed -E 's/0x[0-9a-f]+/0xMANZIL/'
+fork dan oldin: son manzili 0xMANZIL, qiymati 100
+bola: son manzili 0xMANZIL, qiymati 999
+ota:  son manzili 0xMANZIL, qiymati 100
+$ ./ikki_manzil | grep -o '0x[0-9a-f]*' | sort -u | wc -l
+1
+```
+
+**Nima ko'rdik:** bola `son = 999` qildi, ota esa `100` ni ko'rdi — **xuddi shu `&son` manzilida**. Oxirgi buyruq uchala satrdagi manzilni solishtiradi: **bitta** noyob manzil (`1`). Demak,
+bir xil virtual manzil ikki jarayonda **turli fizik xotiraga** (turli ma'lumotga) tarjima qilinadi.
+
+## 24.2. Tarixiy yo'l: base/bounds → segmentatsiya → sahifalash
+
+**Base and bounds:** har bir jarayonga bitta uzluksiz fizik hudud. `fizik = base + virtual`, agar `virtual < bounds` bo'lsa. Oddiy, lekin stek va heap orasidagi bo'sh joy ham fizik xotira egallaydi.
+
+**Segmentatsiya:** kod, heap, stek — alohida segmentlar, har birining o'z base/bounds'i. Isrof kamayadi, lekin fizik xotira **turli o'lchamdagi** bo'laklarga bo'linib ketadi — **tashqi fragmentatsiya**
+(bo'sh joy ko'p, lekin katta uzluksiz bo'lak yo'q). x86 32 bitda segmentlar bor edi; 64 bitda ular deyarli o'chirilgan (faqat FS/GS qoldi — per-CPU va TLS uchun, MyOS `percpu.c`).
+
+**Sahifalash (paging):** xotira **bir xil o'lchamdagi** kichik bo'laklarga — sahifalarga (4 KB) bo'linadi. Istalgan virtual sahifa istalgan fizik sahifaga (freym) tushishi mumkin. Tashqi fragmentatsiya yo'q
+(hamma bo'lak bir xil). Narxi: tarjima jadvali kerak va oxirgi sahifadagi ichki isrof.
+
+## 24.3. Sahifa jadvali va uning o'lchami muammosi
+
+**Hayotdan misol: qabulxona jurnali.** Jurnalda yozilgan: "305-xona → Sharqiy qanot, 3-qavat, 12-eshik". Protsessor har bir manzilni sahifa jadvali orqali tarjima qiladi. Xotira 4 KB lik **sahifalarga**
+bo'lingan — xuddi mehmonxona xonalarga bo'lingandek. Manzilning yuqori qismi — xona raqami (sahifa), pastki qismi — xona ichidagi joy (siljish).
+
+Virtual manzil = sahifa raqami + sahifa ichidagi siljish:
+
+```text
+48 bitli manzil:  [ 36 bit - virtual sahifa raqami (VPN) | 12 bit - siljish ]
+```
+
+Kichik o'yinchoq kompyuterda tarjimani qo'lda bajaramiz: 16 bitli virtual manzil, 256 baytlik sahifalar. Protsessor har bir manzil uchun aynan shu hisobni bajaradi — faqat apparat ichida va 4 KB lik sahifalar bilan.
 
 ```c
 /* tarjima.c - virtual manzil -> fizik manzil: sahifa jadvali va page fault */
@@ -107,70 +160,55 @@ $ ./tarjima
 0x4004 (yozish): sahifa  64, siljish   4 -> HIMOYA XATOSI (faqat o'qish uchun) -> Segmentation fault
 ```
 
-E'tibor bering: `0x1234` va `0x12FF` — bitta sahifa (yuqori bayt `0x12`), shuning uchun bitta ramkaga
-tushdi. `0x8000` ga birinchi murojaatda page fault bo'ldi, ikkinchisida — yo'q.
+**Bu dastur nima qiladi (umumiy):** o'yinchoq "MMU": 6 ta murojaat uchun virtual manzilni fizikka aylantiradi, kerak bo'lsa page fault qayta ishlaydi va ruxsatni tekshiradi.
 
-**Sinab ko'ring:** `SAHIFA_HAJMI` ni 4096 qiling (haqiqiy x86) va `SAHIFALAR` ni 16 — manzillar qanday
-bo'linadi? Sahifa jadvalining o'lchami nega muammo ekanini hisoblang: 48 bitli manzil va 4 KB sahifada
-nechta yozuv kerak (24.3)?
+**Qismlar:**
 
-## 24.1. Nega virtual xotira
+| Qism | Vazifasi |
+|---|---|
+| `manzil / 256`, `manzil % 256` | manzilni **sahifa raqami** (yuqori 8 bit) va **siljish** (pastki 8 bit) ga bo'lish |
+| `struct yozuv` | sahifa jadvali yozuvi: `bor` (present), `ramka` (fizik joy), `yozish_mumkin` (ruxsat) |
+| `!jadval[sahifa].bor` | sahifa xotirada yo'q → **PAGE FAULT**: yadro bo'sh ramka ajratadi (hozir 7-ramka) |
+| `ramka * 256 + siljish` | **fizik manzil** = ramka boshi + siljish |
+| `yozish && !yozish_mumkin` | himoya buzildi → Segmentation fault |
 
-Agar har bir dastur fizik xotirani to'g'ridan-to'g'ri ishlatsa:
-1. **Himoya yo'q** — bir dastur boshqasining (yoki yadroning) xotirasini buzadi;
-2. **Joylashtirish qiyin** — har bir dastur qayerga yuklanishini oldindan bilishi kerak;
-3. **Xotira yetmasa** — hech narsa qilib bo'lmaydi.
+E'tibor bering: `0x1234` va `0x12FF` — bitta sahifa (yuqori bayt `0x12`), shuning uchun bitta ramkaga tushdi. `0x8000` ga birinchi murojaatda page fault bo'ldi, ikkinchisida — yo'q.
 
-Yechim: har bir jarayon o'zining **virtual manzil maydonini** ko'radi (0 dan 2⁴⁷ gacha), CPU'dagi
-**MMU** har bir murojaatda virtual manzilni fizikka aylantiradi, tarjima jadvalini esa **yadro**
-boshqaradi. Jarayon boshqalarning xotirasini hatto "ko'ra" olmaydi — uning manzillari boshqa joyga tarjima qilinadi.
+### Sahifa jadvalining o'lchami
 
-## 24.2. Tarixiy yo'l: base/bounds → segmentatsiya → sahifalash
+Oddiy (bir darajali) jadval: har bir VPN uchun bitta yozuv → 2³⁶ yozuv × 8 bayt = **512 GB** har bir jarayon uchun! Mumkin emas. Lekin jarayonlarning manzil maydoni asosan **bo'sh** (kod pastda, stek yuqorida, o'rtasi bo'sh).
 
-**Base and bounds:** har bir jarayonga bitta uzluksiz fizik hudud. `fizik = base + virtual`, agar
-`virtual < bounds` bo'lsa. Oddiy, lekin stek va heap orasidagi bo'sh joy ham fizik xotira egallaydi.
+**Ko'p darajali jadval** — jadval uchun ham "sahifalash": 4 daraja (PML4 → PDPT → PD → PT), har biri 512 yozuv (9 bit). Bo'sh hudud uchun quyi darajadagi jadvallar umuman **yaratilmaydi** — yuqori darajadagi
+yozuvda "yo'q" (present = 0) turadi. Kichik dastur uchun ~4–5 ta jadval (20 KB) yetadi. Narxi — tarjima uchun 4 ta xotira murojaati (TLB buni yashiradi — 21-bob). 31-mashqda aynan shu tuzilmani yozdingiz.
 
-**Segmentatsiya:** kod, heap, stek — alohida segmentlar, har birining o'z base/bounds'i. Isrof
-kamayadi, lekin fizik xotira **turli o'lchamdagi** bo'laklarga bo'linib ketadi — **tashqi fragmentatsiya**
-(bo'sh joy ko'p, lekin katta uzluksiz bo'lak yo'q). x86 32 bitda segmentlar bor edi; 64 bitda ular deyarli
-o'chirilgan (faqat FS/GS qoldi — per-CPU va TLS uchun, MyOS `percpu.c`).
+**Yozuv bitlari (x86-64):** P (bor), R/W (yozish), U/S (user), A (accessed — CPU o'zi qo'yadi), D (dirty — yozilgan), PS (katta sahifa), NX (63-bit: bajarib bo'lmaydi), 12..51 — fizik manzil.
+A va D bitlari almashtirish algoritmlari uchun juda muhim (24.6).
 
-**Sahifalash (paging):** xotira **bir xil o'lchamdagi** kichik bo'laklarga — sahifalarga (4 KB) bo'linadi.
-Istalgan virtual sahifa istalgan fizik sahifaga (freym) tushishi mumkin. Tashqi fragmentatsiya yo'q
-(hamma bo'lak bir xil). Narxi: tarjima jadvali kerak va oxirgi sahifadagi ichki isrof.
+> **Eslab qoling:** virtual manzil = sahifa raqami | siljish. Fizik = ramka boshi + siljish. Sahifa jadvali ko'p darajali (bo'sh hududlar uchun jadval yaratilmaydi).
 
-## 24.3. Sahifa jadvali va uning o'lchami muammosi
+O'z jarayoningizning virtual manzil xaritasini ko'rish:
 
-Virtual manzil = sahifa raqami + sahifa ichidagi siljish:
-
-```text
-48 bitli manzil:  [ 36 bit - virtual sahifa raqami (VPN) | 12 bit - siljish ]
+```console
+$ cat /proc/self/maps | awk '{print $2, $6}' | grep -E '\[(heap|stack)\]'
+rw-p [heap]
+rw-p [stack]
 ```
 
-Oddiy (bir darajali) jadval: har bir VPN uchun bitta yozuv → 2³⁶ yozuv × 8 bayt = **512 GB** har bir
-jarayon uchun! Mumkin emas. Lekin jarayonlarning manzil maydoni asosan **bo'sh** (kod pastda, stek
-yuqorida, o'rtasi bo'sh).
-
-**Ko'p darajali jadval** — jadval uchun ham "sahifalash": 4 daraja (PML4 → PDPT → PD → PT), har biri
-512 yozuv (9 bit). Bo'sh hudud uchun quyi darajadagi jadvallar umuman **yaratilmaydi** — yuqori
-darajadagi yozuvda "yo'q" (present = 0) turadi. Kichik dastur uchun ~4–5 ta jadval (20 KB) yetadi.
-Narxi — tarjima uchun 4 ta xotira murojaati (TLB buni yashiradi — 21-bob). 31-mashqda aynan shu tuzilmani yozdingiz.
-
-**Yozuv bitlari (x86-64):** P (bor), R/W (yozish), U/S (user), A (accessed — CPU o'zi qo'yadi),
-D (dirty — yozilgan), PS (katta sahifa), NX (63-bit: bajarib bo'lmaydi), 12..51 — fizik manzil.
-A va D bitlari almashtirish algoritmlari uchun juda muhim (24.6).
+`/proc/self/maps` — jarayonning hududlari (VMA lar); `r`/`w`/`x`/`p` — ruxsatlar. `[heap]` va `[stack]` — 8.1 dagi xaritaning haqiqiy hududlari.
 
 ## 24.4. Page fault — "sahifa yo'q" istisnosi
 
-MMU tarjima qila olmasa (P=0) yoki ruxsat buzilsa (faqat o'qiladigan sahifaga yozish, user rejimidan
-yadro sahifasiga) — CPU **#PF** istisnosini chaqiradi: xato manzili `CR2` registrida, sababi xato kodida.
+**Hayotdan misol: kutubxonada kitob javonda yo'q.** Kutubxonachidan kitob so'radingiz — javonda yo'q. Bu xato emas: kutubxonachi omborga borib, kitobni olib keladi va sizga beradi. Siz faqat biroz kutasiz.
+Page fault ham shunday: sahifa hali xotirada yo'q — yadro uni tayyorlaydi (nol bilan to'ldiradi yoki diskdan o'qiydi) va dastur hech narsani sezmay davom etadi. Faqat haqiqatan ruxsat etilmagan manzil bo'lsa — Segmentation fault.
+
+MMU tarjima qila olmasa (P=0) yoki ruxsat buzilsa (faqat o'qiladigan sahifaga yozish, user rejimidan yadro sahifasiga) — CPU **#PF** istisnosini chaqiradi: xato manzili `CR2` registrida, sababi xato kodida.
 Yadroning ishlovchisi hal qiladi:
 
 ```text
 page_fault(manzil, sabab):
   hudud = shu manzil jarayonning qaysi VMA'siga tegishli?     (MyOS: struct vm_area, kernel/mm/mm.c)
   yo'q                          -> SIGSEGV (dastur xatosi: NULL, chegaradan tashqari)
-  bor, lekin ruxsat yo'q        -> COW bo'lsa: nusxalash (24.7); aks holda SIGSEGV
+  bor, lekin ruxsat yo'q        -> COW bo'lsa: nusxalash (24.8); aks holda SIGSEGV
   bor, sahifa hali yo'q         -> TALAB BO'YICHA: yangi sahifa ajratib (nollangan yoki fayldan),
                                    xaritalab, buyruqni QAYTA bajarish
   sahifa diskka chiqarilgan     -> diskdan o'qib, xaritalash (swap)
@@ -180,29 +218,86 @@ Muhim: page fault — har doim xato emas, ko'pincha **normal ish rejimi**. MyOS'
 
 ## 24.5. Talab bo'yicha sahifalash (demand paging) va swap
 
-`malloc(1 GB)` darhol 1 GB fizik xotira olmaydi — faqat VMA (virtual hudud) yaratiladi. Sahifa birinchi
-marta tegilganda page fault orqali ajratiladi. Shuning uchun `exec` tez (faqat kerakli sahifalar
-yuklanadi), dasturlar ishlatmagan xotira uchun "to'lamaydi".
+**Hayotdan misol: mebelni kerak bo'lganda olib kelish.** Yangi uyga ko'chdingiz va 100 xonali saroy "ijaraga oldingiz" (`mmap` 100 MB). Hamma xonaga birdaniga mebel olib kelinmaydi — qaysi xonaga birinchi marta
+kirsangiz, o'shanga olib kelinadi. Kirmagan xonalar hech narsaga tushmaydi.
 
-Fizik xotira tugasa — kam ishlatilgan sahifalar **diskka** (swap) chiqariladi, yozuvda P=0 qilinadi.
-Keyin kerak bo'lsa — page fault → diskdan o'qish. Savol: **qaysi** sahifani chiqarish kerak?
+`malloc(1 GB)` darhol 1 GB fizik xotira olmaydi — faqat VMA (virtual hudud) yaratiladi. Sahifa birinchi marta tegilganda page fault orqali ajratiladi. Shuning uchun `exec` tez (faqat kerakli sahifalar yuklanadi),
+dasturlar ishlatmagan xotira uchun "to'lamaydi". Buni o'lchaymiz:
+
+```c
+/* talab_bilan.c - malloc darhol xotira bermaydi: page fault'lar */
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+#define MB (1024L * 1024)
+#define HAJM (200 * MB)
+
+static long rss_kb(void)                        /* jarayon haqiqatan egallagan fizik xotira */
+{
+    long sahifalar = 0, jami = 0;
+    FILE *f = fopen("/proc/self/statm", "r");
+    if (f) {
+        if (fscanf(f, "%ld %ld", &jami, &sahifalar) != 2)
+            sahifalar = 0;
+        fclose(f);
+    }
+    return sahifalar * sysconf(_SC_PAGESIZE) / 1024;
+}
+
+static long xatolar(void)                       /* "yengil" page fault'lar soni */
+{
+    struct rusage r;
+    getrusage(RUSAGE_SELF, &r);
+    return r.ru_minflt;
+}
+
+int main(void)
+{
+    long rss0 = rss_kb(), pf0 = xatolar();
+    char *p = malloc(HAJM);                     /* 200 MB so'raldi */
+    long rss1 = rss_kb(), pf1 = xatolar();
+    printf("malloc(200 MB) dan keyin:  RSS +%ld MB, page fault +%ld\n", (rss1 - rss0) / 1024, pf1 - pf0);
+
+    for (long i = 0; i < HAJM; i += 4096)       /* har bir sahifaga bittadan tegamiz */
+        p[i] = 1;
+    long rss2 = rss_kb(), pf2 = xatolar();
+    printf("hamma sahifaga tegilgach:  RSS +%ld MB, page fault +%ld\n", (rss2 - rss0) / 1024, pf2 - pf0);
+    printf("kutilgan fault: 200 MB / 4 KB = %ld\n", HAJM / 4096);
+    free(p);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O1 talab_bilan.c -o talab_bilan
+$ ./talab_bilan
+malloc(200 MB) dan keyin:  RSS +0 MB, page fault +1
+hamma sahifaga tegilgach:  RSS +200 MB, page fault +51201
+kutilgan fault: 200 MB / 4 KB = 51200
+```
+
+**Bu dastur nima qiladi (umumiy):** 200 MB so'raydi va ikki joyda o'lchaydi: (1) `malloc` dan **keyin**, hali tegmasdan; (2) har bir sahifaga bitta bayt yozgandan keyin. Ko'rsatkichlar: **RSS** — jarayon haqiqatan
+egallagan fizik xotira; **page fault** soni.
+
+**Nima ko'rdik:** `malloc` dan keyin RSS deyarli **o'zgarmadi** (0 MB), page fault'lar ham juda kam — faqat virtual hudud (VMA) yaratildi. Sahifalarga tegilgach, RSS ~200 MB ga o'sdi va page fault'lar
+~51 200 ta bo'ldi (200 MB / 4 KB) — **har bir birinchi tegish** bitta page fault. Bu — talab bo'yicha sahifalash.
+
+> **Eslab qoling:** `malloc` — faqat **va'da**; haqiqiy fizik xotira sahifaga **birinchi tegilganda** page fault orqali beriladi.
+
+Fizik xotira tugasa — kam ishlatilgan sahifalar **diskka** (swap) chiqariladi, yozuvda P=0 qilinadi. Keyin kerak bo'lsa — page fault → diskdan o'qish. **Hayotdan misol: swap — garaj.** Uyda joy qolmasa, kam
+ishlatiladigan narsalarni garajga olib chiqasiz. Kerak bo'lsa — qaytib olib kelasiz (sekin). Savol: **qaysi** sahifani chiqarish kerak?
 
 ## 24.6. Sahifa almashtirish algoritmlari
 
-Misol: 3 ta freym, murojaatlar ketma-ketligi `7 0 1 2 0 3 0 4 2 3 0 3 2`.
+Fizik xotira to'lganda, yangi sahifa uchun joy ochish kerak. **Qaysi** sahifa "qurbon" bo'ladi? Algoritmlar:
 
-**OPT (Belady'ning optimal algoritmi):** kelajakda **eng uzoq** vaqt ishlatilmaydiganini chiqarish.
-Eng kam page fault — lekin kelajakni bilish kerak, shuning uchun faqat solishtirish uchun o'lchov.
-
-**FIFO:** eng birinchi kelganini chiqarish. Oddiy, lekin ko'p ishlatiladigan sahifani ham chiqarib
-yuborishi mumkin. **Belady anomaliyasi:** FIFO'da freymlar ko'paysa, xatolar **ko'payishi** mumkin!
-(`1 2 3 4 1 2 5 1 2 3 4 5` — 3 freymda 9 xato, 4 freymda 10 xato.)
-
-**LRU (eng uzoq vaqt ishlatilmagan):** o'tmish kelajakning yaxshi bashoratchisi (lokallik — 21-bob).
-OPT'ga yaqin natija beradi, anomaliyasi yo'q. Lekin aniq LRU uchun **har bir** murojaatda vaqtni yangilash
-kerak — apparatda qimmat.
-
-**Clock (ikkinchi imkoniyat):** LRU'ning arzon yaqinlashuvi — apparatning A (accessed) bitidan foydalanadi:
+- **OPT (Belady'ning optimal algoritmi):** kelajakda **eng uzoq** vaqt ishlatilmaydiganini chiqarish. Eng kam page fault — lekin kelajakni bilish kerak, shuning uchun faqat solishtirish uchun o'lchov.
+- **FIFO:** eng birinchi kelganini chiqarish. Oddiy, lekin ko'p ishlatiladigan sahifani ham chiqarib yuborishi mumkin. **Belady anomaliyasi:** FIFO'da freymlar ko'paysa, xatolar **ko'payishi** mumkin!
+- **LRU (eng uzoq vaqt ishlatilmagan):** o'tmish kelajakning yaxshi bashoratchisi (lokallik — 21-bob). OPT'ga yaqin natija beradi, anomaliyasi yo'q. Lekin aniq LRU uchun **har bir** murojaatda vaqtni yangilash
+  kerak — apparatda qimmat.
+- **Clock (ikkinchi imkoniyat):** LRU'ning arzon yaqinlashuvi — apparatning A (accessed) bitidan foydalanadi:
 
 ```text
 freymlar aylana bo'ylab, "soat mili" bitta freymga ko'rsatadi
@@ -211,41 +306,290 @@ chiqarish kerak bo'lsa:
     A = 0 bo'lsa -> shuni chiqaramiz
 ```
 
-Yaqinda ishlatilgan sahifa (A=1) bir aylanish davomida saqlanadi. Takomillashtirilgani D (dirty) bitini
-ham hisobga oladi: o'zgarmagan sahifani chiqarish arzonroq (diskka yozish shart emas). Linux'ning
-"faol/nofaol ro'yxatlari" — shu oilaning murakkab varianti.
+Yaqinda ishlatilgan sahifa (A=1) bir aylanish davomida saqlanadi. Takomillashtirilgani D (dirty) bitini ham hisobga oladi: o'zgarmagan sahifani chiqarish arzonroq (diskka yozish shart emas).
+Linux'ning "faol/nofaol ro'yxatlari" — shu oilaning murakkab varianti.
 
-43-mashqda FIFO, LRU, OPT va Clock'ni simulyatsiya qilib, xatolar sonini solishtirasiz.
+Hammasini simulyator bilan solishtiramiz:
+
+```c
+/* almashtirish.c - FIFO, LRU, OPT va Clock: sahifa xatolari soni */
+#include <stdio.h>
+#include <string.h>
+
+#define MAXF 8
+
+static int fifo(const int *s, int n, int k)
+{
+    int fr[MAXF], bor = 0, sh = 0, xato = 0;
+    for (int i = 0; i < n; i++) {
+        int topildi = 0;
+        for (int j = 0; j < bor; j++)
+            if (fr[j] == s[i])
+                topildi = 1;
+        if (topildi)
+            continue;
+        xato++;
+        if (bor < k)
+            fr[bor++] = s[i];
+        else {
+            fr[sh] = s[i];                      /* eng eskisini almashtiramiz */
+            sh = (sh + 1) % k;
+        }
+    }
+    return xato;
+}
+
+static int lru(const int *s, int n, int k)
+{
+    int fr[MAXF], oxirgi[MAXF], bor = 0, xato = 0;
+    for (int i = 0; i < n; i++) {
+        int j;
+        for (j = 0; j < bor; j++)
+            if (fr[j] == s[i])
+                break;
+        if (j < bor) {
+            oxirgi[j] = i;                      /* ishlatildi: vaqtni yangilaymiz */
+            continue;
+        }
+        xato++;
+        if (bor < k) {
+            fr[bor] = s[i];
+            oxirgi[bor++] = i;
+        } else {
+            int eski = 0;                       /* eng uzoq ishlatilmaganini topamiz */
+            for (j = 1; j < k; j++)
+                if (oxirgi[j] < oxirgi[eski])
+                    eski = j;
+            fr[eski] = s[i];
+            oxirgi[eski] = i;
+        }
+    }
+    return xato;
+}
+
+static int opt(const int *s, int n, int k)
+{
+    int fr[MAXF], bor = 0, xato = 0;
+    for (int i = 0; i < n; i++) {
+        int j;
+        for (j = 0; j < bor; j++)
+            if (fr[j] == s[i])
+                break;
+        if (j < bor)
+            continue;
+        xato++;
+        if (bor < k) {
+            fr[bor++] = s[i];
+            continue;
+        }
+        int qurbon = 0, uzoq = -1;
+        for (j = 0; j < k; j++) {               /* kelajakda eng kech kerak bo'ladigani */
+            int t = i + 1;
+            while (t < n && s[t] != fr[j])
+                t++;
+            if (t > uzoq) {
+                uzoq = t;
+                qurbon = j;
+            }
+        }
+        fr[qurbon] = s[i];
+    }
+    return xato;
+}
+
+static int soat(const int *s, int n, int k)
+{
+    int fr[MAXF], a[MAXF], bor = 0, mil = 0, xato = 0;
+    for (int i = 0; i < n; i++) {
+        int j;
+        for (j = 0; j < bor; j++)
+            if (fr[j] == s[i])
+                break;
+        if (j < bor) {
+            a[j] = 1;                           /* A biti: yaqinda ishlatildi */
+            continue;
+        }
+        xato++;
+        if (bor < k) {
+            fr[bor] = s[i];
+            a[bor++] = 1;
+            continue;
+        }
+        while (a[mil]) {                        /* A = 1: ikkinchi imkoniyat */
+            a[mil] = 0;
+            mil = (mil + 1) % k;
+        }
+        fr[mil] = s[i];                         /* A = 0: shuni chiqaramiz */
+        a[mil] = 1;
+        mil = (mil + 1) % k;
+    }
+    return xato;
+}
+
+static void sinov(const char *nom, const int *s, int n, int k)
+{
+    printf("%-26s FIFO %2d  LRU %2d  OPT %2d  Clock %2d\n", nom, fifo(s, n, k), lru(s, n, k),
+           opt(s, n, k), soat(s, n, k));
+}
+
+int main(void)
+{
+    int a[] = { 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2 };
+    int b[] = { 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5 };
+    printf("(%d ta murojaat; ustun - xatolar soni)\n", 13);
+    sinov("7 0 1 2 0 3 ... , 3 freym", a, 13, 3);
+    sinov("Belady ketma-ketligi, 3 fr.", b, 12, 3);
+    sinov("Belady ketma-ketligi, 4 fr.", b, 12, 4);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra almashtirish.c -o almashtirish
+$ ./almashtirish
+(13 ta murojaat; ustun - xatolar soni)
+7 0 1 2 0 3 ... , 3 freym  FIFO 10  LRU  9  OPT  7  Clock  9
+Belady ketma-ketligi, 3 fr. FIFO  9  LRU 10  OPT  7  Clock  9
+Belady ketma-ketligi, 4 fr. FIFO 10  LRU  8  OPT  6  Clock 10
+```
+
+**Bu dastur nima qiladi (umumiy):** bir xil murojaatlar ketma-ketligini to'rt algoritm bilan o'tkazib, **page fault** (sahifa xatosi) sonini sanaydi. Kamroq xato — yaxshiroq.
+
+**Nima ko'rdik:**
+
+- **OPT** eng kam xato qildi (eng yaxshi, lekin kelajakni bilishni talab qiladi). Birinchi ketma-ketlikda **LRU** (9) va Clock (9) FIFO'dan (10) yaxshi. Lekin aniq ketma-ketlikka bog'liq: ikkinchisida 3 freymda FIFO (9) LRU'dan (10) yaxshi chiqdi — "doim yaxshi" algoritm yo'q, faqat o'rtacha lokallikka tayanadi.
+- **Belady anomaliyasi:** ikkinchi ketma-ketlikda FIFO 3 freymda **9** xato, 4 freymda **10** xato qildi — xotira **ko'paysa ham xatolar ko'paydi**! LRU va OPT'da bunday emas.
+
+43-mashqda FIFO, LRU, OPT va Clock'ni o'zingiz simulyatsiya qilasiz.
+
+> **Eslab qoling:** OPT — o'lchov (kelajakni bilish kerak), LRU — yaxshi, lekin qimmat; Clock — arzon yaqinlashuvi (A biti); FIFO'da Belady anomaliyasi bor.
 
 ## 24.7. Thrashing va ishchi to'plam
 
-Jarayonlarning **ishchi to'plami** (yaqin vaqtda faol ishlatayotgan sahifalari) jami fizik xotiradan
-oshsa — tizim vaqtining ko'pini sahifalarni disk va xotira orasida ko'chirishga sarflaydi ("thrashing"):
-disk chirog'i yonib turadi, hech narsa ishlamaydi. Yechimlar: ba'zi jarayonlarni to'xtatish, Linux'da —
-OOM killer (xotira tugaganda bitta jarayonni o'ldirish).
+Jarayonlarning **ishchi to'plami** (yaqin vaqtda faol ishlatayotgan sahifalari) jami fizik xotiradan oshsa — tizim vaqtining ko'pini sahifalarni disk va xotira orasida ko'chirishga sarflaydi ("thrashing"):
+disk chirog'i yonib turadi, hech narsa ishlamaydi. **Hayotdan misol:** garajga borib-kelish juda ko'payib ketsa, uyda ish umuman oldinga siljimaydi. Yechimlar: ba'zi jarayonlarni to'xtatish, Linux'da — OOM killer
+(xotira tugaganda bitta jarayonni o'ldirish).
 
 ## 24.8. Copy-on-write (COW) va `fork`
 
-`fork` jarayonning butun xotirasini nusxalashi kerak — lekin ko'pincha bola darhol `exec` qiladi va
-nusxa behuda. COW:
-1. `fork`da xotira **nusxalanmaydi** — ota va bola bir xil fizik sahifalarni ko'radi, ikkalasida ham
-   sahifalar **faqat o'qiladigan** qilib belgilanadi (sahifaning havola sanog'i oshiriladi).
-2. Kimdir yozmoqchi bo'lsa — page fault (ruxsat yo'q) → yadro: "bu COW sahifa" → nusxa yaratib,
-   yozuvchiga yoziladigan qilib beradi.
+**Hayotdan misol: umumiy darslik.** Aka-uka bitta darslikdan o'qiydi — nusxa shart emas. Uka kitobga nimadir **yozmoqchi** bo'lsa, faqat o'sha sahifaning nusxasini oladi va o'z nusxasiga yozadi.
+`fork` aynan shunday: bola otaning barcha sahifalarini bo'lishadi, faqat yozilgan sahifa nusxalanadi. Shuning uchun 1 GB xotirali jarayonni `fork` qilish bir zumda bo'ladi.
 
-Natija: `fork` + `exec` deyarli bepul. MyOS: `docs/11-fork-cow.md`, `kernel/mm/mm.c`.
+`fork` jarayonning butun xotirasini nusxalashi kerak — lekin ko'pincha bola darhol `exec` qiladi va nusxa behuda. COW:
+
+1. `fork`da xotira **nusxalanmaydi** — ota va bola bir xil fizik sahifalarni ko'radi, ikkalasida ham sahifalar **faqat o'qiladigan** qilib belgilanadi (sahifaning havola sanog'i oshiriladi).
+2. Kimdir yozmoqchi bo'lsa — page fault (ruxsat yo'q) → yadro: "bu COW sahifa" → nusxa yaratib, yozuvchiga yoziladigan qilib beradi.
+
+Natija: `fork` + `exec` deyarli bepul. Buni o'lchaymiz — bola 40 MB ni avval **o'qiydi**, keyin **yozadi**:
+
+```c
+/* cow_olchov.c - fork: o'qish bepul, yozish nusxalaydi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#define HAJM (40L * 1024 * 1024)
+#define SAHIFALAR (HAJM / 4096)
+
+static long xatolar(void)
+{
+    struct rusage r;
+    getrusage(RUSAGE_SELF, &r);
+    return r.ru_minflt;
+}
+
+int main(void)
+{
+    char *p = malloc(HAJM);
+    for (long i = 0; i < HAJM; i += 4096)       /* ota hamma sahifani egallaydi */
+        p[i] = 1;
+
+    if (fork() == 0) {                          /* BOLA */
+        long f0 = xatolar();
+        volatile char s = 0;
+        for (long i = 0; i < HAJM; i += 4096)
+            s += p[i];                          /* faqat O'QISH */
+        long f1 = xatolar();
+        for (long i = 0; i < HAJM; i += 4096)
+            p[i] = 2;                           /* YOZISH: har sahifa COW */
+        long f2 = xatolar();
+        printf("sahifalar soni: %ld\n", SAHIFALAR);
+        printf("bola o'qidi:  page fault +%ld\n", f1 - f0);
+        printf("bola yozdi:   page fault +%ld (har bir sahifa nusxalandi)\n", f2 - f1);
+        fflush(stdout);                         /* _exit buferni yubormaydi (12.3) */
+        _exit(0);
+    }
+    wait(NULL);
+    printf("ota: p[0] = %d (bola 2 yozdi, ota 1 ni ko'radi)\n", p[0]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O1 cow_olchov.c -o cow_olchov
+$ ./cow_olchov
+sahifalar soni: 10240
+bola o'qidi:  page fault +0
+bola yozdi:   page fault +10240 (har bir sahifa nusxalandi)
+ota: p[0] = 1 (bola 2 yozdi, ota 1 ni ko'radi)
+```
+
+**Nima ko'rdik:** bola 10 240 sahifani **o'qiganda** deyarli **hech qanday** page fault bo'lmadi (sahifalar ota bilan bo'lishilgan, yadro ularni allaqachon xaritalagan). **Yozganda** — har bir sahifada fault
+(COW: yadro nusxa yaratdi) — ~10 240 ta. Ota o'z nusxasini `1` deb ko'rdi — himoya buzilmadi.
+
+MyOS: `docs/11-fork-cow.md`, `kernel/mm/mm.c`.
 
 ## 24.9. `mmap` — faylni xotira sifatida
 
+**Bu nima?** `mmap` fayl hududini manzil maydoniga xaritalaydi: fayl baytlariga oddiy massiv kabi murojaat qilasiz. **Asosiy ishi:** fayl bilan `read`/`write` siz ishlash; sahifalar talab bo'yicha
+(page fault orqali) fayldan o'qiladi.
+
 ```c
-int fd = open("katta.bin", O_RDONLY);
-uint8_t *p = mmap(NULL, hajm, PROT_READ, MAP_PRIVATE, fd, 0);
-printf("%d\n", p[123456]);          /* fayl baytini oddiy massivdek o'qish */
+/* mmap_misol.c - faylni massiv sifatida o'qish */
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#define HAJM (1024 * 1024)
+
+int main(void)
+{
+    int fd = open("katta.bin", O_RDWR | O_CREAT | O_TRUNC, 0644);   /* 1 MB fayl yaratamiz */
+    if (fd < 0)
+        return 1;
+    if (ftruncate(fd, HAJM) < 0)
+        return 1;
+    uint8_t satr[4096];
+    for (int b = 0; b < HAJM / 4096; b++) {
+        for (int i = 0; i < 4096; i++)
+            satr[i] = (uint8_t)((b * 4096 + i) % 251);          /* ma'lum qonuniyat */
+        if (write(fd, satr, 4096) != 4096)
+            return 1;
+    }
+
+    uint8_t *p = mmap(NULL, HAJM, PROT_READ, MAP_PRIVATE, fd, 0);   /* faylni xaritalaymiz */
+    if (p == MAP_FAILED)
+        return 1;
+    printf("p[123456] = %d  (kutilgan: 123456 %% 251 = %d)\n", p[123456], 123456 % 251);
+    munmap(p, HAJM);
+    close(fd);
+    return 0;
+}
 ```
 
-`mmap` fayl hududini manzil maydoniga xaritalaydi; sahifalar talab bo'yicha (page fault orqali) fayldan
-o'qiladi. `MAP_ANONYMOUS` — fayl emas, nollangan xotira (katta `malloc` lar shunday olinadi). Dinamik
-kutubxonalar ham `mmap` bilan yuklanadi va jarayonlar orasida bo'lishiladi (bir xil fizik sahifalar).
+```console
+$ gcc -Wall -Wextra mmap_misol.c -o mmap_misol
+$ ./mmap_misol
+p[123456] = 215  (kutilgan: 123456 % 251 = 215)
+```
+
+**Qismlar:** `ftruncate(fd, HAJM)` — fayl uzunligini belgilaydi; `mmap(NULL, HAJM, PROT_READ, MAP_PRIVATE, fd, 0)` — "butun faylni o'qish uchun xaritala"; `p[123456]` — fayl baytiga **oddiy massiv kabi** murojaat
+(birinchi tegishda page fault → fayldan sahifa o'qiladi). `MAP_ANONYMOUS` — fayl emas, nollangan xotira (katta `malloc` lar shunday olinadi). Dinamik kutubxonalar ham `mmap` bilan yuklanadi va jarayonlar orasida
+bo'lishiladi (bir xil fizik sahifalar).
 
 ## 24.10. x86-64 da yadro va user manzil maydonlari
 
@@ -261,10 +605,24 @@ kutubxonalar ham `mmap` bilan yuklanadi va jarayonlar orasida bo'lishiladi (bir 
 0x0000000000000000 └──────────────────────┘
 ```
 
-Yadro sahifalarida U/S = 0 — user rejimi ularga tega olmaydi, lekin syscall paytida yadro darhol
-ishlay oladi (CR3 almashishi shart emas). MyOS xotira xaritasi: README → "Xotira xaritasi".
+Yadro sahifalarida U/S = 0 — user rejimi ularga tega olmaydi, lekin syscall paytida yadro darhol ishlay oladi (CR3 almashishi shart emas). MyOS xotira xaritasi: README → "Xotira xaritasi".
 
-## 24.11. O'zingizni tekshiring
+## Hayotdan misol va to'liq dastur
+
+**Manzil tarjimasi simulyatori.** Bobning asosiy to'liq dasturi — 24.3 dagi `tarjima.c`: o'yinchoq MMU, u virtual manzilni sahifa jadvali orqali fizikka aylantiradi, page fault'ni qayta ishlaydi va himoyani tekshiradi.
+Yuqorida ko'rgan real o'lchovlar (talab bo'yicha sahifalash, COW, `mmap`, almashtirish algoritmlari) shu mexanizmning turli yuzlari.
+
+**Sinab ko'ring:** `SAHIFA_HAJMI` ni 4096 qiling (haqiqiy x86) va `SAHIFALAR` ni 16 — manzillar qanday bo'linadi? Sahifa jadvalining o'lchami nega muammo ekanini hisoblang: 48 bitli manzil va 4 KB sahifada nechta yozuv kerak (24.3)?
+
+## Bob xulosasi (yodlash uchun)
+
+1. **Virtual xotira:** har jarayon o'z manzil maydonini ko'radi; MMU virtual → fizik tarjima qiladi, jadvalni yadro boshqaradi → **himoya**, qulay joylashtirish, "xotiradan ko'p" ishlatish.
+2. Virtual manzil = **sahifa raqami | siljish**; fizik = ramka boshi + siljish. Jadval ko'p darajali (PML4→PDPT→PD→PT) — bo'sh hududlar uchun jadval yaratilmaydi.
+3. **Page fault** — har doim xato emas: talab bo'yicha sahifalash, COW, swap — normal ish; faqat VMA'siz/ruxsatsiz murojaat → SIGSEGV. `malloc` — faqat va'da, sahifa tegilganda beriladi.
+4. Almashtirish: OPT (o'lchov), FIFO (Belady anomaliyasi), LRU (yaxshi, qimmat), Clock (A biti, arzon); xotira yetmasa — **thrashing**.
+5. **COW:** `fork` xotirani nusxalamaydi, yozishda nusxalaydi; **`mmap`** fayl yoki anonim xotirani manzil maydoniga xaritalaydi.
+
+## O'zingizni tekshiring
 
 1. Nega bir darajali sahifa jadvali amalda ishlatilmaydi?
 2. Page fault qachon xato emas? Uchta misol.
@@ -281,12 +639,11 @@ ishlay oladi (CR3 almashishi shart emas). MyOS xotira xaritasi: README → "Xoti
 5. Page fault → yadro sahifani nusxalaydi, yozuvchining jadvaliga yangi yoziladigan nusxani qo'yadi, buyruq qayta bajariladi.
 </details>
 
-## 24.12. Mashqlar
+## Mashq
 
 - **31** (sahifa jadvali) — agar hali qilmagan bo'lsangiz.
 - **43** (sahifa almashtirish algoritmlari).
-- MyOS: `docs/04-virtual-xotira.md`, `docs/11-fork-cow.md`; `crash` dasturi bilan turli page fault'larni
-  keltirib chiqarib, yadro xabarlarini o'qing.
+- MyOS: `docs/04-virtual-xotira.md`, `docs/11-fork-cow.md`; `crash` dasturi bilan turli page fault'larni keltirib chiqarib, yadro xabarlarini o'qing.
 
 <!-- loyiha:boshi -->
 ## Loyiha: ikki darajali sahifa jadvali
