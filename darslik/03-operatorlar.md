@@ -98,6 +98,8 @@ Yuqoridagi dasturda `%` belgisi **ikki xil joyda** uchradi, ularni adashtirmang:
 Endi savol: agar ekranda oddiy `%` harfini ko'rsatmoqchi bo'lsak-chi (masalan "QQS 12%")? Qolip ichida `%` buyruq hisoblanadi, shuning uchun oddiy `%` ni
 **ikkita** yozamiz: `%%`. `printf` buni "ekranga bitta `%` yoz" deb tushunadi.
 
+**Bu dastur nima qiladi (umumiy):** ekranga haqiqiy `%` belgisini chiqarishni ko'rsatadi: `printf` ichida `%%` yoziladi.
+
 ```c
 /* foiz.c - ekranda % belgisini chiqarish */
 #include <stdio.h>
@@ -140,6 +142,8 @@ if (n)          /* n != 0 bilan bir xil */
 if (!p)         /* p == NULL bilan bir xil (7-bob) */
 ```
 
+**Bu dastur nima qiladi (umumiy):** taqqoslash amallari natija sifatida 0 yoki 1 qaytarishini va noldan farqli son shartda "rost" hisoblanishini ko'rsatadi.
+
 ```c
 /* solishtirish.c - taqqoslash natijasi son */
 #include <stdio.h>
@@ -172,6 +176,8 @@ a rost deb hisoblandi
 
 - `=` — **qiymat berish**: "`x` ga 0 yoz". 
 - `==` — **taqqoslash**: "`x` nolga tengmi?" 
+
+**Bu dastur nima qiladi (umumiy):** `=` (o'zlashtirish) va `==` (taqqoslash) ni almashtirish xatosini ko'rsatadi: shartning o'zi `x` ga 0 yozib yuboradi.
 
 ```c
 /* tenglik_xato.c - = va == */
@@ -387,6 +393,8 @@ a ^ b   =    0 1 1 0     (6)    <- faqat farq qilgan ustunlar 1
 
 Haqiqiy dastur bilan tekshiramiz (8 bit):
 
+**Bu dastur nima qiladi (umumiy):** ikki sonning bitlari ustida `&`, `|`, `^`, `~` amallarini bajarib, har natijani ikkilik ko'rinishda chiqaradi.
+
 ```c
 /* bit_amallar.c - &, |, ^, ~ amalda */
 #include <stdint.h>
@@ -448,6 +456,8 @@ o'ngdan nol bilan to'ldiradi.
 0000 1100 (12) >> 2  ->  0000 0011 (3)       12 / 4 = 3
 ```
 
+**Bu dastur nima qiladi (umumiy):** `<<` va `>>` surish amallarini ko'rsatadi: chapga surish ikkiga ko'paytiradi, o'ngga surish ikkiga bo'ladi.
+
 ```c
 /* surish.c - << va >> */
 #include <stdint.h>
@@ -497,6 +507,8 @@ Niqobni qanday yasaymiz? `1` ni kerakli o'ringa suramiz:
 ```
 
 Ya'ni **`1u << n` = "faqat `n`-kalit yoqilgan son"**.
+
+**Bu dastur nima qiladi (umumiy):** `1u << n` ifodasi (n = 0…7) bitta bitli niqoblarni (maska) hosil qilishini ikkilik ko'rinishda chiqaradi.
 
 ```c
 /* maska.c - 1u << n: bitta kalitlik niqoblar */
@@ -621,6 +633,8 @@ Natija **0 emas** → kalit yoniq; **0** → o'chiq. Shu uchun `if (x & M)` — 
 
 Panelda to'rt hunarni **bosqichma-bosqich** ko'ramiz:
 
+**Bu dastur nima qiladi (umumiy):** chiroq kalitlari panelida bitlarni yoqish, o'chirish va almashtirishni bosqichma-bosqich bajarib, har qadamda panel bitlarini ko'rsatadi.
+
 ```c
 /* panel_bosqich.c - to'rt hunar, har qadamda bitlar */
 #include <stdint.h>
@@ -706,6 +720,8 @@ Bu jadvalni dastur chiqarishi bilan solishtiring: bitlar bir xil.
 
 Endi hammasini birlashtiramiz: panel + nomlar + chiroyli chiqarish funksiyasi.
 
+**Bu dastur nima qiladi (umumiy):** bitta son (`panel`) ni uydagi to'rt xonaning chiroq kalitlari sifatida ishlatib, kun davomida ularni yoqib-o'chirishni xona nomlari bilan ko'rsatadi.
+
 ```c
 /* aqlli_uy.c - bitta son = chiroq kalitlari paneli */
 #include <stdint.h>
@@ -774,6 +790,8 @@ Natijaga qarang: har satrda aynan qaysi kalit o'zgarganini jadval bilan solishti
 **Sinab ko'ring:** `#define GARAJ (1u << 4)` qo'shib, garajni yoqing va `korsat` ga garajni qo'shing. `panel ^= HOVLI;` ni ikki marta yozing — nima bo'ladi?
 
 ### 3.4.8. Yana uchta foydali bit hunari
+
+**Bu dastur nima qiladi (umumiy):** uchta amaliy bit usulini ko'rsatadi: n-bitni o'qish, eng pastki 1 bitni o'chirish (`x & (x - 1)`) va manzilni sahifa (4096) chegarasiga tekislash.
 
 ```c
 /* bit_hunar.c - bitni o'qish, hisoblash, tekislash */
@@ -881,6 +899,8 @@ U 7-bitdan 0-bitgacha **har birini o'qiydi** (`(x >> i) & 1u`) va ketma-ket chiq
 - `1u << 32` — surish miqdori tur kengligidan katta yoki teng (32 bitli turda) → **UB**. 64 bit uchun: `1ull << 40`.
 - Manfiy sonni `>>` qilish — natija platformaga bog'liq (GCC'da ishora saqlanadi).
 
+**Bu dastur nima qiladi (umumiy):** `int` ning ishora bitiga surish va 32 bitli turni 32 ga surish (aniqlanmagan xatti-harakat) — ataylab xatoli.
+
 ```c
 /* surish_ub.c - noto'g'ri surish */
 #include <stdio.h>
@@ -932,6 +952,8 @@ x |= FLAG;  x &= ~FLAG;  x ^= m;  x <<= 1;  x >>= 2;
 ## 3.6. `++` va `--`
 
 `i++` — "`i` ga 1 qo'sh". Ikki shakl bor, farqi — **qiymat qachon olinishi**:
+
+**Bu dastur nima qiladi (umumiy):** `i++` va `++i` farqini (qiymat qachon olinishini) va `buf[n++] = x` naqshini ko'rsatadi.
 
 ```c
 /* inkrement.c - i++ va ++i */
@@ -1026,6 +1048,8 @@ Hamma ustuvorlik jadvalini yodlash shart emas. **Shubha bo'lsa — qavs qo'ying.
 | `x & 1 == 0` | `(x & 1) == 0` | `x & (1 == 0)` → `x & 0` → 0 | `==` bitli `&` dan kuchliroq! |
 | `a << 2 + 1` | `(a << 2) + 1` | `a << 3` | `+` surishdan kuchliroq |
 | `*p++` | `(*p)++` | `*(p++)` | postfiks `++` `*` dan kuchliroq |
+
+**Bu dastur nima qiladi (umumiy):** qavssiz yozilgan ifodalar kutilmagan natija berishini ko'rsatadi (`x & 1 == 0`, `3 << 2 + 1`) va qavsli to'g'ri variantni.
 
 ```c
 /* ustuvorlik.c - qavssiz yozish tuzoqlari */

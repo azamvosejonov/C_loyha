@@ -57,6 +57,8 @@ Ikki qator: (1) `x` — oddiy `int` quti, ichida 42; (2) `p` — **ko'rsatkich**
 | `*p` | p **ko'rsatgan joydagi** qiymat ("o'sha manzilga bor") | 42 |
 | `&p` | p ning o'zining manzili | 0x7ffd1008 |
 
+**Bu dastur nima qiladi (umumiy):** ko'rsatkich nima ekanini ko'rsatadi: `&x` manzilni oladi, `*p` shu manzildagi qiymatni o'qiydi va o'zgartiradi.
+
 ```c
 /* korsatkich_asos.c - &, * va manzil bo'yicha o'zgartirish */
 #include <stdio.h>
@@ -113,6 +115,8 @@ tur nomidan keyin (`int *`) — e'lon; ifoda ichida bitta operand oldida (`*p`) 
 
 **Tuzoq:** `int *a, b;` — `a` ko'rsatkich, `b` esa oddiy `int`! `*` nomga yopishadi, turga emas.
 
+**Bu dastur nima qiladi (umumiy):** `int *a, b;` yozuvidagi tuzoq: `*` faqat `a` ga tegishli, `b` esa oddiy `int` — ataylab xatoli.
+
 ```c
 /* yulduz_tuzoq.c - int *a, b; */
 #include <stdio.h>
@@ -165,6 +169,8 @@ vga[0] = 0x0F00 | 'A';      /* ekranning chap yuqori burchagiga oq 'A' */
 (MyOS: `kernel/drivers/vga.c`. `volatile` — 16-bob.)
 
 ### Birinchi sabab amalda: `almashtir`
+
+**Bu dastur nima qiladi (umumiy):** ikki o'zgaruvchining qiymatini ko'rsatkichlar yordamida funksiya orqali almashtiradi (qiymat bo'yicha uzatish buni qila olmaydi).
 
 ```c
 /* almashtir.c - ikki qiymatni almashtirish: faqat manzil bilan mumkin */
@@ -220,6 +226,8 @@ if (p != NULL)      /* yoki: if (p) */
 - `*p` qilish (`p == NULL` bo'lganda) — **NULL dereference**: user dasturda `Segmentation fault`, yadroda — page fault va **PANIC** (0-sahifa ataylab xaritalanmaydi — xato darhol ko'rinsin).
 - Ko'rsatkich qaytaradigan funksiyalar xatoni `NULL` bilan bildiradi: `malloc`, `fopen`, `strchr`. **Doim tekshiring.**
 
+**Bu dastur nima qiladi (umumiy):** `NULL` ko'rsatkich orqali yozishga urinadi — dastur qulaydi (ataylab xatoli).
+
 ```c
 /* null_xato.c - NULL orqali yozish */
 #include <stdio.h>
@@ -270,6 +278,8 @@ p++;                    /* p endi a[1] ga ko'rsatadi */
 int *q = &a[4];
 q - p                   /* 3 - ikki ko'rsatkich orasidagi ELEMENTLAR soni */
 ```
+
+**Bu dastur nima qiladi (umumiy):** ko'rsatkich arifmetikasini ko'rsatadi: `p + 1` keyingi elementga o'tadi, `p++` siljiydi, ikki ko'rsatkich ayirmasi elementlar sonini beradi.
 
 ```c
 /* arifmetika.c - ko'rsatkich arifmetikasi */
@@ -344,6 +354,8 @@ Funksiyaga uzatilganda massiv har doim ko'rsatkichga aylanadi (6-bob).
 
 ### Ko'rsatkich bilan satr aylanish — C'ning klassik uslubi
 
+**Bu dastur nima qiladi (umumiy):** `strlen` ni ko'rsatkich bilan o'zimiz yozamiz: oxirgi `'\0'` ga yetguncha siljib, ayirmani qaytaramiz.
+
 ```c
 /* mening_strlen.c - strlen ni ko'rsatkich bilan yozish */
 #include <stdio.h>
@@ -386,6 +398,8 @@ mening_strlen("") = 0
 
 Struktura (9-bob) — turli turdagi maydonlarni birlashtirgan "paket". `.` — struktura **qiymati**ning maydoniga, `->` — struktura **ko'rsatkichi**ning maydoniga:
 
+**Bu dastur nima qiladi (umumiy):** struktura maydoniga `.` bilan va ko'rsatkich orqali `->` bilan murojaat qilishni ko'rsatadi.
+
 ```c
 /* strelka.c - . va -> */
 #include <stdio.h>
@@ -426,6 +440,8 @@ const char *const p;    /* ikkalasi ham o'zgarmas */
 
 O'qish qoidasi: **o'ngdan chapga**. `const char *p` → "p — ko'rsatkich — `const char` ga". `char *const p` → "p — o'zgarmas (`const`) ko'rsatkich — `char` ga".
 
+**Bu dastur nima qiladi (umumiy):** `const char *` (ma'lumot qulflangan) va `char *const` (ko'rsatkich qulflangan) farqini ko'rsatadi — ikkalasini buzish ham xato beradi.
+
 ```c
 /* const_korsatkich.c - const qaysi qismni qulflaydi */
 int main(void)
@@ -456,6 +472,8 @@ Funksiya parametrlarida `const` — **va'da**: `size_t strlen(const char *s)` �
 > **Eslab qoling:** funksiya o'zgartirmaydigan har bir ko'rsatkich parametrini `const` qiling.
 
 ## 7.7. `void *` — turi noma'lum manzil
+
+**Bu dastur nima qiladi (umumiy):** `void *` har qanday ko'rsatkichni saqlay olishini, lekin ishlatishdan oldin aniq turga aylantirish kerakligini ko'rsatadi.
 
 ```c
 /* void_korsatkich.c - void * ning ishlatilishi */
@@ -557,6 +575,8 @@ amal_fn amal = qoshish;
 
 Quyida yadroning **asosiy hiylasini** kichik dasturda ko'rsatamiz: bir xil `fayl_oqi(f)` chaqiruvi, lekin `f` turiga qarab turli funksiya ishlaydi.
 
+**Bu dastur nima qiladi (umumiy):** VFS ning kichik nusxasi: har bir fayl o'z funksiyalar jadvalini (`pipe`, `tty`) ko'rsatadi, umumiy `fayl_oqi` esa turini bilmay shu jadval orqali chaqiradi.
+
 ```c
 /* fops.c - funksiya jadvali: yadro VFS ning kichik nusxasi */
 #include <stdio.h>
@@ -649,6 +669,8 @@ Linux'ning eng mashhur makrosi (MyOS: `kernel/lib/common.h`):
 **Masala:** sizda strukturaning **ichidagi maydonning** manzili bor (masalan, ro'yxat tuguni `t`), lekin tugun joylashgan **butun struktura**ni topish kerak.
 `offsetof(type, member)` — a'zoning struktura boshidan siljishi (baytda). A'zoning manzilidan shu siljishni ayirsak — strukturaning boshini topamiz.
 `(char *)` ga aylantirish shart: ayirish **bayt** bo'yicha bo'lishi uchun (7.4-dagi qoida!).
+
+**Bu dastur nima qiladi (umumiy):** `container_of` makrosi: struktura ichidagi a'zoning manzilidan butun strukturaning manzilini topadi (Linux yadrosining mashhur hiylasi).
 
 ```c
 /* container_misol.c - a'zodan butun strukturani topish */

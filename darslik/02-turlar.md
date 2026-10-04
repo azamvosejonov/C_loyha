@@ -64,6 +64,8 @@ Python bu ma'lumotni **har bir obyektning ichida** saqlaydi va har amalda tekshi
 
 ### Birinchi tajriba: turlarning hajmi
 
+**Bu dastur nima qiladi (umumiy):** asosiy turlarning (`char`, `short`, `int`, `long`, `double`) va bitta o'zgaruvchining xotirada necha bayt egallashini `sizeof` bilan chiqaradi.
+
 ```c
 /* hajm.c - har bir turning xotiradagi o'lchami */
 #include <stdio.h>
@@ -186,6 +188,8 @@ bo'lishi kerak. Yechim — `<stdint.h>`.
 | `int32_t` | **ishorali**, aniq 32 bit |
 | `uintptr_t` | ko'rsatkich (manzil) sig'adigan ishorasiz butun |
 
+**Bu dastur nima qiladi (umumiy):** aniq o'lchamli turlarni (`uint8_t`, `uint16_t`, `uint32_t`, `uint64_t`, `int32_t`) e'lon qiladi va ularning qiymatlari hamda o'lchamlarini chiqaradi.
+
 ```c
 /* stdint_misol.c - aniq o'lchamli turlar */
 #include <stdint.h>
@@ -291,6 +295,8 @@ Eng chap (yuqori) bit — "manfiy" belgisi: u `1` bo'lsa son manfiy. `-1` ning *
 
 **Muhim:** xuddi shu 8 bit `unsigned` sifatida o'qilsa — `1111 1111` = 255. **Bitlar bir xil, talqin boshqa.**
 
+**Bu dastur nima qiladi (umumiy):** bir xil bitlar `unsigned` va `signed` deb o'qilganda har xil son bo'lishini ko'rsatadi (255 ↔ −1, −15 ↔ 241).
+
 ```c
 /* ishora.c - bir xil bitlar, ikki xil talqin */
 #include <stdio.h>
@@ -377,6 +383,8 @@ natija = (yig'indi) **bo'lingan qoldiq** 2¹⁶ ga. Xuddi soat kabi: 11 dan 3 so
 
 Ishorali toshishni ko'rish uchun **UBSan** (aniqlanmagan xatti-harakatni ushlovchi vosita, 13-bob) bilan yig'amiz:
 
+**Bu dastur nima qiladi (umumiy):** `int` ning eng katta qiymatiga 1 qo'shib, ishorali toshishni (aniqlanmagan xatti-harakat) hosil qiladi — ataylab xatoli.
+
 ```c
 /* ub_toshish.c - int toshishi */
 #include <limits.h>
@@ -403,6 +411,8 @@ UBSan aniq ko'rsatdi: `signed integer overflow: 2147483647 + 1 cannot be represe
 dastur "shunchaki ishlab ketardi" va `-2147483648` chiqarardi — **bu tasodif**, kafolat emas.
 
 ### Klassik tuzoq: `s += i * i`
+
+**Bu dastur nima qiladi (umumiy):** 1 dan 100000 gacha sonlar kvadratlari yig'indisini ikki usulda hisoblaydi: `i * i` ni `int` da (toshadi) va avval `long` ga o'tkazib (to'g'ri).
 
 ```c
 /* kvadrat_yigindi.c - toshish tuzog'i */
@@ -465,6 +475,8 @@ cheksiz kasr: 1/3 = 0.3333… o'nlikda cheksiz bo'lgani kabi).
 
 **Pul haqida oltin qoida:** pulni **hech qachon** `float` da saqlamang — tiyinda, **butun son** bilan saqlang.
 
+**Bu dastur nima qiladi (umumiy):** 10 marta 0.10 ni qo'shishni `float` bilan va butun tiyin bilan bajarib, farqni ko'rsatadi.
+
 ```c
 /* pul.c - float va butun son bilan pul */
 #include <stdio.h>
@@ -508,6 +520,8 @@ tiyin bilan:  1.00 so'm
 ## 2.8. `char` — belgi ham, son ham
 
 Kompyuter uchun harf ham — son. Har bir belgining **kodi** bor (ASCII jadvali): `'A'` = 65, `'B'` = 66, `'0'` = 48, `'7'` = 55.
+
+**Bu dastur nima qiladi (umumiy):** `char` ham harf, ham son ekanini ko'rsatadi: belgi kodi, `'A' + 1`, `'7' - '0'`, hamda `char` va satr hajmi.
 
 ```c
 /* belgi.c - char: harf ham, son ham */
@@ -572,6 +586,8 @@ Bu raqam belgisini songa aylantirishning **klassik usuli**.
 | `'\n'`, `'\0'`, `'\x1b'` | maxsus belgilar |
 | `1e6` | `double` (1000000.0) |
 
+**Bu dastur nima qiladi (umumiy):** bir xil 42 sonining to'rt yozilishini (o'nlik, o'n oltilik, sakkizlik, ikkilik) va sakkizlik tuzog'ini (`010` = 8) ko'rsatadi.
+
 ```c
 /* literal.c - bir son, to'rt yozuv */
 #include <stdio.h>
@@ -627,6 +643,8 @@ const_xato.c:7:9: error: assignment of read-only variable ‘MAX’
 > **Eslab qoling:** o'zgarmasligi kerak bo'lgan hamma narsaga `const` yozing — xato sizdan oldin kompilyatorga ko'rinadi.
 
 ## 2.11. Turlarni aylantirish (conversion va cast)
+
+**Bu dastur nima qiladi (umumiy):** turlar aralashganda nima bo'lishini ko'rsatadi: `int / int` kasrni yo'qotishi, `cast` bilan to'g'rilash va ishorali–ishorasiz taqqoslash tuzog'i.
 
 ```c
 /* aylantirish.c - turlar aralashganda */
@@ -729,6 +747,8 @@ ishlatsangiz — "y undeclared" xatosi. Ichki `x` tashqisini **yashirishi** (sha
 | kasr (o'lchov, ilmiy hisob) | `double` |
 
 Hammasini bir dasturda ko'ramiz: toshish, ishora, pul, hajmlar.
+
+**Bu dastur nima qiladi (umumiy):** bobning hamma g'oyalarini birlashtiradi: toshish (kilometr hisoblagichi), manfiy harorat, pul hisobi (`float` va tiyin) va tur o'lchamlari.
 
 ```c
 /* olchovlar.c - toshish, ishora va pulni to'g'ri saqlash */

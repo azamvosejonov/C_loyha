@@ -48,6 +48,8 @@ manzil:  1000   1004   1008   1012   1016
 **Nega raqamlash 0 dan?** Indeks — "boshidan **necha qadam** nariga". Birinchi element boshida turibdi — 0 qadam. Shu sababli manzil formulasi
 oddiy: `boshi + indeks * element_hajmi`.
 
+**Bu dastur nima qiladi (umumiy):** massiv elementlarini va ularning xotiradagi o'lchamini (butun massiv, bitta element, qo'shni elementlar orasidagi masofa) chiqaradi.
+
 ```c
 /* massiv_asos.c - massiv xotirada */
 #include <stdio.h>
@@ -98,6 +100,8 @@ int c[] = { 1, 2, 3 };          /* o'lchamni kompilyator hisoblaydi: 3 */
 int d[100] = { [10] = 5, [99] = 7 };    /* nomlangan indekslar, qolgani 0 */
 ```
 
+**Bu dastur nima qiladi (umumiy):** massivni boshlashning uch usuli: hammasini nol qilish, uzunlikni kompilyatorga sanatish va aniq indekslarni berish.
+
 ```c
 /* boshlash.c - massivni boshlash usullari */
 #include <stdio.h>
@@ -134,6 +138,8 @@ size_t n = sizeof(a) / sizeof(a[0]);    /* 20 / 4 = 5 */
 
 "Butun hajm ÷ bitta element hajmi" = elementlar soni. Bu **faqat massiv e'lon qilingan joyda** ishlaydi! Funksiyaga uzatilganda massiv
 **ko'rsatkichga aylanadi** va `sizeof` ko'rsatkich hajmini (8) beradi:
+
+**Bu dastur nima qiladi (umumiy):** funksiyaga uzatilgan massiv ko'rsatkichga aylanib, uzunligi yo'qolishini (`sizeof` noto'g'ri natija berishini) ko'rsatadi.
 
 ```c
 /* uzunlik_xato.c - funksiyaga uzatilgan massiv uzunligi yo'qoladi */
@@ -197,6 +203,8 @@ Tarixdagi eng ko'p xavfsizlik hujumlari (Morris qurti, 1988-yildan beri) aynan s
 qaytish manzilini o'zgartiradi.
 
 Xatoni **ushlash** uchun yig'ish vaqtida **AddressSanitizer** (xotira xatolarini topuvchi vosita) yoqiladi:
+
+**Bu dastur nima qiladi (umumiy):** massiv chegarasidan tashqariga yozish (`a[5]`) — ataylab xatoli.
 
 ```c
 /* chegara.c - massivdan tashqariga yozish */
@@ -347,6 +355,8 @@ p[0] = 'S';                 /* UB - odatda Segmentation fault (literal .rodata d
 **Nega farq bor?** `"salom"` literali dastur fayli ichida **faqat o'qiladigan** xotira bo'limida (`.rodata`) yotadi. `char s[] = "salom";` shu literaldan **o'zingizning
 nusxangizni** stekda yasaydi — uni o'zgartirsangiz bo'ladi. `char *p = "salom";` esa **o'sha asl literalga** ko'rsatadi — o'zgartirib bo'lmaydi.
 
+**Bu dastur nima qiladi (umumiy):** satr literalini o'zgartirishga urinish: `char s[]` nusxa (mumkin), `const char *p` literal (mumkin emas).
+
 ```c
 /* literal_xato.c - literalni o'zgartirishga urinish */
 #include <stdio.h>
@@ -397,6 +407,8 @@ Literalga ko'rsatkichni **doim** `const char *p = "salom";` deb yozing — shund
 MyOS'da bularning hammasi **o'zimiz yozgan**: `user/libc/string.c` (user dasturlar uchun) va `kernel/lib/string.c` (yadro uchun). 08-mashqda ulardan uchtasini o'zingiz yozasiz,
 lab'larda esa yadrodagisini.
 
+**Bu dastur nima qiladi (umumiy):** `<string.h>` ning asosiy funksiyalarini (`strlen`, `strcmp`, `strchr` va boshqalar) ishlatib, natijalarini chiqaradi.
+
 ```c
 /* string_h.c - asosiy funksiyalar amalda */
 #include <stdio.h>
@@ -443,6 +455,8 @@ memcpy: abcdef
 
 ## 6.6. Satrni belgima-belgi aylanish
 
+**Bu dastur nima qiladi (umumiy):** satrdagi unli harflar sonini sanaydi (`strchr` yordamida).
+
 ```c
 /* unli.c - satrdagi unli harflarni sanash */
 #include <stdio.h>
@@ -485,6 +499,8 @@ To'g'ri yozuv:
 ```c
 if (isalpha((unsigned char)s[i]))
 ```
+
+**Bu dastur nima qiladi (umumiy):** satrdagi belgilarni harf, raqam va boshqa turlarga ajratib sanaydi.
 
 ```c
 /* ctype_misol.c - belgilarni turlarga ajratish */
@@ -596,6 +612,8 @@ va biz qisqartirilganini bilamiz. Bu "joy — n, lekin haqiqiy kerakli sonni qay
 
 ## 6.9. Satrni o'qish (klaviaturadan)
 
+**Bu dastur nima qiladi (umumiy):** klaviaturadan bitta qator o'qiydi (`fgets`), oxiridagi yangi qator belgisini olib tashlaydi va uzunligini chiqaradi.
+
 ```c
 /* qator_oqish.c - klaviaturadan qator o'qish */
 #include <stdio.h>
@@ -624,6 +642,8 @@ o'qildi: "salom dunyo" (11 belgi)
 **Hech qachon `gets` ishlatmang** — u bufer hajmini bilmaydi va standartdan olib tashlangan. `scanf("%s", buf)` ham xuddi shunday xavfli (kenglik ko'rsatilmasa).
 
 ## 6.10. Satr ↔ son
+
+**Bu dastur nima qiladi (umumiy):** satrni songa aylantirish: `strtol` (xatoni aniqlaydi) va `atoi` (aniqlay olmaydi) farqini ko'rsatadi.
 
 ```c
 /* satr_son.c - satrni songa aylantirish */

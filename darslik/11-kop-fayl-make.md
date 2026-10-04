@@ -59,6 +59,8 @@ void taymer_tik(void);
 uint64_t taymer_tiklar(void);
 ```
 
+**Bu dastur nima qiladi (umumiy):** `taymer` brigadasining ichki ishi: global hisoblagich (ta'rif shu yerda), `static` o'zgaruvchi va funksiya hamda tashqariga ochiq funksiyalar.
+
 ```c
 /* taymer.c - brigadaning ichki ishi */
 #include "taymer.h"
@@ -82,6 +84,8 @@ uint64_t taymer_tiklar(void)
     return tiklar;
 }
 ```
+
+**Bu dastur nima qiladi (umumiy):** taymerdan foydalanuvchi dastur: hisoblagichni ham funksiya orqali, ham `extern` bilan to'g'ridan-to'g'ri o'qiydi.
 
 ```c
 /* taymer_main.c - foydalanuvchi */
@@ -138,6 +142,8 @@ Endi uchta xatoni ataylab qilib ko'ramiz — bularni linker xatolari sifatida ta
 
 **a) `static` funksiyani boshqa fayldan chaqirish:**
 
+**Bu dastur nima qiladi (umumiy):** boshqa fayldagi `static` funksiyani chaqirishga urinadi — linker xatosi (ataylab xatoli).
+
 ```c
 /* static_xato.c - boshqa faylning static funksiyasi */
 void ichki(void);                       /* e'lonni o'zimiz yozdik */
@@ -160,6 +166,8 @@ collect2: error: ld returned 1 exit status
 E'lon yozish kompilyatorni qanoatlantirdi, lekin `taymer.o` da `ichki` — `t` (kichik harf): **ko'rinmaydi**. Linker: `undefined reference to 'ichki'`.
 
 **b) `extern` e'lon bor, ta'rif yo'q:**
+
+**Bu dastur nima qiladi (umumiy):** `extern` bilan e'lon qilingan, lekin hech joyda ta'riflanmagan o'zgaruvchini ishlatadi — linker xatosi (ataylab xatoli).
 
 ```c
 /* extern_xato.c - ta'rifsiz extern */
@@ -464,6 +472,8 @@ double ortacha(const double *qiymatlar, int soni);
 extern int olchovlar_soni;                      /* e'lon: o'zgaruvchi harorat.c da yashaydi */
 ```
 
+**Bu dastur nima qiladi (umumiy):** harorat kutubxonasining ichki ishi: o'lchovlar sanagichi (ta'rif shu yerda), `static` yordamchi `yaxlitla` va tashqariga ochiq funksiyalar (Selsiy → Farengeyt, o'rtacha).
+
 ```c
 /* harorat.c - brigadaning ichki ishi */
 #include "harorat.h"
@@ -489,6 +499,8 @@ double ortacha(const double *q, int n)
     return yaxlitla(s / n);
 }
 ```
+
+**Bu dastur nima qiladi (umumiy):** ob-havo stansiyasining asosiy dasturi: bir necha kunlik haroratni Farengeytga o'giradi, o'rtachani va konvertatsiyalar sonini chiqaradi.
 
 ```c
 /* stantsiya.c - asosiy dastur */

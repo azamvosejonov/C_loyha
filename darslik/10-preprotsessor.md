@@ -29,6 +29,8 @@ ma'no haqida o'ylamaydi. Shuning uchun uning tuzoqlari bor (pastda).
 `#` bilan boshlanadigan qatorlar uning buyruqlari; ular `;` bilan tugamaydi, **qator oxiri** bilan tugaydi (uzun buyruq qatorlarini `\` bilan davom ettirish mumkin).
 Natijani ko'rish: `gcc -E fayl.c`.
 
+**Bu dastur nima qiladi (umumiy):** preprotsessor `#define N 10` ni kodga qanday qo'yishini ko'rsatadi (so'zma-so'z almashtirish).
+
 ```c
 /* almashtir.c - preprotsessor nima qilishini ko'rish */
 #define N 10                            /* bundan keyin N so'zi 10 bo'ladi */
@@ -152,6 +154,8 @@ Qoidalar:
 - Nomlar KATTA harflarda (makro ekanini ko'rsatish uchun).
 - Ifodali makroni **doim qavsga** oling. Nega:
 
+**Bu dastur nima qiladi (umumiy):** qavssiz va qavsli makroning natijasi farqini ko'rsatadi: `1 + 1 * 3` va `(1 + 1) * 3`.
+
 ```c
 /* qavs_tuzoq.c - qavssiz makro */
 #include <stdio.h>
@@ -177,6 +181,8 @@ IKKI * 3       = 6
 Preprotsessor `IKKI_YOMON * 3` ni so'zma-so'z `1 + 1 * 3` ga almashtirdi — ko'paytirish oldin bajarildi. Odam qavs qo'yardi, preprotsessor — yo'q.
 
 - Oxirida **`;` qo'ymang**:
+
+**Bu dastur nima qiladi (umumiy):** `#define` oxiriga `;` qo'yilsa kod buzilishini ko'rsatadi — ataylab xatoli.
 
 ```c
 /* nuqtali_define.c - #define oxirida ; */
@@ -213,6 +219,8 @@ o'zgarmas bo'la oladi. Yadroda ikkalasi ham ishlatiladi.
 ```
 
 Parametrli makro — "matn shabloni": `KVADRAT(5)` → `((5) * (5))`. Har bir parametrni va butun ifodani **qavsga** oling:
+
+**Bu dastur nima qiladi (umumiy):** funksiyaga o'xshash makrolarning ikki tuzog'i: argument atrofida qavs yo'qligi va argumentning ikki marta hisoblanishi.
 
 ```c
 /* makro_tuzoq.c - qavs va ikki marta hisoblash */
@@ -265,6 +273,8 @@ Bir nechta buyruqdan iborat makro yozamiz:
 
 `{ }` bilan o'rash ham to'liq yechim emas:
 
+**Bu dastur nima qiladi (umumiy):** `{ }` bilan o'ralgan makro `if/else` ichida `;` tufayli sintaksis xatosi berishini ko'rsatadi — ataylab xatoli.
+
 ```c
 /* makro_skobka.c - { } bilan o'ralgan makro va else */
 #include <stdio.h>
@@ -293,6 +303,8 @@ makro_skobka.c:11:5: error: ‘else’ without a previous ‘if’
 `{ ... };` dan keyingi `;` — `if` ni tugatadi, keyingi `else` esa "yolg'iz" qoladi (`'else' without a previous 'if'`).
 
 To'g'ri yechim — `do { ... } while (0)`:
+
+**Bu dastur nima qiladi (umumiy):** `do { ... } while (0)` bilan o'ralgan makro `if/else` ichida to'g'ri ishlashini ko'rsatadi.
 
 ```c
 /* makro_dowhile.c - do { } while (0) */
@@ -384,6 +396,8 @@ Mashqlardagi `test.h` va MyOS'ning `kernel/tests/selftest.c` xato bo'lganda shar
 #define PANIC(msg) panic("%s:%d: %s: %s", __FILE__, __LINE__, __func__, msg)
 ```
 
+**Bu dastur nima qiladi (umumiy):** oldindan aniqlangan makrolarni (`__FILE__`, `__LINE__`, `__func__`, `__x86_64__`) chiqaradi.
+
 ```c
 /* oldindan.c - oldindan aniqlangan makrolar */
 #include <stdio.h>
@@ -437,6 +451,8 @@ tizim: Linux
 - `#error` — kompilyatsiyani xabar bilan to'xtatish.
 - `#if 0 ... #endif` — kod blokini vaqtincha "o'chirish" (izohdan yaxshiroq: ichida `/* */` bo'lsa ham ishlaydi).
 
+**Bu dastur nima qiladi (umumiy):** `#error` bilan qo'llab-quvvatlanmaydigan platformada yig'ishni to'xtatadi — ataylab xatoli (bu mashinada).
+
 ```c
 /* arxitektura.c - qo'llab-quvvatlanmaydigan platforma */
 #if defined(__aarch64__)
@@ -474,6 +490,8 @@ Mashqlarda: `libctest.c` dagi `#ifndef HOST_TEST` — bir xil test faylini yadro
 ```
 
 `!!x` — istalgan sonni 0 yoki 1 ga aylantirish (ikki marta "EMAS"). MyOS'da bularning ko'pi `kernel/lib/common.h` da (u yerda `ALIGN_UP` `ALIGN_DOWN` orqali yozilgan va `__typeof__` ishlatadi) — ochib o'qing.
+
+**Bu dastur nima qiladi (umumiy):** yadro dasturlaridagi tipik makrolarni (`ARRAY_SIZE`, `ALIGN_UP`, `ALIGN_DOWN`, `BIT`) ishlatib, natijalarini chiqaradi.
 
 ```c
 /* yadro_makrolar.c - yadro makrolari amalda */

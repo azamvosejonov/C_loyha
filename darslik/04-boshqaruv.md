@@ -80,6 +80,8 @@ Tartib muhim: C shartlarni **tepadan pastga** tekshiradi va **birinchi rost** bo
 
 `if` dan keyin `{ }` bo'lmasa, **faqat bitta keyingi buyruq** shartga tegishli:
 
+**Bu dastur nima qiladi (umumiy):** `{ }` siz `if` faqat bitta buyruqqa tegishli ekanini va chekinish aldashini ko'rsatadi.
+
 ```c
 /* skobka.c - { } siz if: faqat BITTA buyruq tegishli */
 #include <stdio.h>
@@ -123,6 +125,8 @@ o'chirib qo'ygan. GCC `-Wall` (`-Wmisleading-indentation`) buni ogohlantiradi �
 > qo'shganda albatta qo'ying.
 
 ### `;` tuzog'i
+
+**Bu dastur nima qiladi (umumiy):** `if (...)` dan keyin `;` qo'yilsa, shart bo'sh buyruqqa tegishli bo'lib qolishini ko'rsatadi.
 
 ```c
 /* nuqtali_vergul.c - if dan keyin ; */
@@ -291,6 +295,8 @@ Ikkala sikl **bir xil** natija berdi: `for` — shunchaki `while` ning qisqa yoz
 
 **Teskari sikl va `size_t` tuzog'i (2-bob).** `size_t` ishorasiz: `i >= 0` doim rost — **cheksiz sikl**!
 
+**Bu dastur nima qiladi (umumiy):** ishorasiz son bilan teskari sikl: xato variant (`i >= 0` doim rost) va to'g'ri `i-- > 0` naqshi.
+
 ```c
 /* teskari.c - ishorasiz teskari sikl */
 #include <stdio.h>
@@ -424,6 +430,8 @@ $ ./kalkulyator
 ### `break` ni unutish — "tushib ketish" (fallthrough)
 
 **`break` bo'lmasa — keyingi `case` ga ham "tushib ketadi"!** Lift kerakli qavatda to'xtamay, keyingisiga ham chiqib ketgandek.
+
+**Bu dastur nima qiladi (umumiy):** `switch` da `break` unutilsa keyingi `case` ham bajarilishini ("tushib ketish") ko'rsatadi.
 
 ```c
 /* tushish.c - break unutildi */

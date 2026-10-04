@@ -139,6 +139,8 @@ oching va yuqoridagi buyruqni bajaring. Kodni Windows muharririda ham yozish mum
 
 `salom.c` faylini yarating (`nano salom.c`) va quyidagini yozing:
 
+**Bu dastur nima qiladi (umumiy):** ekranga bitta qator — `Salom, dunyo!` — chiqaradigan eng kichik to'liq C dasturi.
+
 ```c
 /* salom.c - birinchi dastur */
 #include <stdio.h>
@@ -195,6 +197,8 @@ turadi, taxminan shunday qatorda: `int printf(const char *format, ...);`. Bu —
 Funksiyaning **kodi** esa boshqa joyda (tayyor kutubxonada) turadi va uni keyin **linker** ulaydi (1-bob).
 
 **Qo'ymasam nima bo'ladi?**
+
+**Bu dastur nima qiladi (umumiy):** `salom.c` ning `#include` qatori olib tashlangan varianti — ataylab xatoli: `printf` e'lon qilinmay qoladi.
 
 ```c
 /* include_yoq.c - sarlavhasiz printf */
@@ -267,6 +271,8 @@ Python'da blokni **chekinish** belgilaydi, C'da esa **faqat `{ }`**. Chekinish C
 
 Mana `\n` ning farqini ko'ring:
 
+**Bu dastur nima qiladi (umumiy):** `printf` bilan bir nechta harf chiqaradi: ba'zilari `\n` (yangi qator) bilan, ba'zilari usiz — qatorlar qanday birikishini ko'rsatadi.
+
 ```c
 /* yangi_qator.c - \n bor va yo'q */
 #include <stdio.h>
@@ -309,6 +315,8 @@ printf("%d %d %d\n",
 ```
 
 Ataylab `;` ni olib tashlab ko'ring:
+
+**Bu dastur nima qiladi (umumiy):** `;` unutilgan, ataylab xatoli dastur — kompilyator xabarini ko'rish uchun.
 
 ```c
 /* xato1.c - ; unutilgan */
@@ -401,6 +409,8 @@ Format: `fayl:qator:ustun: turi: xabar`. Oltin qoidalar:
 
 ## 0.8. `printf` — birinchi yordamchingiz
 
+**Bu dastur nima qiladi (umumiy):** to'rt xil qiymatni (butun, kasr, belgi, satr) bitta `printf` qatorida mos format belgilari bilan chiqaradi.
+
 ```c
 /* formatlar.c - printf formatlari */
 #include <stdio.h>
@@ -473,6 +483,8 @@ int massiv[N];
 
 Bu parchani o'zicha kompilyatsiya qilib bo'lmaydi: `main` yo'q. Uni sinash uchun doim bitta **shablonga** qo'yasiz
 (`sinov.c` deb saqlang):
+
+**Bu dastur nima qiladi (umumiy):** kichik parchalarni sinash uchun shablon: massiv to'ldiriladi va chiqariladi — o'z parchangizni shu qolipga joylaysiz.
 
 ```c
 /* sinov.c - parchalarni sinash shabloni */
@@ -653,6 +665,8 @@ Kompilyator `;` yo'qligini faqat keyingi so'zni ko'rganda payqaydi. Shuning uchu
 **Talab:** 3 xil mahsulot (nomi, narxi, soni) — jadval, jami summa va 12% QQS.
 **Ma'lumotlar:** har mahsulot uchun `narx` va `soni`; `jami`, `qqs`.
 **Qadamlar:** jami = narx×soni yig'indisi → qqs = jami × 12 / 100 → chiqarish.
+
+**Bu dastur nima qiladi (umumiy):** do'kon cheki: uchta mahsulotning narxi, soni va summasi jadval ko'rinishida chiqadi; jami summa va QQS hisoblanadi.
 
 ```c
 /* chek.c - do'kon cheki */

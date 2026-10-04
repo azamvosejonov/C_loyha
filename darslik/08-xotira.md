@@ -57,6 +57,8 @@ MyOS'da bu xaritani yadro yaratadi: ELF faylidan `.text/.data/.bss` ni yuklash �
 
 ### Statik o'zgaruvchilar
 
+**Bu dastur nima qiladi (umumiy):** global, funksiya ichidagi `static` va oddiy lokal o'zgaruvchilarning yashash muddati farqini ko'rsatadi.
+
 ```c
 /* statik.c - global va static o'zgaruvchi */
 #include <stdio.h>
@@ -226,6 +228,8 @@ Tipik uslublar:
 
 Har birini amalda ko'ramiz (sanitizer qaysi qatorni ko'rsatishiga e'tibor bering):
 
+**Bu dastur nima qiladi (umumiy):** `malloc` bilan olingan xotirani `free` qilmaydi — xotira sizib chiqishi (ataylab xatoli).
+
 ```c
 /* leak.c - kalit qaytarilmadi */
 #include <stdlib.h>
@@ -245,6 +249,8 @@ ERROR: LeakSanitizer: detected memory leaks
 Direct leak of 40 byte(s) in 1 object(s) allocated from:
 SUMMARY: AddressSanitizer: 40 byte(s) leaked in 1 allocation(s).
 ```
+
+**Bu dastur nima qiladi (umumiy):** `free` dan keyin xotiradan o'qiydi (use-after-free) — ataylab xatoli.
 
 ```c
 /* uaf.c - free dan keyin ishlatish */
@@ -276,6 +282,8 @@ READ of size 4 at 0x... thread T0
     #0 0x... in main uaf.c:10
 ```
 
+**Bu dastur nima qiladi (umumiy):** bitta ko'rsatkichni ikki marta `free` qiladi (double free) — ataylab xatoli.
+
 ```c
 /* ikki_free.c - bitta kalit ikki marta */
 #include <stdlib.h>
@@ -301,6 +309,8 @@ ikki_free.c:7:5: note: call to ‘free’ here
 $ ./ikki_free 2>&1 | grep -E 'ERROR' | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g'
 ERROR: AddressSanitizer: attempting double-free on 0x... in thread T0:
 ```
+
+**Bu dastur nima qiladi (umumiy):** 4 elementli heap massivning 5-elementiga yozadi (`p[4]`) — ataylab xatoli.
 
 ```c
 /* heap_toshish.c - malloc(n) va p[n] */

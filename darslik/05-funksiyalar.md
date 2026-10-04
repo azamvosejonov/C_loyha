@@ -27,6 +27,8 @@ yozib, ko'p marta chaqirasiz.
 
 ## 5.1. Funksiyaning tuzilishi
 
+**Bu dastur nima qiladi (umumiy):** birinchi funksiya: `kvadrat(int)` sonni o'ziga ko'paytirib qaytaradi, `main` uni chaqiradi — funksiya yozilishining qismlari.
+
 ```c
 /* kvadrat.c - birinchi funksiyamiz */
 #include <stdio.h>
@@ -97,6 +99,8 @@ C'da qo'shimcha: **qaytish turi**, **har bir parametrning turi**, `{ }`, va `;` 
 | `void *p` | `p` — **turi noma'lum** xotira manzili (7-bob); `malloc` shuni qaytaradi |
 | `(void)x;` | "bu qiymatni **ataylab** ishlatmayapman" (ogohlantirishni o'chiradi) |
 
+**Bu dastur nima qiladi (umumiy):** `void` ning ikki ma'nosini ko'rsatadi: "hech narsa qaytarmaydi" va "argument olmaydi".
+
 ```c
 /* void_misol.c - void ning ikki ma'nosi */
 #include <stdio.h>
@@ -130,6 +134,8 @@ printf ning natijasini ataylab tashladik
 
 **Savol: `void` qaytaradigan funksiya natijasini ishlatsam?** Qiymat yo'q — olib bo'lmaydi:
 
+**Bu dastur nima qiladi (umumiy):** qiymat qaytarmaydigan (`void`) funksiya natijasini o'zgaruvchiga yozishga urinish — ataylab xatoli.
+
 ```c
 /* void_xato.c - void natijani ishlatish */
 void salom(void) { }
@@ -157,6 +163,8 @@ MyOS'da ham bor: `pipe_read` dagi `(void)off;` — pipe'da fayl pozitsiyasi ma'n
 
 1-bobda e'lon va ta'rifni o'rgandingiz. Bir faylning ichida ham shu qoida: kompilyator faylni **yuqoridan pastga bir marta** o'qiydi.
 `main` ichida `kvadrat` ni uchratganda u haqida **allaqachon** bilishi kerak. Ikki yo'l bor: ta'rifni yuqoriga yozish yoki **prototip** (tanasiz e'lon) yozish.
+
+**Bu dastur nima qiladi (umumiy):** funksiya prototipi (e'lon) `main` dan oldin, ta'rifi esa keyinroq turishini ko'rsatadi.
 
 ```c
 /* prototip.c - prototip va ta'rif */
@@ -186,6 +194,8 @@ Prototip bermaydigan narsa yo'q: argumentlar soni va turi **tekshiriladi**; kera
 Boshqa fayldagi funksiyalar uchun prototiplar `.h` faylda turadi (1-bob).
 
 Prototipsiz xato ko'rinishi (ta'rif `main` dan **pastda** va prototip yo'q):
+
+**Bu dastur nima qiladi (umumiy):** prototipsiz variant: funksiya `main` dan keyin ta'riflangan va oldin e'lon qilinmagan — xato hosil qiladi.
 
 ```c
 /* prototipsiz.c - e'lon yo'q */
@@ -312,6 +322,8 @@ int satr_songa(const char *s, long *natija);   /* 0 - OK, -1 - noto'g'ri, -2 - t
 ```
 
 Ikkinchi usulni kichik dasturda ko'ramiz — nolga bo'lishni **xavfsiz** qilamiz:
+
+**Bu dastur nima qiladi (umumiy):** bo'lish funksiyasi xato kodini (0 yoki −1) qaytaradi, natijani esa ko'rsatkich orqali beradi — xatoni bildirish naqshi.
 
 ```c
 /* bolish.c - xato kodi va chiqish parametri */
@@ -448,6 +460,8 @@ Har bir chaqiruv **stekda** "kadr" (frame) ochadi: qaytish manzili, lokal o'zgar
 
 Bundan muhim natija: **lokal o'zgaruvchining manzilini qaytarib bo'lmaydi**.
 
+**Bu dastur nima qiladi (umumiy):** lokal o'zgaruvchining manzilini qaytaradigan funksiya (osilib qolgan ko'rsatkich) — ataylab xatoli.
+
 ```c
 /* yomon.c - o'lik xotiraga manzil */
 int *yomon(void)
@@ -530,6 +544,8 @@ Asosiy mantiq: `n <= 1` bo'lsa `1` qaytar (**to'xtash sharti**); aks holda `n * 
 
 Har chaqiruv — stekda **yangi kadr** (5.7). Chuqur rekursiya stekni to'ldiradi. To'xtash sharti **yo'q** bo'lsa nima bo'ladi — ko'ramiz:
 
+**Bu dastur nima qiladi (umumiy):** to'xtash sharti yo'q rekursiya: stek to'lib, dastur qulaydi (stack overflow).
+
 ```c
 /* cheksiz.c - to'xtash sharti yo'q */
 #include <stdio.h>
@@ -582,6 +598,8 @@ argumentlar ikki marta hisoblanmaydi (10-bob).
 
 Funksiya ham xotirada turadi — uning **manzilini** o'zgaruvchida saqlash mumkin:
 
+**Bu dastur nima qiladi (umumiy):** bitta funksiya ko'rsatkichi avval `qoshish`, keyin `ayirish` funksiyasini ko'rsatib, ikkalasini ham chaqirishini ko'rsatadi.
+
 ```c
 /* funksiya_korsatkich.c - funksiyaning manzili */
 #include <stdio.h>
@@ -611,6 +629,8 @@ ayirish: -1
 `amal` boshqa funksiyani ko'rsata oladi. `qsort` taqqoslash funksiyasini shunday oladi; VFS har bir fayl tizimining `read`/`write` ini shunday chaqiradi. 7-bob va 20-mashqda batafsil.
 
 ## 5.11. `main` ning argumentlari
+
+**Bu dastur nima qiladi (umumiy):** buyruq qatori argumentlarini (`argc`, `argv`) birma-bir chiqaradi.
 
 ```c
 /* argumentlar.c - buyruq qatori argumentlari */

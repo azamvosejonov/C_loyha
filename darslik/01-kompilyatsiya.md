@@ -37,6 +37,8 @@ salom.c ──[1. preprotsessor]──> salom.i ──[2. kompilyator]──> sa
 
 Avval tajriba uchun dastur yozamiz (0-bobdagi o'sha `salom.c`):
 
+**Bu dastur nima qiladi (umumiy):** `Salom, dunyo!` ni chiqaradigan dastur — kompilyatsiyaning to'rt bosqichini (preprotsessor, kompilyator, assembler, linker) birma-bir kuzatish uchun ishlatiladi.
+
 ```c
 /* salom.c - to'rt bosqichni kuzatish uchun */
 #include <stdio.h>
@@ -363,6 +365,8 @@ collect2: error: ld returned 1 exit status
 
 **b) Menyusiz buyurtma.** `#include "matematika.h"` siz yozilgan `main` (`menyusiz.c`):
 
+**Bu dastur nima qiladi (umumiy):** `kvadrat` funksiyasini e'lon qilmasdan chaqiradi — ataylab xatoli.
+
 ```c
 /* menyusiz.c - e'lon yo'q */
 #include <stdio.h>
@@ -387,6 +391,8 @@ taxmin noto'g'ri bo'lsa dastur jim turib noto'g'ri ishlaydi. Yangi GCC (14+) bun
 Doim shunday ogohlantirishni xato deb hisoblang.
 
 **c) Menyu va oshxona mos emas.** `matematika_xato.c` da `int` o'rniga `long`:
+
+**Bu dastur nima qiladi (umumiy):** `.h` faylida `int` deb e'lon qilingan funksiyani `.c` faylida `long` deb ta'riflaydi — e'lon va ta'rif mos emasligi xatosi.
 
 ```c
 /* matematika_xato.c - e'lon bilan ta'rif mos emas */
@@ -413,6 +419,8 @@ Oshxona o'z menyusini o'qigani (`#include "matematika.h"`) aynan shu nomuvofiqli
 Agar `#include` bo'lmaganda, bu xato **sezilmasdi** — shuning uchun `.c` o'z `.h` ini doim qo'shadi.
 
 **d) Ikki oshxonada bir xil taom.** `boshqa.c` da ham `kvadrat` ning ta'rifi bor:
+
+**Bu dastur nima qiladi (umumiy):** `kvadrat` funksiyasining ikkinchi ta'rifi — bir funksiya ikki faylda ta'riflansa, linker xato beradi.
 
 ```c
 /* boshqa.c - ikkinchi ta'rif */
@@ -626,6 +634,8 @@ int kub(int a);
 int yarim_yigindi(int a, int b);
 ```
 
+**Bu dastur nima qiladi (umumiy):** geometriya kutubxonasining ta'riflari: `yuza`, `perimetr`, `kvadrat`, `kub` va `yarim_yigindi` funksiyalari.
+
 ```c
 /* geometriya.c - oshxona */
 #include "geometriya.h"
@@ -636,6 +646,8 @@ int kvadrat(int a) { return a * a; }
 int kub(int a) { return a * a * a; }
 int yarim_yigindi(int a, int b) { return (a + b) / 2; }
 ```
+
+**Bu dastur nima qiladi (umumiy):** geometriya kutubxonasidan foydalanuvchi dastur (mijoz): funksiyalarni chaqirib, natijalarni chiqaradi.
 
 ```c
 /* main.c - mijoz */

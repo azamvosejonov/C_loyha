@@ -25,6 +25,8 @@ Shu xususiyatlarni **bitta paketga** yig'ib, uni bitta nom bilan ishlatish kerak
 
 ## 9.1. `struct` — bir nechta qiymat bitta nom ostida
 
+**Bu dastur nima qiladi (umumiy):** `struct talaba` ni e'lon qilib, uning maydonlarini tartib bilan va nom bilan boshlashni ko'rsatadi.
+
 ```c
 /* talaba_struct.c - struct e'lon qilish va ishlatish */
 #include <stdio.h>
@@ -84,6 +86,8 @@ struct nuqta { int x, y; } a, b;    /* tur ta'rifi + ikki o'zgaruvchi */
 ```
 
 `;` "e'lon tugadi" degani. Unutilsa, kompilyator keyingi qatordagi narsani shu turdagi o'zgaruvchi deb o'qishga harakat qiladi va g'alati xato beradi:
+
+**Bu dastur nima qiladi (umumiy):** `struct` e'lonidan keyin `;` unutilgan — ataylab xatoli.
 
 ```c
 /* nuqtali_vergul_yoq.c - struct oxirida ; unutildi */
@@ -215,6 +219,8 @@ maydon qo'shilsa ham, tuzilma **aynan 16 bayt**. Shuning uchun `_Static_assert` 
 
 `_Static_assert(shart, "xabar")` — **kompilyatsiya paytidagi** tekshiruv: shart yolg'on bo'lsa, kod umuman yig'ilmaydi. Mana, maydonni noto'g'ri qo'shib ko'ramiz:
 
+**Bu dastur nima qiladi (umumiy):** `_Static_assert` struktura hajmi kutilganidan farq qilsa, yig'ish bosqichidayoq to'xtatishini ko'rsatadi.
+
 ```c
 /* assert_xato.c - hajm noto'g'ri bo'lsa, yig'ilmaydi */
 #include <stdint.h>
@@ -249,6 +255,8 @@ Maydonni avval oddiy o'zgaruvchiga nusxalang.
 > **Eslab qoling:** apparat/disk/tarmoq tuzilmasi = `packed` + `_Static_assert(sizeof(...) == aniq_son)`.
 
 ## 9.4. Bit maydonlari
+
+**Bu dastur nima qiladi (umumiy):** struct ichida bitli maydonlar (`faol:1`, `rejim:2`, `ustuvor:5`) ni e'lon qilib, o'lchamini va qiymatlarini chiqaradi.
 
 ```c
 /* bit_maydon.c - struct ichida bitlar */
@@ -334,6 +342,8 @@ Qayerda kerak:
 
 - **Bir xil baytlarni turlicha o'qish:** tarmoq paketi, disk sektori, registr.
 - **"Belgilangan union" (tagged union)** — bir nechta turdan biri:
+
+**Bu dastur nima qiladi (umumiy):** belgilangan birlashma (tagged union): `tur` maydoni `union` ning qaysi a'zosi haqiqiy ekanini aytadi.
 
 ```c
 /* tagged_union.c - belgilangan union: divan va uning rejimi */
@@ -477,6 +487,8 @@ int hisob_qiymat(const struct hisob *h);
 void hisob_ozod(struct hisob *h);
 ```
 
+**Bu dastur nima qiladi (umumiy):** yashirin (opaque) tur: `struct hisob` ning ichki tafsiloti shu faylda yashiringan; tashqariga faqat funksiyalar beriladi.
+
 ```c
 /* hisob.c - ichki tafsilot */
 #include <stdlib.h>
@@ -509,6 +521,8 @@ void hisob_ozod(struct hisob *h)
 }
 ```
 
+**Bu dastur nima qiladi (umumiy):** `hisob` turidan faqat funksiyalar orqali foydalanadi (struct ichi ko'rinmaydi).
+
 ```c
 /* hisob_main.c - foydalanuvchi */
 #include <stdio.h>
@@ -534,6 +548,8 @@ qiymat = 12
 ```
 
 Endi tashqaridan ichki maydonga tegib ko'ramiz:
+
+**Bu dastur nima qiladi (umumiy):** yashirin maydonga to'g'ridan-to'g'ri tegishga urinadi — ataylab xatoli.
 
 ```c
 /* hisob_xato.c - yashirin maydonga tegish */
@@ -702,6 +718,8 @@ To'ldiruvchi baytlarda axlat bo'lishi mumkin — maydonlar teng bo'lsa ham `memc
 
 **Flexible array member nima?**
 Oxirgi maydon — o'lchamsiz massiv: sarlavha va ma'lumot bitta blokda.
+
+**Bu dastur nima qiladi (umumiy):** oxirgi maydoni o'lchamsiz massiv (flexible array member) bo'lgan struct: sarlavha va o'zgaruvchan uzunlikdagi ma'lumot bitta `malloc` da.
 
 ```c
 /* flexible.c - o'lchamsiz massiv maydoni */
