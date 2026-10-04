@@ -1,49 +1,397 @@
 # 8-bob. Xotira: stek, heap, statik
 
-> **Bu bobdan keyin:** dastur xotirasi qanday bo'linganini, `malloc`/`free`/`realloc` ni to'g'ri
-> ishlatishni, "egalik" (kim `free` qiladi) qoidasini va xotira xatolarini (leak, use-after-free,
-> double free) topishni bilasiz. Mashqlar: 13–18, 30.
+> **Bu bobda nima o'rganasiz:** dastur xotirasi qanday bo'linganini (stek, heap, statik); `malloc` / `free` / `realloc` ni to'g'ri ishlatishni;
+> "egalik" (kim `free` qiladi) qoidasini; xotira xatolarini (leak, use-after-free, double free) topishni.
+> **Oldindan nima kerak:** 5-, 6-, 7-boblar (funksiya, massiv, ko'rsatkich).   **Vaqt:** 6–8 soat.
+> Mashqlar: 13–18, 30.
 
 > **To'liq ishlaydigan misol:** [misollar/08_xotira.c](misollar/08_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Uch xil xotira — uch xil joy (8.1, 8.2).**
-- **Stek — ish stoli.** Funksiya ishlayotganda qog'ozlarini stolga yoyadi. Ish tugadi — stol
-  avtomatik tozalanadi. Juda tez, lekin kichik va qisqa muddatli: funksiyadan chiqqandan keyin u
-  yerda hech narsa qolmaydi.
-- **Heap — ijaraga olinadigan ombor.** Katta yoki uzoq saqlanadigan narsalar uchun. O'zingiz
-  so'raysiz (`malloc`), o'zingiz qaytarasiz (`free`). Hech kim siz uchun qaytarmaydi.
-- **Statik xotira — bino devoriga o'rnatilgan shkaf.** Dastur boshidan oxirigacha turadi (global va
-  `static` o'zgaruvchilar).
+Hozirgacha massivlar o'lchamini oldindan yozdik (`int a[100]`). Lekin dastur ishlayotganda necha mehmon kelishini, fayl necha bayt ekanini
+oldindan bilmaymiz. **Dinamik xotira** — dastur ishlayotgan paytda "menga yana 400 bayt kerak" deb so'rash (`malloc`) va ishlatib bo'lgach qaytarish (`free`).
+Python'da buni "axlatchi" (garbage collector) o'zi qiladi; C'da **siz** qilasiz — shuning uchun xotira xatolari C'ning eng katta og'rig'i.
 
-**`malloc` / `free` — mehmonxona xonasi (8.3).** Qabulxonadan xona so'raysiz (`malloc`) — kalit
-(ko'rsatkich) olasiz. Ketayotganda kalitni qaytarasiz (`free`). Mehmonxonada bo'sh xona qolmasa —
-`malloc` `NULL` qaytaradi, buni doim tekshiring.
+**Hayotdan misol: uch xil joy.**
 
-**Egalik — kim kalitni qaytaradi (8.4).** Xonani kim olgan bo'lsa, o'sha qaytaradi. Agar do'stingizga
-kalitni berib yuborsangiz, kim qaytarishini aniq kelishib oling. Aks holda yo ikkalangiz ham qaytarmaysiz
-(leak), yo ikkalangiz ham qaytarasiz (double free).
+| Joy | Hayotdan | Xususiyati |
+|---|---|---|
+| **Stek** | **ish stoli** | Funksiya ishlayotganda qog'ozlarini stolga yoyadi, ish tugadi — stol **avtomatik tozalanadi**. Tez, lekin kichik va qisqa muddatli |
+| **Heap** | **ijaraga olinadigan ombor** | Katta yoki uzoq saqlanadigan narsalar uchun. O'zingiz so'raysiz (`malloc`), o'zingiz qaytarasiz (`free`). Hech kim siz uchun qaytarmaydi |
+| **Statik xotira** | bino devoriga o'rnatilgan shkaf | Dastur boshidan oxirigacha turadi (global va `static` o'zgaruvchilar) |
 
-**Xotira xatolari — mehmonxonadagi tartibbuzarliklar (8.5).**
-- **Leak (sizib chiqish)** — xonadan chiqib ketdingiz, kalitni qaytarmadingiz. Xona abadiy band.
-  Serverda har soniyada bitta shunday xona — bir necha kundan keyin mehmonxonada joy qolmaydi.
-- **Use-after-free** — kalitni qaytarib, keyin yashirin nusxasi bilan yana xonaga kirdingiz. U yerda
-  endi boshqa mehmon yashaydi — uning narsalarini buzasiz.
-- **Double free** — bitta kalitni ikki marta qaytarish. Qabulxona chalkashib, bitta xonani ikki
-  mehmonga beradi.
+## 8.1. Jarayon xotirasining xaritasi
 
-**`realloc` — kattaroq kvartiraga ko'chish (8.3).** Oila kattalashdi — kattaroq kvartira kerak.
-Narsalar yangi joyga ko'chiriladi, eski kvartira bo'shatiladi. **Eski manzil endi yaroqsiz** —
-`realloc` dan keyin faqat yangi ko'rsatkichdan foydalaning.
+Linux'da (va MyOS'da) har bir dastur o'z virtual manzil maydonini ko'radi:
 
-**Sanitizer va Valgrind — mehmonxona inspektori (8.6).** Har bir kalit berilishi va qaytarilishini
-yozib boradi. Dastur tugaganda "3-xona kaliti qaytarilmadi, 12-qatorda olingan" deb hisobot beradi.
+```text
+yuqori manzillar
+ ┌─────────────────────┐ 0x7fff...
+ │ STEK                │  lokal o'zgaruvchilar, funksiya kadrlari; PASTGA o'sadi
+ │   ↓                 │
+ │                     │
+ │   ↑                 │
+ │ HEAP                │  malloc/free; YUQORIGA o'sadi (brk/sbrk yoki mmap)
+ ├─────────────────────┤
+ │ .bss                │  boshlang'ich qiymatsiz global/static (avtomatik 0)
+ │ .data               │  boshlang'ich qiymatli global/static
+ │ .rodata             │  o'zgarmaslar, satr literallari (faqat o'qish)
+ │ .text               │  mashina kodi (faqat o'qish + bajarish)
+ └─────────────────────┘ 0x400000 atrofida
+quyi manzillar (0-sahifa ataylab bo'sh - NULL ushlanishi uchun)
+```
 
-### To'liq dastur: to'y mehmonlari ro'yxati
+Stek va heap bir-biriga qarab o'sadi: stek pastga, heap yuqoriga. Ular o'rtasidagi bo'sh joy katta (virtual manzillar maydoni juda keng).
 
-Mehmonlar soni oldindan noma'lum — ro'yxat kerakli paytda kattalashadi (`realloc`).
+MyOS'da bu xaritani yadro yaratadi: ELF faylidan `.text/.data/.bss` ni yuklash — `kernel/sys/elf.c`, stek va heap uchun hududlar (VMA) — `kernel/mm/mm.c`, `sbrk` syscall'i heap'ni o'stiradi.
+
+## 8.2. Uch xil "saqlash muddati"
+
+| Tur | Qayerda | Qachon yaratiladi | Qachon yo'qoladi | Misol |
+|---|---|---|---|---|
+| **Avtomatik** | stek | funksiyaga kirganda | funksiyadan chiqqanda | `int x;` funksiya ichida |
+| **Statik** | .data / .bss | dastur boshlanganda | dastur tugaganda | global, `static` o'zgaruvchi |
+| **Dinamik** | heap | `malloc` chaqirilganda | `free` chaqirilganda | `malloc(100)` |
+
+### Statik o'zgaruvchilar
+
+```c
+/* statik.c - global va static o'zgaruvchi */
+#include <stdio.h>
+
+int hisob = 0;                  /* global: butun dastur davomida yashaydi, avtomatik 0 */
+
+static void chaqir(void)
+{
+    static int necha_marta = 0; /* FUNKSIYA ichidagi static: qiymati chaqiruvlar orasida SAQLANADI */
+    int oddiy = 0;              /* stekda: har chaqiruvda yangi */
+    necha_marta++;
+    oddiy++;
+    hisob += 10;
+    printf("chaqiruv %d: oddiy = %d, hisob = %d\n", necha_marta, oddiy, hisob);
+}
+
+int main(void)
+{
+    chaqir();
+    chaqir();
+    chaqir();
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra statik.c -o statik
+$ ./statik
+chaqiruv 1: oddiy = 1, hisob = 10
+chaqiruv 2: oddiy = 1, hisob = 20
+chaqiruv 3: oddiy = 1, hisob = 30
+```
+
+**Nima ko'rdik:**
+
+- `necha_marta` har chaqiruvda 1, 2, 3 ga oshdi — u **stekda emas**, statik xotirada (`.data`) yashaydi va chaqiruvlar orasida saqlanadi.
+- `oddiy` har safar 1 — u stekda, funksiya tugaganda yo'qoldi.
+- `hisob` (global) — hamma funksiyalarga ko'rinadi va dastur tugaguncha yashaydi.
+
+- Global va `static` o'zgaruvchilar **avtomatik 0** bilan boshlanadi (lokal o'zgaruvchilardan farqli).
+- `static` so'zining **ikki ma'nosi**: fayl darajasida — "faqat shu faylda ko'rinadi" (5-bob); funksiya ichida — "stekda emas, statik xotirada yashaydi".
+- Yadroda globallar ko'p: `static struct list_head disks;`, `static uint64_t ticks;` — lekin ko'p yadroli tizimda ularni **qulf bilan** himoya qilish kerak (15-bob).
+
+## 8.3. `malloc` va `free`
+
+**Hayotdan misol: mehmonxona xonasi.** Qabulxonadan xona so'raysiz (`malloc`) — kalit (ko'rsatkich) olasiz. Ketayotganda kalitni qaytarasiz (`free`).
+Mehmonxonada bo'sh xona qolmasa — `malloc` `NULL` qaytaradi, buni doim tekshiring.
+
+```c
+/* malloc_asos.c - xotira so'rash va qaytarish */
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+    int soni = 5;
+    int *a = malloc(soni * sizeof(int));        /* 5 ta int uchun joy (20 bayt) */
+    if (a == NULL) {                            /* xotira berilmadi */
+        perror("malloc");
+        return 1;
+    }
+
+    for (int i = 0; i < soni; i++)
+        a[i] = (i + 1) * 100;                   /* oddiy massiv kabi ishlatamiz */
+
+    for (int i = 0; i < soni; i++)
+        printf("a[%d] = %d\n", i, a[i]);
+
+    free(a);                                    /* qaytarish */
+    a = NULL;                                   /* ixtiyoriy, lekin foydali odat */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address malloc_asos.c -o malloc_asos
+$ ./malloc_asos
+a[0] = 100
+a[1] = 200
+a[2] = 300
+a[3] = 400
+a[4] = 500
+```
+
+**Kodda nimalar bor:**
+
+| Qator | Nima qiladi | Nega |
+|---|---|---|
+| `#include <stdlib.h>` | `malloc`, `free` e'lonlarini beradi | [sarlavhalar.md](sarlavhalar.md) |
+| `malloc(soni * sizeof(int))` | **bayt** so'raydi: 5 × 4 = 20 bayt | `malloc(n)` — **n bayt**, elementlar soni emas! Doim `soni * sizeof(tur)` |
+| `int *a = ...` | `malloc` qaytargan manzil `a` da saqlanadi | `a` — ko'rsatkich (7-bob). Endi `a[i]` ishlaydi (`a[i]` = `*(a+i)`) |
+| `if (a == NULL)` | xotira berilmagan holat | `malloc` joy topmasa `NULL` qaytaradi — **tekshiring** |
+| `free(a)` | qaytarish: "kalitni topshirdim" | Har bir `malloc` ga aniq **bitta** `free` |
+| `a = NULL` | endi `a` hech qayerga ko'rsatmaydi | Tasodifan `free` qilingan xotirani ishlatmaslik uchun |
+
+- Qaytgan xotira **nollanmagan** (axlat). Nol kerak bo'lsa — `calloc(soni, hajm)`.
+- `free(NULL)` — hech narsa qilmaydi (xavfsiz).
+- Sanitizer hech narsa demadi — demak, hamma xotira to'g'ri qaytarilgan.
+
+### `realloc` — hajmni o'zgartirish
+
+**Hayotdan misol: kattaroq kvartiraga ko'chish.** Oila kattalashdi — kattaroq kvartira kerak. Narsalar yangi joyga ko'chiriladi, eski kvartira bo'shatiladi.
+**Eski manzil endi yaroqsiz** — `realloc` dan keyin faqat yangi ko'rsatkichdan foydalaning.
+
+```c
+int *yangi = realloc(a, 200 * sizeof(int));
+if (!yangi) {
+    /* a hali ham haqiqiy - uni yo'qotmaslik uchun vaqtinchalik o'zgaruvchi */
+    free(a);
+    return -1;
+}
+a = yangi;
+```
+
+`realloc` blokni joyida kattalashtiradi yoki yangi joyga **ko'chiradi** (eski mazmun saqlanadi, eski manzil yaroqsiz bo'ladi).
+**Tuzoq:** `a = realloc(a, ...)` — `NULL` qaytsa, eski blok manzili yo'qoladi (leak). Shuning uchun natijani avval **vaqtinchalik** `yangi` ga yozamiz. 13-mashq.
+
+### `malloc` ichida nima bor
+
+`malloc` — sehr emas, oddiy C kodi: katta xotira hududini (OS'dan `sbrk`/`mmap` bilan olingan) bloklarga bo'lib beradi. Har bir blok oldida kichik **sarlavha** (hajm, bo'shmi)
+turadi. `free` blokni "bo'sh" deb belgilaydi va qo'shni bo'sh bloklar bilan birlashtiradi. 30-mashqda xuddi shuni o'zingiz yozasiz, MyOS'da esa `user/libc/malloc.c` (va malloc lab'i).
+
+Shundan muhim xulosa: `malloc` qaytargan blokdan **tashqariga** yozsangiz, keyingi blokning sarlavhasini buzasiz. Xato keyingi `malloc`/`free` da, **boshqa joyda** chiqadi —
+shuning uchun bunday xatolarni topish qiyin.
+
+> **Eslab qoling:** `p = malloc(soni * sizeof(*p));` → `NULL` ni tekshir → ishlat → `free(p);`. `realloc` natijasini avval vaqtinchalik o'zgaruvchiga yozing.
+
+## 8.4. Egalik (ownership) — kim `free` qiladi?
+
+**Hayotdan misol: kim kalitni qaytaradi.** Xonani kim olgan bo'lsa, o'sha qaytaradi. Do'stingizga kalitni berib yuborsangiz, kim qaytarishini aniq kelishib oling.
+Aks holda yo ikkalangiz ham qaytarmaysiz (leak), yo ikkalangiz ham qaytarasiz (double free).
+
+C'da garbage collector yo'q, shuning uchun har bir ajratilgan xotiraning **egasi** bo'lishi kerak — oxirida uni `free` qiladigan kod. Qoida funksiya hujjatida yoziladi:
+
+```text
+/* Yangi satr qaytaradi. Chaqiruvchi uni free() qilishi SHART. */
+char *birlashtir(const char *a, const char *b);
+
+/* s ning ichiga ko'rsatkich qaytaradi. free() QILMANG - bu s ning bir qismi. */
+const char *strchr(const char *s, int c);
+```
+
+Tipik uslublar:
+
+- **"Yaratuvchi-yo'q qiluvchi" juftligi:** `xesh_yarat` / `xesh_ozod`, `fopen` / `fclose`, `ajrat` / `ajrat_ozod` (15, 17-mashqlar).
+- **Havolalar sanog'i (refcount):** obyektni bir nechta joy ishlatsa, har biri sanoqni oshiradi, tugatganda kamaytiradi; 0 bo'lganda obyekt yo'q qilinadi. MyOS'da: `struct file`
+  dagi `refcount` (`fork` va `dup` bitta faylni bo'lishadi), inode keshi. Linux'da `kref`.
+
+## 8.5. Xotira xatolari — to'liq katalog
+
+**Hayotdan misol: mehmonxonadagi tartibbuzarliklar.**
+
+- **Leak (sizib chiqish)** — xonadan chiqib ketdingiz, kalitni qaytarmadingiz. Xona abadiy band. Serverda har soniyada bitta shunday xona — bir necha kundan keyin mehmonxonada joy qolmaydi.
+- **Use-after-free** — kalitni qaytarib, keyin yashirin nusxasi bilan yana xonaga kirdingiz. U yerda endi boshqa mehmon yashaydi — uning narsalarini buzasiz.
+- **Double free** — bitta kalitni ikki marta qaytarish. Qabulxona chalkashib, bitta xonani ikki mehmonga beradi.
+
+| Xato | Kod | Oqibat | Sanitizer xabari |
+|---|---|---|---|
+| **Leak** (sizib chiqish) | `malloc` → `free` yo'q | xotira asta-sekin tugaydi | `detected memory leaks` |
+| **Use-after-free** | `free(p); p->x = 1;` | boshqa obyektni buzish, xavfsizlik teshigi | `heap-use-after-free` |
+| **Double free** | `free(p); free(p);` | allocator tuzilmalari buziladi | `attempting double-free` |
+| **Heap overflow** | `malloc(n)` va `p[n] = 0` | qo'shni blok/sarlavha buziladi | `heap-buffer-overflow` |
+| **Stack overflow (bufer)** | `char b[8]; strcpy(b, uzun);` | qaytish manzili buziladi | `stack-buffer-overflow` |
+| **Boshlanmagan o'qish** | `int *p = malloc(4); printf("%d", *p);` | tasodifiy natija | (MemorySanitizer/Valgrind) |
+| **`free` noto'g'ri manzilga** | `free(p + 1);` yoki stek manziliga | qulash | `attempting free on address which was not malloc()-ed` |
+| **Noto'g'ri hajm** | `malloc(n)` o'rniga `malloc(n * sizeof(int))` kerak edi | overflow | `heap-buffer-overflow` |
+
+Har birini amalda ko'ramiz (sanitizer qaysi qatorni ko'rsatishiga e'tibor bering):
+
+```c
+/* leak.c - kalit qaytarilmadi */
+#include <stdlib.h>
+
+int main(void)
+{
+    int *p = malloc(40);                /* 40 bayt olindi */
+    p[0] = 1;
+    return 0;                           /* free(p) YO'Q */
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address leak.c -o leak
+$ ./leak 2>&1 | grep -E 'ERROR|SUMMARY|leak of' | sed -E 's/==[0-9]+==//'
+ERROR: LeakSanitizer: detected memory leaks
+Direct leak of 40 byte(s) in 1 object(s) allocated from:
+SUMMARY: AddressSanitizer: 40 byte(s) leaked in 1 allocation(s).
+```
+
+```c
+/* uaf.c - free dan keyin ishlatish */
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+    int *p = malloc(sizeof(int));
+    *p = 7;
+    free(p);
+    printf("%d\n", *p);                 /* XATO: free qilingan xotira */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address uaf.c -o uaf # xato kutiladi
+uaf.c: In function ‘main’:
+uaf.c:10:5: warning: pointer ‘p’ used after ‘free’ [-Wuse-after-free]
+   10 |     printf("%d\n", *p);                 /* XATO: free qilingan xotira */
+      |     ^~~~~~~~~~~~~~~~~~
+uaf.c:9:5: note: call to ‘free’ here
+    9 |     free(p);
+      |     ^~~~~~~
+$ ./uaf 2>&1 | grep -E 'ERROR|READ of size|#0' | head -3 | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g; s/ in main .*uaf/ in main uaf/'
+ERROR: AddressSanitizer: heap-use-after-free on address 0x... at pc 0x... bp 0x... sp 0x...
+READ of size 4 at 0x... thread T0
+    #0 0x... in main uaf.c:10
+```
+
+```c
+/* ikki_free.c - bitta kalit ikki marta */
+#include <stdlib.h>
+
+int main(void)
+{
+    int *p = malloc(sizeof(int));
+    free(p);
+    free(p);                            /* XATO: double free */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address ikki_free.c -o ikki_free # xato kutiladi
+ikki_free.c: In function ‘main’:
+ikki_free.c:8:5: warning: pointer ‘p’ used after ‘free’ [-Wuse-after-free]
+    8 |     free(p);                            /* XATO: double free */
+      |     ^~~~~~~
+ikki_free.c:7:5: note: call to ‘free’ here
+    7 |     free(p);
+      |     ^~~~~~~
+$ ./ikki_free 2>&1 | grep -E 'ERROR' | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g'
+ERROR: AddressSanitizer: attempting double-free on 0x... in thread T0:
+```
+
+```c
+/* heap_toshish.c - malloc(n) va p[n] */
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+    (void)argv;
+    int *p = malloc(4 * sizeof(int));   /* p[0]..p[3] */
+    p[3 + argc] = 1;                    /* XATO: p[4] mavjud emas */
+    free(p);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address heap_toshish.c -o heap_toshish
+$ ./heap_toshish 2>&1 | grep -E 'ERROR|WRITE of size' | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g'
+ERROR: AddressSanitizer: heap-buffer-overflow on address 0x... at pc 0x... bp 0x... sp 0x...
+WRITE of size 4 at 0x... thread T0
+```
+
+**Nima ko'rdik:** `uaf.c` va `ikki_free.c` ni yig'ishda GCC o'zi ogohlantirdi (`used after 'free'`) — oddiy holatlarni kompilyator ham ko'radi. Har bir xato turi sanitizer'da **o'z nomi** bilan ushlandi. Sanitizer yig'ish vaqtida qo'shimcha tekshiruv kodini qo'shadi — shuning uchun o'rganishda doim yoqing.
+
+### Leak'lar yadroda nega o'ldiradi
+
+User dasturdagi leak dastur tugaganda yo'qoladi (OS hamma xotirani qaytarib oladi). **Yadro esa hech qachon tugamaydi**: har bir syscall'da 64 bayt sizib chiqsa,
+bir necha soatda xotira tugaydi. Shuning uchun yadroda xatodan keyin tozalash (`goto` — 4-bob) juda muhim.
+
+### Use-after-free yadroda nega eng xavfli
+
+Bo'shatilgan xotira tezda boshqa obyektga beriladi. Eski ko'rsatkich orqali yozish — **boshqa** obyektni (masalan, boshqa jarayonning credentials'ini) o'zgartiradi.
+Zamonaviy yadro hujumlarining katta qismi — use-after-free. MyOS'dagi slab allocator shuning uchun `free` qilingan obyektni "zahar" bilan to'ldiradi va keyingi `alloc` da tekshiradi
+(`kernel/mm/slab.c`; `APPEND=demo=uaf` bilan ko'ring).
+
+## 8.6. Xatolarni topish vositalari
+
+**Hayotdan misol: mehmonxona inspektori.** Har bir kalit berilishi va qaytarilishini yozib boradi. Dastur tugaganda "3-xona kaliti qaytarilmadi, 12-qatorda olingan" deb hisobot beradi.
+
+**AddressSanitizer** (mashqlarda doim yoqilgan):
+
+```bash
+gcc -g -fsanitize=address,undefined dastur.c -o dastur && ./dastur
+```
+
+Hisobotni o'qish (kesilgan namuna):
+
+```text
+==1234==ERROR: AddressSanitizer: heap-use-after-free on address 0x602000000010   <- XATO TURI
+READ of size 8 at 0x602000000010 thread T0
+    #0 0x55d1 in royxat_ozod yechim.c:80            <- XATO SHU YERDA (eng muhim qator)
+    #1 0x55d2 in main test.c:45                     <- kim chaqirgan
+freed by thread T0 here:
+    #0 ... in free
+    #1 0x55d3 in royxat_ozod yechim.c:81            <- qayerda free qilingan
+previously allocated by thread T0 here:
+    #1 0x55d4 in main test.c:40                     <- qayerda ajratilgan
+```
+
+Uch savolga javob beradi: **nima** xato (`heap-use-after-free`), **qayerda** (birinchi `#0` qatori), **kim** `free` qilgan va **kim** ajratgan. 18-mashq — aynan shu hisobotlarni o'qib, 5 ta xatoni topish.
+
+**Valgrind** (qayta kompilyatsiyasiz): `valgrind --leak-check=full ./dastur`.
+
+## 8.7. Stek va heap — qachon qaysi biri
+
+| | Stek | Heap |
+|---|---|---|
+| Tezlik | juda tez (faqat `rsp` ni surish) | sekinroq (allocator ishlaydi) |
+| Hajm | cheklangan (user: 8 MB, **yadro: 8–16 KB**) | katta |
+| Yashash muddati | funksiya tugaguncha | `free` gacha |
+| O'lcham | kompilyatsiya paytida ma'lum bo'lishi afzal | ish vaqtida istalgan |
+| Xato | stek to'lishi | leak, UAF |
+
+> **Qoida:** kichik va qisqa muddatli — stekda; katta, o'lchami noma'lum yoki funksiyadan tashqarida yashashi kerak — heap'da.
+
+## 8.8. Yadroda xotira qanday ajratiladi
+
+Yadroda `malloc` yo'q — uning o'rnida bir necha qatlam (MyOS'da hammasi bor):
+
+```text
+kmalloc(n) / kfree(p)       kernel/mm/slab.c    - kichik obyektlar (16 B .. 8 KB), slab keshlari
+vmalloc(n)                  kernel/mm/vmalloc.c - katta, virtual jihatdan ketma-ket hududlar
+alloc_pages(order)          kernel/mm/pmm.c     - fizik sahifalar (4 KB x 2^order), buddy allocator
+memblock                    kernel/mm/memblock.c - eng boshida, boshqa hech narsa tayyor bo'lmaganda
+```
+
+Buni `docs/05-heap.md` va 11–12-bosqich hujjatlari tushuntiradi. 30-mashq (mini malloc) — bularga birinchi qadam, 32–33-mashqlar (buddy, slab) — ikkinchi qadam.
+
+## Hayotdan misol va to'liq dastur
+
+**To'y mehmonlari ro'yxati.** Mehmonlar soni oldindan noma'lum — ro'yxat kerakli paytda kattalashadi (`realloc`). Har bir ism alohida `malloc` bilan saqlanadi.
 
 ```c
 /* mehmonlar.c - malloc, realloc, free: o'sib boradigan ro'yxat */
@@ -122,225 +470,60 @@ Sardor qo'shildi
 Jami 5 mehmon: Aziz Malika Bobur Nigora Sardor
 ```
 
-Sanitizer hech narsa demadi — demak, har bir kalit qaytarilgan.
+**Kodda nimalar bor:**
 
-**Sinab ko'ring:** `ozod_qil(&r);` ni o'chiring va qayta ishga tushiring — sanitizer "memory leak" deb
-har bir unutilgan xonani ko'rsatadi. `malloc(strlen(ism) + 1)` dan `+ 1` ni o'chiring — nima deydi?
-
-## 8.1. Jarayon xotirasining xaritasi
-
-Linux'da (va MyOS'da) har bir dastur o'z virtual manzil maydonini ko'radi:
-
-```text
-yuqori manzillar
- ┌─────────────────────┐ 0x7fff...
- │ STEK                │  lokal o'zgaruvchilar, funksiya kadrlari; PASTGA o'sadi
- │   ↓                 │
- │                     │
- │   ↑                 │
- │ HEAP                │  malloc/free; YUQORIGA o'sadi (brk/sbrk yoki mmap)
- ├─────────────────────┤
- │ .bss                │  boshlang'ich qiymatsiz global/static (avtomatik 0)
- │ .data               │  boshlang'ich qiymatli global/static
- │ .rodata             │  o'zgarmaslar, satr literallari (faqat o'qish)
- │ .text               │  mashina kodi (faqat o'qish + bajarish)
- └─────────────────────┘ 0x400000 atrofida
-quyi manzillar (0-sahifa ataylab bo'sh - NULL ushlanishi uchun)
-```
-
-MyOS'da bu xaritani yadro yaratadi: ELF faylidan `.text/.data/.bss` ni yuklash — `kernel/sys/elf.c`,
-stek va heap uchun hududlar (VMA) — `kernel/mm/mm.c`, `sbrk` syscall'i heap'ni o'stiradi.
-
-## 8.2. Uch xil "saqlash muddati"
-
-| Tur | Qayerda | Qachon yaratiladi | Qachon yo'qoladi | Misol |
-|---|---|---|---|---|
-| **Avtomatik** | stek | funksiyaga kirganda | funksiyadan chiqqanda | `int x;` funksiya ichida |
-| **Statik** | .data / .bss | dastur boshlanganda | dastur tugaganda | global, `static` o'zgaruvchi |
-| **Dinamik** | heap | `malloc` chaqirilganda | `free` chaqirilganda | `malloc(100)` |
-
-### Statik o'zgaruvchilar
-
-```c
-int hisob = 0;                  /* global: butun dastur davomida yashaydi */
-
-void chaqir(void)
-{
-    static int necha_marta = 0; /* FUNKSIYA ichidagi static: qiymati chaqiruvlar orasida SAQLANADI */
-    necha_marta++;
-    printf("%d\n", necha_marta);    /* 1, 2, 3, ... */
-}
-```
-
-- Global va `static` o'zgaruvchilar **avtomatik 0** bilan boshlanadi (lokal o'zgaruvchilardan farqli).
-- `static` so'zining **ikki ma'nosi**: fayl darajasida — "faqat shu faylda ko'rinadi" (5-bob);
-  funksiya ichida — "stekda emas, statik xotirada yashaydi".
-- Yadroda globallar ko'p: `static struct list_head disks;`, `static uint64_t ticks;` — lekin ko'p
-  yadroli tizimda ularni **qulf bilan** himoya qilish kerak (15-bob).
-
-## 8.3. `malloc` va `free`
-
-```c
-#include <stdlib.h>
-
-int *a = malloc(100 * sizeof(int));     /* 100 ta int uchun joy (400 bayt) */
-if (a == NULL) {                        /* xotira berilmadi */
-    perror("malloc");
-    return -1;
-}
-a[0] = 5;
-...
-free(a);                                /* qaytarish */
-a = NULL;                               /* ixtiyoriy, lekin foydali odat */
-```
-
-- `malloc(n)` — **n bayt** so'raydi. Elementlar soni emas! Doim `soni * sizeof(tur)`.
-- Qaytgan xotira **nollanmagan** (axlat). Nol kerak bo'lsa — `calloc(soni, hajm)`.
-- `NULL` qaytishi mumkin — **tekshiring**.
-- Har bir `malloc` ga aniq **bitta** `free`. `free(NULL)` — hech narsa qilmaydi (xavfsiz).
-
-### `realloc` — hajmni o'zgartirish
-
-```c
-int *yangi = realloc(a, 200 * sizeof(int));
-if (!yangi) {
-    /* a hali ham haqiqiy - uni yo'qotmaslik uchun vaqtinchalik o'zgaruvchi */
-    free(a);
-    return -1;
-}
-a = yangi;
-```
-
-`realloc` blokni joyida kattalashtiradi yoki yangi joyga **ko'chiradi** (eski mazmun saqlanadi, eski
-manzil yaroqsiz bo'ladi). **Tuzoq:** `a = realloc(a, ...)` — `NULL` qaytsa, eski blok manzili yo'qoladi
-(leak). 13-mashq.
-
-### `malloc` ichida nima bor
-
-`malloc` — sehr emas, oddiy C kodi: katta xotira hududini (OS'dan `sbrk`/`mmap` bilan olingan)
-bloklarga bo'lib beradi. Har bir blok oldida kichik **sarlavha** (hajm, bo'shmi) turadi. `free` blokni
-"bo'sh" deb belgilaydi va qo'shni bo'sh bloklar bilan birlashtiradi. 30-mashqda xuddi shuni o'zingiz
-yozasiz, MyOS'da esa `user/libc/malloc.c` (va malloc lab'i).
-
-Shundan muhim xulosa: `malloc` qaytargan blokdan **tashqariga** yozsangiz, keyingi blokning
-sarlavhasini buzasiz. Xato keyingi `malloc`/`free` da, **boshqa joyda** chiqadi — shuning uchun bunday
-xatolarni topish qiyin.
-
-## 8.4. Egalik (ownership) — kim `free` qiladi?
-
-C'da garbage collector yo'q, shuning uchun har bir ajratilgan xotiraning **egasi** bo'lishi kerak —
-oxirida uni `free` qiladigan kod. Qoida funksiya hujjatida yoziladi:
-
-```c
-/* Yangi satr qaytaradi. Chaqiruvchi uni free() qilishi SHART. */
-char *birlashtir(const char *a, const char *b);
-
-/* s ning ichiga ko'rsatkich qaytaradi. free() QILMANG - bu s ning bir qismi. */
-const char *strchr(const char *s, int c);
-```
-
-Tipik uslublar:
-- **"Yaratuvchi-yo'q qiluvchi" juftligi:** `xesh_yarat` / `xesh_ozod`, `fopen` / `fclose`,
-  `ajrat` / `ajrat_ozod` (15, 17-mashqlar).
-- **Havolalar sanog'i (refcount):** obyektni bir nechta joy ishlatsa, har biri sanoqni oshiradi,
-  tugatganda kamaytiradi; 0 bo'lganda obyekt yo'q qilinadi. MyOS'da: `struct file` dagi `refcount`
-  (`fork` va `dup` bitta faylni bo'lishadi), inode keshi. Linux'da `kref`.
-
-## 8.5. Xotira xatolari — to'liq katalog
-
-| Xato | Kod | Oqibat | Sanitizer xabari |
+| Nom | Tur | Boshlang'ich | Nima uchun |
 |---|---|---|---|
-| **Leak** (sizib chiqish) | `malloc` → `free` yo'q | xotira asta-sekin tugaydi | `detected memory leaks` |
-| **Use-after-free** | `free(p); p->x = 1;` | boshqa obyektni buzish, xavfsizlik teshigi | `heap-use-after-free` |
-| **Double free** | `free(p); free(p);` | allocator tuzilmalari buziladi | `attempting double-free` |
-| **Heap overflow** | `malloc(n)` va `p[n] = 0` | qo'shni blok/sarlavha buziladi | `heap-buffer-overflow` |
-| **Stack overflow (bufer)** | `char b[8]; strcpy(b, uzun);` | qaytish manzili buziladi | `stack-buffer-overflow` |
-| **Boshlanmagan o'qish** | `int *p = malloc(4); printf("%d", *p);` | tasodifiy natija | (MemorySanitizer/Valgrind) |
-| **`free` noto'g'ri manzilga** | `free(p + 1);` yoki stek manziliga | qulash | `attempting free on address which was not malloc()-ed` |
-| **Noto'g'ri hajm** | `malloc(n)` o'rniga `malloc(n * sizeof(int))` kerak edi | overflow | `heap-buffer-overflow` |
+| `r.ismlar` | `char **` | `NULL` | massiv: har bir element — bitta ismning manzili (`char *`) |
+| `r.soni` | `int` | 0 | hozir nechta ism bor |
+| `r.sigim` | `int` | 0 | massivda nechta **joy** ajratilgan |
 
-### Leak'lar yadroda nega o'ldiradi
+**`qosh` qadamlari:**
 
-User dasturdagi leak dastur tugaganda yo'qoladi (OS hamma xotirani qaytarib oladi). **Yadro esa
-hech qachon tugamaydi**: har bir syscall'da 64 bayt sizib chiqsa, bir necha soatda xotira tugaydi.
-Shuning uchun yadroda xatodan keyin tozalash (`goto` — 4-bob) juda muhim.
+1. `soni == sigim`? Joy tugagan → yangi sig'im = eski × 2 (boshida 2). `realloc` ro'yxatni kattaroq blokka ko'chiradi. **Natija avval `yangi` ga yoziladi**, `NULL` bo'lmasa `r->ismlar` ga o'tkaziladi.
+2. `malloc(strlen(ism) + 1)` — ism uchun alohida joy: harflar + `'\0'` (shuning uchun `+ 1`!).
+3. `strcpy` — ismni ko'chirish (joy aynan yetarli bo'lgani uchun xavfsiz).
 
-### Use-after-free yadroda nega eng xavfli
+**Sig'im qanday o'sadi:**
 
-Bo'shatilgan xotira tezda boshqa obyektga beriladi. Eski ko'rsatkich orqali yozish — **boshqa**
-obyektni (masalan, boshqa jarayonning credentials'ini) o'zgartiradi. Zamonaviy yadro hujumlarining
-katta qismi — use-after-free. MyOS'dagi slab allocator shuning uchun `free` qilingan obyektni "zahar"
-bilan to'ldiradi va keyingi `alloc` da tekshiradi (`kernel/mm/slab.c`; `APPEND=demo=uaf` bilan ko'ring).
+| Qo'shilgan | `soni` | `sigim` | Nima bo'ldi |
+|---|---|---|---|
+| Aziz | 1 | 2 | birinchi `realloc`: 0 → 2 |
+| Malika | 2 | 2 | joy bor |
+| Bobur | 3 | 4 | joy tugadi: 2 → 4 |
+| Nigora | 4 | 4 | joy bor |
+| Sardor | 5 | 8 | joy tugadi: 4 → 8 |
 
-## 8.6. Xatolarni topish vositalari
+**Nega sig'imni 2 baravar oshiramiz?** Har qo'shishda `realloc` qilish sekin (ko'chirish qimmat). Ikki baravar oshirsak, `realloc` soni juda kam bo'ladi (amortizatsiyalangan tezlik).
 
-**AddressSanitizer** (mashqlarda doim yoqilgan):
+**`ozod_qil` tartibi:** avval **har bir ism** (ichki), keyin **ro'yxatning o'zi** (tashqi). Teskari tartibda qilsangiz, ismlarning manzillarini yo'qotib, leak qilasiz. Sanitizer hech narsa demadi — demak, har bir kalit qaytarilgan.
 
-```bash
-gcc -g -fsanitize=address,undefined dastur.c -o dastur && ./dastur
-```
+**Sinab ko'ring:** `ozod_qil(&r);` ni o'chiring va qayta ishga tushiring — sanitizer "memory leak" deb har bir unutilgan xonani ko'rsatadi. `malloc(strlen(ism) + 1)` dan `+ 1` ni o'chiring — nima deydi?
 
-Hisobotni o'qish:
+## Bob xulosasi (yodlash uchun)
 
-```text
-==1234==ERROR: AddressSanitizer: heap-use-after-free on address 0x602000000010   <- XATO TURI
-READ of size 8 at 0x602000000010 thread T0
-    #0 0x55d1 in royxat_ozod yechim.c:80            <- XATO SHU YERDA (eng muhim qator)
-    #1 0x55d2 in main test.c:45                     <- kim chaqirgan
-freed by thread T0 here:
-    #0 ... in free
-    #1 0x55d3 in royxat_ozod yechim.c:81            <- qayerda free qilingan
-previously allocated by thread T0 here:
-    #1 0x55d4 in main test.c:40                     <- qayerda ajratilgan
-```
+1. Xotira uch xil: **stek** (avtomatik, tez, kichik), **statik** (butun dastur davomida), **heap** (`malloc`/`free`, qo'lda).
+2. `malloc(n)` — **n bayt** so'raydi (`soni * sizeof(tur)`), `NULL` ni **tekshiring**; har `malloc` ga aniq bitta `free`.
+3. `realloc` natijasini avval **vaqtinchalik** o'zgaruvchiga oling (aks holda `NULL` da eski blok yo'qoladi); undan keyin eski manzil yaroqsiz.
+4. Har bir blokning **egasi** bor — u `free` qiladi. Xatolar: leak, use-after-free, double free, overflow.
+5. O'rganishda doim `-fsanitize=address`; hisobotda birinchi `#0` qatori — xato joyi.
 
-**Valgrind** (qayta kompilyatsiyasiz): `valgrind --leak-check=full ./dastur`.
-
-18-mashq — aynan shu hisobotlarni o'qib, 5 ta xatoni topish.
-
-## 8.7. Stek va heap — qachon qaysi biri
-
-| | Stek | Heap |
-|---|---|---|
-| Tezlik | juda tez (faqat `rsp` ni surish) | sekinroq (allocator ishlaydi) |
-| Hajm | cheklangan (user: 8 MB, **yadro: 8–16 KB**) | katta |
-| Yashash muddati | funksiya tugaguncha | `free` gacha |
-| O'lcham | kompilyatsiya paytida ma'lum bo'lishi afzal | ish vaqtida istalgan |
-| Xato | stek to'lishi | leak, UAF |
-
-Qoida: kichik va qisqa muddatli — stekda; katta, o'lchami noma'lum yoki funksiyadan tashqarida
-yashashi kerak — heap'da.
-
-## 8.8. Yadroda xotira qanday ajratiladi
-
-Yadroda `malloc` yo'q — uning o'rnida bir necha qatlam (MyOS'da hammasi bor):
-
-```text
-kmalloc(n) / kfree(p)       kernel/mm/slab.c    - kichik obyektlar (16 B .. 8 KB), slab keshlari
-vmalloc(n)                  kernel/mm/vmalloc.c - katta, virtual jihatdan ketma-ket hududlar
-alloc_pages(order)          kernel/mm/pmm.c     - fizik sahifalar (4 KB x 2^order), buddy allocator
-memblock                    kernel/mm/memblock.c - eng boshida, boshqa hech narsa tayyor bo'lmaganda
-```
-
-Buni `docs/05-heap.md` va 11–12-bosqich hujjatlari tushuntiradi. 30-mashq (mini malloc) — bularga
-birinchi qadam, 32–33-mashqlar (buddy, slab) — ikkinchi qadam.
-
-## 8.9. Savol-javob
+## Savol-javob
 
 **`free` dan keyin xotira OS'ga qaytadimi?**
-Odatda yo'q — `malloc` uni keyingi so'rovlar uchun o'zida saqlaydi. Katta bloklar (`mmap` bilan
-olinganlari) esa darhol qaytariladi.
+Odatda yo'q — `malloc` uni keyingi so'rovlar uchun o'zida saqlaydi. Katta bloklar (`mmap` bilan olinganlari) esa darhol qaytariladi.
 
 **`free` qilingan ko'rsatkich nega "yaroqsiz" bo'ladi, qiymati o'zgarmagan-ku?**
-Manzil o'zgarmaydi — lekin u endi **sizniki emas**. O'sha joyni allocator o'z sarlavhasi uchun yoki
-boshqa `malloc` uchun ishlatadi. `free(p); p = NULL;` odati keyingi xatoni NULL dereference'ga
-aylantiradi — u darhol va aniq qulaydi (jim buzilishdan yaxshi).
+Manzil o'zgarmaydi — lekin u endi **sizniki emas**. O'sha joyni allocator o'z sarlavhasi uchun yoki boshqa `malloc` uchun ishlatadi. `free(p); p = NULL;` odati keyingi xatoni
+NULL dereference'ga aylantiradi — u darhol va aniq qulaydi (jim buzilishdan yaxshi).
 
 **`malloc(0)` nima qaytaradi?**
-Standart bo'yicha — `NULL` yoki `free` qilinadigan noyob ko'rsatkich (implementatsiyaga bog'liq).
-MyOS libc'si va 30-mashq — `NULL`.
+Standart bo'yicha — `NULL` yoki `free` qilinadigan noyob ko'rsatkich (implementatsiyaga bog'liq). MyOS libc'si va 30-mashq — `NULL`.
 
-## 8.10. O'zingizni tekshiring
+**Nega Python'da bularning hech biri yo'q?**
+Python obyektlar sonini o'zi sanaydi va keraksiz bo'lganda o'zi tozalaydi. Bu qulay, lekin qo'shimcha xotira va vaqt oladi va vaqti oldindan noma'lum. Yadroda esa har bayt va har mikrosekund hisobda — shuning uchun qo'lda.
+
+## O'zingizni tekshiring
 
 1. Funksiya ichidagi `static int n;` va oddiy `int n;` farqi (ikki jihat)?
 2. `int *a = malloc(10);` — nechta `int` sig'adi?
@@ -357,7 +540,7 @@ MyOS libc'si va 30-mashq — `NULL`.
 5. Birinchi `#0 ... fayl.c:QATOR` qatori (sizning faylingizdagi birinchisi).
 </details>
 
-## 8.11. Mashqlar
+## Mashq
 
 - **13** dinamik massiv, **14** satr yasash, **15** split — `malloc`/`realloc`/`free`.
 - **16** bog'langan ro'yxat, **17** xesh jadval — egalik va tozalash.

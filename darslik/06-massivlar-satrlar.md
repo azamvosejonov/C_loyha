@@ -1,41 +1,674 @@
 # 6-bob. Massivlar va satrlar
 
-> **Bu bobdan keyin:** massiv xotirada qanday turishini, nega u o'z uzunligini bilmasligini,
-> satr = `'\0'` bilan tugaydigan baytlar ekanini va bufer to'lishi (buffer overflow) qanday
-> paydo bo'lishini bilasiz. Mashqlar: 05, 08, 09, 10, 11, 12.
+> **Bu bobda nima o'rganasiz:** massiv (bir xil turdagi qutilar qatori) xotirada qanday turishini; nega u o'z uzunligini **bilmasligini**;
+> satr — oxirida maxsus `'\0'` belgisi turgan `char` massivi ekanini; **bufer to'lishi** (buffer overflow) qanday paydo bo'lishini va undan qanday qochishni.
+> **Oldindan nima kerak:** 2–5-boblar (turlar, sikllar, funksiyalar).   **Vaqt:** 6–7 soat.
+> Mashqlar: 05, 08, 09, 10, 11, 12.
 
 > **To'liq ishlaydigan misol:** [misollar/06_satrlar.c](misollar/06_satrlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Massiv — poyezd vagonlari (6.1).** Poyezdda vagonlar ketma-ket ulangan va raqamlangan. Faqat C'da
-raqamlash **0 dan** boshlanadi: 5 vagonli poyezdda vagonlar 0, 1, 2, 3, 4. Vagonlar bir xil o'lchamda
-va bir-biriga yopishgan — shuning uchun 3-vagon qayerdaligini hisoblash oson: "boshidan 3 vagon uzunligi".
+Hozirgacha har bir qiymat uchun alohida o'zgaruvchi yaratdik. 100 ta talabaning bahosini saqlash uchun 100 ta nom o'ylab topish
+mumkin emas. **Massiv** — bir xil turdagi **ko'p qutini bitta nom** ostida ketma-ket joylashtirish. **Satr** — harflar massivi.
 
-**Chegaradan chiqish — 5 qavatli uyda 6-qavat tugmasi (6.2).** Python'da bunday tugmani bossangiz,
-lift "bunday qavat yo'q" deydi (`IndexError`). C'da lift hech narsa demaydi — to'g'ridan-to'g'ri
-tomga, yoki qo'shni binoning kvartirasiga olib chiqadi. Siz boshqa birovning xotirasiga yozasiz va
-xato ancha keyin, butunlay boshqa joyda chiqadi. C'ning eng xavfli xatosi — shu.
+**Hayotdan misol: poyezd vagonlari.** Poyezdda vagonlar ketma-ket ulangan va raqamlangan. Faqat C'da raqamlash **0 dan** boshlanadi:
+5 vagonli poyezdda vagonlar 0, 1, 2, 3, 4. Vagonlar bir xil o'lchamda va bir-biriga yopishgan — shuning uchun 3-vagon qayerdaligini hisoblash oson:
+"boshidan 3 vagon uzunligi".
 
-**Ikki o'lchamli massiv — kinoteatr zali (6.3).** Qator va o'rin: `zal[3][7]` — 3-qator, 7-o'rin.
-Xotirada esa qatorlar bitta uzun chiziqda ketma-ket turadi: 0-qatorning hamma o'rinlari, keyin 1-qator...
+| Poyezd | C massivi |
+|---|---|
+| butun poyezd | massiv (`int a[5]`) |
+| vagon | element (`a[0]`, `a[1]` ...) |
+| vagon raqami | **indeks** (0 dan boshlanadi!) |
+| vagonlar soni | massiv uzunligi (o'zgarmas) |
 
-**Satr — ip ustidagi munchoqlar va tugun (6.4).** Satr — harflar ketma-ketligi, oxirida esa **tugun** —
-`'\0'`. Tugunsiz munchoqlar sochilib ketadi: `printf` harflarni tugunni topguncha o'qiydi, topmasa —
-xotira bo'ylab keyin nima bo'lsa, hammasini o'qib ketaveradi. `"salom"` 5 harf, lekin 6 bayt joy oladi.
+Bu bobning ikki xavfli haqiqati: (1) C massivning chegarasini **tekshirmaydi**; (2) C satrining uzunligi **saqlanmaydi**. Ikkalasini
+sinchiklab o'rganamiz — chunki xavfsizlik teshiklarining katta qismi shundan.
 
-**`strlen` — munchoqlarni sanash (6.5).** Uzunlik hech qayerda yozilmagan — har safar boshidan tugungacha
-sanaladi. Shuning uchun uzun satrda sikl ichida `strlen` chaqirish sekin.
+## 6.1. Massiv
 
-**Bufer to'lishi — chelakka ko'p suv (6.8).** 10 litrlik chelakka 15 litr quysangiz, 5 litr polga
-to'kiladi. `strcpy` chelak o'lchamini bilmaydi — quyib ketaveradi. `snprintf(buf, sizeof(buf), ...)`
-esa chelak o'lchamini biladi va ortig'ini quymaydi.
+```c
+int a[5] = { 10, 20, 30, 40, 50 };
+```
 
-**`strcmp` va `==` — ikki kitob (6.8).** Qo'lingizda ikki nusxa "O'tkan kunlar" bor. Matni bir xilmi?
-Ha (`strcmp` = 0). Bu **bitta** kitobmi? Yo'q (`==` manzillarni solishtiradi — ular har xil).
+Bu qator: "`int` turidagi **5 ta** quti yarat, nomi `a`, ichiga 10, 20, 30, 40, 50 yoz". Xotirada — **ketma-ket** 5 ta `int`, jami 5 × 4 = 20 bayt:
 
-### To'liq dastur: SMS va haftalik ob-havo
+```text
+manzil:  1000   1004   1008   1012   1016
+         [ 10 ][ 20 ][ 30 ][ 40 ][ 50 ]
+          a[0]  a[1]  a[2]  a[3]  a[4]
+```
+
+- Indeks **0 dan** boshlanadi: oxirgisi `a[4]`; `a[5]` — massivdan **tashqari**!
+- O'lcham **qat'iy**: `a` ni 6 elementga "o'stirib" bo'lmaydi.
+- `a[i]` ning manzili = `a` ning manzili + `i * sizeof(int)`. Shuning uchun murojaat juda tez (har qanday `i` uchun bir xil vaqt).
+
+**Nega raqamlash 0 dan?** Indeks — "boshidan **necha qadam** nariga". Birinchi element boshida turibdi — 0 qadam. Shu sababli manzil formulasi
+oddiy: `boshi + indeks * element_hajmi`.
+
+```c
+/* massiv_asos.c - massiv xotirada */
+#include <stdio.h>
+
+int main(void)
+{
+    int a[5] = { 10, 20, 30, 40, 50 };
+
+    for (int i = 0; i < 5; i++)
+        printf("a[%d] = %d\n", i, a[i]);
+
+    printf("butun massiv: %zu bayt\n", sizeof(a));
+    printf("bitta element: %zu bayt\n", sizeof(a[0]));
+    printf("a[1] a[0] dan %td bayt narida\n", (char *)&a[1] - (char *)&a[0]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra massiv_asos.c -o massiv_asos
+$ ./massiv_asos
+a[0] = 10
+a[1] = 20
+a[2] = 30
+a[3] = 40
+a[4] = 50
+butun massiv: 20 bayt
+bitta element: 4 bayt
+a[1] a[0] dan 4 bayt narida
+```
+
+**Kodda nimalar bor:**
+
+| Qator | Nima qiladi | Nega |
+|---|---|---|
+| `int a[5] = {10, ..., 50};` | 5 ta `int` qutisi; boshlang'ich qiymatlar | `[5]` — uzunlik, `{ }` — qiymatlar ro'yxati |
+| `for (int i = 0; i < 5; i++)` | `i` = 0, 1, 2, 3, 4 | `i < 5` (**`<=` emas**!) — oxirgi indeks `4` |
+| `a[i]` | `i`-elementni o'qiydi | |
+| `sizeof(a)` | **butun massiv** hajmi: 5 × 4 = 20 | |
+| `(char *)&a[1] - (char *)&a[0]` | ikki qo'shni element manzillari orasidagi farq (**bayt**da) | `&a[1]` — "`a[1]` ning manzili" (7-bob); farq `4` = `sizeof(int)` |
+
+### Boshlash usullari
+
+```c
+int a[5];                       /* lokal bo'lsa - AXLAT qiymatlar (2.2) */
+int b[5] = { 0 };               /* hammasi 0 (qolganlari avtomatik 0) */
+int c[] = { 1, 2, 3 };          /* o'lchamni kompilyator hisoblaydi: 3 */
+int d[100] = { [10] = 5, [99] = 7 };    /* nomlangan indekslar, qolgani 0 */
+```
+
+```c
+/* boshlash.c - massivni boshlash usullari */
+#include <stdio.h>
+
+int main(void)
+{
+    int b[5] = { 0 };
+    int c[] = { 1, 2, 3 };
+    int d[100] = { [10] = 5, [99] = 7 };
+
+    printf("b: %d %d %d %d %d\n", b[0], b[1], b[2], b[3], b[4]);
+    printf("c uzunligi: %zu\n", sizeof(c) / sizeof(c[0]));
+    printf("d[10]=%d d[50]=%d d[99]=%d\n", d[10], d[50], d[99]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra boshlash.c -o boshlash
+$ ./boshlash
+b: 0 0 0 0 0
+c uzunligi: 3
+d[10]=5 d[50]=0 d[99]=7
+```
+
+`{ 0 }` yozilganda **birinchi** element 0 bo'ladi, **qolganlari ham** avtomatik 0 (qisman berilgan ro'yxatning qolgani nol bilan to'ldiriladi).
+Bu massivni **tozalashning** eng qisqa yo'li.
+
+### Massiv uzunligi
+
+```c
+size_t n = sizeof(a) / sizeof(a[0]);    /* 20 / 4 = 5 */
+```
+
+"Butun hajm ÷ bitta element hajmi" = elementlar soni. Bu **faqat massiv e'lon qilingan joyda** ishlaydi! Funksiyaga uzatilganda massiv
+**ko'rsatkichga aylanadi** va `sizeof` ko'rsatkich hajmini (8) beradi:
+
+```c
+/* uzunlik_xato.c - funksiyaga uzatilgan massiv uzunligi yo'qoladi */
+#include <stdio.h>
+
+static void f(int a[])                  /* aslida: int *a */
+{
+    size_t n = sizeof(a) / sizeof(a[0]);    /* 8 / 4 = 2 - XATO! */
+    printf("funksiya ichida n = %zu (noto'g'ri)\n", n);
+}
+
+int main(void)
+{
+    int a[5] = { 1, 2, 3, 4, 5 };
+    printf("main da n = %zu (to'g'ri)\n", sizeof(a) / sizeof(a[0]));
+    f(a);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra uzunlik_xato.c -o uzunlik_xato # xato kutiladi
+uzunlik_xato.c: In function ‘f’:
+uzunlik_xato.c:6:22: warning: ‘sizeof’ on array function parameter ‘a’ will return size of ‘int *’ [-Wsizeof-array-argument]
+    6 |     size_t n = sizeof(a) / sizeof(a[0]);    /* 8 / 4 = 2 - XATO! */
+      |                      ^
+uzunlik_xato.c:4:19: note: declared here
+    4 | static void f(int a[])                  /* aslida: int *a */
+      |               ~~~~^~~
+$ ./uzunlik_xato
+main da n = 5 (to'g'ri)
+funksiya ichida n = 2 (noto'g'ri)
+```
+
+GCC ogohlantirdi (`sizeof on array function parameter`). **Nega?** Massiv funksiyaga uzatilganda uning **nusxasi** ko'chirilmaydi (juda qimmat): faqat
+**birinchi elementning manzili** (8 bayt) uzatiladi. Funksiya uzunlikni **bilmaydi**.
+
+Shuning uchun C'da **massiv doim uzunligi bilan birga uzatiladi**: `void f(const int *a, size_t n)`. Standart kutubxonada ham, yadroda ham — `buf, len` juftligi
+hamma joyda (`read(fd, buf, len)`, `memcpy(dst, src, n)`).
+
+> **Eslab qoling:** massivni funksiyaga bersangiz — **uzunligini ham bering**. `sizeof(a)/sizeof(a[0])` faqat e'lon qilingan joyda ishlaydi.
+
+## 6.2. Chegaradan chiqish — C'ning eng xavfli xatosi
+
+**Hayotdan misol: 5 qavatli uyda 6-qavat tugmasi.** Python'da bunday tugmani bossangiz, lift "bunday qavat yo'q" deydi (`IndexError`). C'da lift **hech narsa demaydi**
+— to'g'ridan-to'g'ri tomga, yoki qo'shni binoning kvartirasiga olib chiqadi. Siz **boshqa birovning xotirasiga** yozasiz va xato ancha keyin, butunlay boshqa joyda chiqadi.
+
+```c
+int a[5];
+a[5] = 99;          /* massivdan tashqariga yozish - a[0]..a[4] bor, a[5] YO'Q */
+a[-1] = 0;          /* bu ham */
+```
+
+C **tekshirmaydi**. Kompilyator ham (ko'pincha), ish vaqtida ham. Natija:
+
+- yonidagi o'zgaruvchi **jim** buziladi;
+- funksiyaning qaytish manzili ustidan yoziladi → dastur boshqa joyga "sakraydi";
+- yoki hech narsa bo'lmaydi — bugun. Ertaga boshqa kompilyator bilan qulaydi.
+
+Tarixdagi eng ko'p xavfsizlik hujumlari (Morris qurti, 1988-yildan beri) aynan shundan boshlangan: foydalanuvchi bergan uzun satr stekdagi buferdan toshib,
+qaytish manzilini o'zgartiradi.
+
+Xatoni **ushlash** uchun yig'ish vaqtida **AddressSanitizer** (xotira xatolarini topuvchi vosita) yoqiladi:
+
+```c
+/* chegara.c - massivdan tashqariga yozish */
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+    (void)argv;
+    int a[5] = { 1, 2, 3, 4, 5 };
+    int i = 4 + argc;                   /* argc = 1 -> i = 5: chegaradan tashqari */
+    a[i] = 99;                          /* XATO: a[5] yo'q */
+    printf("a[0] = %d\n", a[0]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address chegara.c -o chegara
+$ ./chegara 2>&1 | grep -E 'ERROR|WRITE of size|#0' | head -3 | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g; s/ in main .*chegara/ in main chegara/'
+ERROR: AddressSanitizer: stack-buffer-overflow on address 0x... at pc 0x... bp 0x... sp 0x...
+WRITE of size 4 at 0x... thread T0
+    #0 0x... in main chegara.c:9
+```
+
+Sanitizer xatoni **aniq qatori bilan** topdi: `stack-buffer-overflow` ("stekdagi bufer toshdi"), `WRITE of size 4` ("4 bayt yozdingiz"). Sanitizersiz dastur "ishlab ketardi".
+
+**Himoya:** `-fsanitize=address` (o'rganishda), har bir indeksni tekshirish, uzunlikni doim uzatish. Yadroda sanitizer yo'q — faqat intizom.
+
+> **Eslab qoling:** `a[5]` — 5 elementli massivda **mavjud emas**. Tsiklda `i < n` yozing, `i <= n` emas. C sizni ogohlantirmaydi.
+
+## 6.3. Ko'p o'lchamli massivlar
+
+**Hayotdan misol: kinoteatr zali.** Qator va o'rin: `zal[3][7]` — 3-qator, 7-o'rin. Xotirada esa qatorlar bitta uzun chiziqda ketma-ket turadi:
+0-qatorning hamma o'rinlari, keyin 1-qator...
+
+```c
+/* ikki_olchamli.c - 3 qator, 4 ustun */
+#include <stdio.h>
+
+int main(void)
+{
+    int m[3][4];                        /* 3 qator, 4 ustun = 12 ta int */
+
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 4; j++)
+            m[i][j] = i * 10 + j;       /* qator*10 + ustun */
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++)
+            printf("%2d ", m[i][j]);
+        printf("\n");
+    }
+
+    int *tekis = &m[0][0];              /* butun massivga bitta uzun qator sifatida qarash */
+    printf("m[1][2] = %d, tekis[1*4 + 2] = %d\n", m[1][2], tekis[1 * 4 + 2]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ikki_olchamli.c -o ikki_olchamli
+$ ./ikki_olchamli
+ 0  1  2  3 
+10 11 12 13 
+20 21 22 23 
+m[1][2] = 12, tekis[1*4 + 2] = 12
+```
+
+**Qadamlar:** `m[i][j] = i * 10 + j` — har katakka o'zining o'rni (qator, ustun) yoziladi. Xotirada 12 ta qiymat ketma-ket:
+
+```text
+xotirada:   0  1  2  3 | 10 11 12 13 | 20 21 22 23        <- qatorma-qator
+indeks:     0  1  2  3 |  4  5  6  7 |  8  9 10 11
+```
+
+`m[1][2]` ning tekis indeksi = `1 * 4 + 2 = 6` (4 — ustunlar soni) → xotirada 6-o'rinda `12` turibdi ✓. Formula: **`m[i][j]` manzili = `m` + `(i * ustunlar + j) * 4`**.
+
+Katta matritsalarni qatorma-qator aylanish (`for i` tashqarida, `for j` ichkarida) keshga mos va tez (21-bob).
+
+## 6.4. Satr — `'\0'` bilan tugaydigan `char` massivi
+
+C'da alohida "satr" turi **yo'q**. Satr — oxirida **nol bayt** (`'\0'`) bo'lgan `char` massivi:
+
+```c
+char s[] = "salom";
+```
+
+```text
+s[0] s[1] s[2] s[3] s[4] s[5]
+ 's'  'a'  'l'  'o'  'm'  '\0'      -> jami 6 bayt!
+```
+
+**Hayotdan misol: ip ustidagi munchoqlar va tugun.** Satr — harflar ketma-ketligi, oxirida esa **tugun** — `'\0'`. Tugunsiz munchoqlar sochilib ketadi: `printf` harflarni
+tugunni topguncha o'qiydi, topmasa — xotira bo'ylab keyin nima bo'lsa, hammasini o'qib ketaveradi. `"salom"` 5 harf, lekin 6 bayt joy oladi.
+
+```c
+/* satr_asos.c - satr xotirada */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    char s[] = "salom";
+
+    printf("sizeof(s) = %zu, strlen(s) = %zu\n", sizeof(s), strlen(s));
+    for (size_t i = 0; i < sizeof(s); i++)
+        printf("s[%zu] = %3d  (belgi: %c)\n", i, s[i], s[i] >= 32 ? s[i] : '?');
+
+    printf("'\\0' = %d, '0' = %d\n", '\0', '0');
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra satr_asos.c -o satr_asos
+$ ./satr_asos
+sizeof(s) = 6, strlen(s) = 5
+s[0] = 115  (belgi: s)
+s[1] =  97  (belgi: a)
+s[2] = 108  (belgi: l)
+s[3] = 111  (belgi: o)
+s[4] = 109  (belgi: m)
+s[5] =   0  (belgi: ?)
+'\0' = 0, '0' = 48
+```
+
+**Kodda nimalar bor:**
+
+- `sizeof(s)` = **6** (`s`, `a`, `l`, `o`, `m` + `'\0'`); `strlen(s)` = **5** (`'\0'` sanalmaydi). Ikkalasini adashtirmang!
+- Oxirgi qatorda `s[5] = 0`: belgining kodi **nol**. `'?'` — ko'rinmas belgi o'rniga (`s[i] >= 32 ? ... : '?'` — 3.7 dagi `?:`).
+- `'\0'` — son **0** (belgi `'0'` esa 48!). Uni "terminator" deyiladi.
+- Satr uzunligi hech qayerda saqlanmaydi — uni bilish uchun `'\0'` gacha **sanash** kerak (har safar). Python satri uzunligini ichida saqlaydi.
+
+**Savol: nega shunday qilingan?** 1970-yillarda xotira juda qimmat edi: 1 bayt terminator uzunlik maydonidan tejamliroq. Bugun bu qaror "milliard dollarlik xato"
+deb ataladi — son-sanoqsiz bufer to'lishlari shu yerdan. Lekin C va unga asoslangan barcha tizimlar (Linux syscall'lari ham) shunday ishlaydi, shuning uchun uni
+mukammal bilishingiz shart.
+
+### Satr literali va massiv farqi
+
+```c
+char s[] = "salom";         /* MASSIV: 6 baytli nusxa stekda - o'zgartirish mumkin */
+char *p = "salom";          /* KO'RSATKICH: faqat o'qiladigan xotiradagi literalga */
+
+s[0] = 'S';                 /* OK */
+p[0] = 'S';                 /* UB - odatda Segmentation fault (literal .rodata da) */
+```
+
+**Nega farq bor?** `"salom"` literali dastur fayli ichida **faqat o'qiladigan** xotira bo'limida (`.rodata`) yotadi. `char s[] = "salom";` shu literaldan **o'zingizning
+nusxangizni** stekda yasaydi — uni o'zgartirsangiz bo'ladi. `char *p = "salom";` esa **o'sha asl literalga** ko'rsatadi — o'zgartirib bo'lmaydi.
+
+```c
+/* literal_xato.c - literalni o'zgartirishga urinish */
+#include <stdio.h>
+
+int main(void)
+{
+    char s[] = "salom";                 /* o'zimizning nusxa */
+    s[0] = 'S';
+    printf("massiv: %s\n", s);
+
+    const char *p = "salom";            /* const: literalga ko'rsatadi */
+    p[0] = 'S';                         /* xato! kompilyator to'xtatadi */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra literal_xato.c -o literal_xato # xato kutiladi
+literal_xato.c: In function ‘main’:
+literal_xato.c:11:10: error: assignment of read-only location ‘*p’
+   11 |     p[0] = 'S';                         /* xato! kompilyator to'xtatadi */
+      |          ^
+```
+
+Literalga ko'rsatkichni **doim** `const char *p = "salom";` deb yozing — shunda kompilyator `p[0] = ...` ni darhol xato deydi (ish vaqtida qulashini kutmaysiz).
+
+> **Eslab qoling:** satr = `'\0'` bilan tugaydigan baytlar. `"salom"` — 6 bayt. Literalni `const char *` bilan oling; o'zgartirmoqchi bo'lsangiz — `char s[] = "..."`.
+
+## 6.5. `<string.h>` — asosiy funksiyalar
+
+| Funksiya | Nima qiladi | Tuzoq |
+|---|---|---|
+| `strlen(s)` | `'\0'` gacha uzunlik | `'\0'` bo'lmasa — xotira bo'ylab "yuguradi" |
+| `strcpy(d, s)` | s ni d ga nusxalash | **d ning hajmini tekshirmaydi** — bufer to'lishi. Ishlatmang |
+| `strncpy(d, s, n)` | ko'pi bilan n bayt | s uzun bo'lsa, `'\0'` **qo'ymaydi**! Chalkash |
+| `snprintf(d, n, "%s", s)` | xavfsiz nusxa/format | tavsiya etiladi |
+| `strcmp(a, b)` | solishtirish: <0, 0, >0 | `a == b` satrlarni emas, **manzillarni** solishtiradi! |
+| `strncmp(a, b, n)` | birinchi n bayt | prefiks tekshirish uchun |
+| `strchr(s, c)` | c ning birinchi o'rni yoki NULL | |
+| `strstr(s, t)` | t ning s ichidagi o'rni | |
+| `memcpy(d, s, n)` | n baytni nusxalash | d va s ustma-ust tushmasligi kerak |
+| `memmove(d, s, n)` | ustma-ust tushsa ham to'g'ri | |
+| `memset(d, c, n)` | n baytni c bilan to'ldirish | |
+| `memcmp(a, b, n)` | n baytni solishtirish | |
+
+**`mem*` va `str*` farqi:** `str*` — `'\0'` gacha ishlaydi (matn uchun). `mem*` — aniq n bayt (har qanday ma'lumot: struct, rasm, disk sektori). Yadroda `mem*` ko'proq ishlatiladi.
+
+MyOS'da bularning hammasi **o'zimiz yozgan**: `user/libc/string.c` (user dasturlar uchun) va `kernel/lib/string.c` (yadro uchun). 08-mashqda ulardan uchtasini o'zingiz yozasiz,
+lab'larda esa yadrodagisini.
+
+```c
+/* string_h.c - asosiy funksiyalar amalda */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    const char *s = "salom dunyo";
+
+    printf("strlen: %zu\n", strlen(s));
+    printf("strcmp(\"abc\", \"abd\") = %d (manfiy: abc < abd)\n", strcmp("abc", "abd") < 0 ? -1 : 1);
+    printf("strcmp(\"abc\", \"abc\") = %d (nol: teng)\n", strcmp("abc", "abc"));
+
+    const char *joy = strchr(s, 'd');           /* 'd' belgisining o'rni */
+    printf("strchr 'd' dan boshlab: \"%s\"\n", joy);
+    printf("strstr \"dun\": indeks %td\n", strstr(s, "dun") - s);
+
+    char buf[16];
+    memset(buf, 'x', sizeof(buf) - 1);          /* 15 ta 'x' */
+    buf[15] = '\0';
+    printf("memset: %s\n", buf);
+
+    char nusxa[16];
+    memcpy(nusxa, "abcdef", 7);                 /* 6 harf + '\0' = 7 bayt */
+    printf("memcpy: %s\n", nusxa);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra string_h.c -o string_h
+$ ./string_h
+strlen: 11
+strcmp("abc", "abd") = -1 (manfiy: abc < abd)
+strcmp("abc", "abc") = 0 (nol: teng)
+strchr 'd' dan boshlab: "dunyo"
+strstr "dun": indeks 6
+memset: xxxxxxxxxxxxxxx
+memcpy: abcdef
+```
+
+**Nima ko'rdik:** `strchr` — topilgan joydan **boshlab** satrning qolgan qismini ko'rsatadi (`"dunyo"`); `strstr(s, "dun") - s` — topilgan joy manzili minus satr boshi = **indeks** (6).
+`memcpy(..., 7)` da `'\0'` ni ham nusxalash uchun `7` bayt berdik (6 harf + terminator) — aks holda nusxa tugatilmagan bo'lib qolardi.
+
+## 6.6. Satrni belgima-belgi aylanish
+
+```c
+/* unli.c - satrdagi unli harflarni sanash */
+#include <stdio.h>
+#include <string.h>
+
+static size_t unli_soni(const char *s)
+{
+    size_t n = 0;
+    for (size_t i = 0; s[i] != '\0'; i++)       /* '\0' ni uchratguncha */
+        if (strchr("aeiouAEIOU", s[i]))         /* s[i] shu belgilar ichida bormi? */
+            n++;
+    return n;
+}
+
+int main(void)
+{
+    printf("\"Salom Dunyo\" da %zu ta unli\n", unli_soni("Salom Dunyo"));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra unli.c -o unli
+$ ./unli
+"Salom Dunyo" da 4 ta unli
+```
+
+**Qadamlar:** sikl `s[0]`, `s[1]`, … `s[i] == '\0'` bo'lguncha ketadi (uzunlikni oldindan bilish shart emas). Har belgi uchun `strchr("aeiouAEIOU", belgi)` — "bu belgi unlilar
+ro'yxatida bormi?" (topilsa manzil — rost; topilmasa `NULL` — yolg'on). `"Salom Dunyo"`: `a`, `o`, `u`, `o` = **4**.
+
+Ko'rsatkich bilan (7-bobdan keyin shunday yozasiz): `for (const char *p = s; *p; p++) ...`.
+
+## 6.7. `<ctype.h>` — belgilarni tekshirish
+
+`isdigit(c)` (raqammi?), `isalpha(c)` (harfmi?), `isalnum(c)`, `isspace(c)` (bo'shliqmi?), `isupper(c)`, `tolower(c)`, `toupper(c)`.
+
+**Tuzoq:** ularga faqat `unsigned char` qiymati yoki `EOF` berish mumkin. x86'da `char` ishorali: UTF-8 dagi `'é'` baytlari (0xC3 0xA9) manfiy son bo'lib qoladi → **UB**.
+To'g'ri yozuv:
+
+```c
+if (isalpha((unsigned char)s[i]))
+```
+
+```c
+/* ctype_misol.c - belgilarni turlarga ajratish */
+#include <ctype.h>
+#include <stdio.h>
+
+int main(void)
+{
+    const char *s = "Salom, 2026-yil!";
+    int harf = 0, raqam = 0, boshqa = 0;
+
+    for (int i = 0; s[i] != '\0'; i++) {
+        unsigned char c = (unsigned char)s[i];      /* manfiy bo'lmasligi uchun */
+        if (isalpha(c))
+            harf++;
+        else if (isdigit(c))
+            raqam++;
+        else
+            boshqa++;
+    }
+    printf("harf: %d, raqam: %d, boshqa: %d\n", harf, raqam, boshqa);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ctype_misol.c -o ctype_misol
+$ ./ctype_misol
+harf: 8, raqam: 4, boshqa: 4
+```
+
+(10-mashq aynan shu `unsigned char` tuzog'ini tekshiradi.)
+
+## 6.8. Satrlarni solishtirish va nusxalash — to'g'ri usullar
+
+**Hayotdan misol: ikki kitob.** Qo'lingizda ikki nusxa "O'tkan kunlar" bor. Matni bir xilmi? Ha (`strcmp` = 0). Bu **bitta** kitobmi? Yo'q (`==` manzillarni solishtiradi — ular har xil).
+
+```c
+/* solishtir.c - == va strcmp farqi */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    char a[] = "exit";
+    char b[] = "exit";                  /* matni bir xil, lekin ALOHIDA massiv */
+
+    if (a == b)
+        printf("a == b: teng\n");
+    else
+        printf("a == b: teng emas (manzillar farq qiladi)\n");
+
+    if (strcmp(a, b) == 0)
+        printf("strcmp: matnlar teng\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra solishtir.c -o solishtir # xato kutiladi
+solishtir.c: In function ‘main’:
+solishtir.c:10:11: warning: comparison between two arrays [-Warray-compare]
+   10 |     if (a == b)
+      |           ^~
+solishtir.c:10:11: note: use ‘&a[0] == &b[0]’ to compare the addresses
+$ ./solishtir
+a == b: teng emas (manzillar farq qiladi)
+strcmp: matnlar teng
+```
+
+Kompilyator ham ogohlantirdi (`comparison between two arrays`). Satrlarni **faqat `strcmp`** bilan solishtiring: `if (strcmp(buyruq, "exit") == 0)`.
+
+### Xavfsiz nusxalash: `snprintf`
+
+**Hayotdan misol: chelakka ko'p suv.** 10 litrlik chelakka 15 litr quysangiz, 5 litr polga to'kiladi. `strcpy` chelak o'lchamini **bilmaydi** — quyib ketaveradi.
+`snprintf(buf, sizeof(buf), ...)` esa chelak o'lchamini biladi va ortig'ini quymaydi.
+
+```c
+/* snprintf_misol.c - xavfsiz nusxalash */
+#include <stdio.h>
+
+int main(void)
+{
+    char buf[16];                       /* 15 belgi + '\0' */
+    /* volatile: kompilyator satr uzunligini oldindan ko'rib ogohlantirmasligi uchun
+       (haqiqiy dasturda matn foydalanuvchidan keladi) */
+    const char *volatile papka = "/home/foydalanuvchi";
+    const char *volatile fayl = "hujjat.txt";
+
+    int n = snprintf(buf, sizeof(buf), "%s/%s", papka, fayl);
+    printf("buferda: \"%s\"\n", buf);
+    printf("kerak edi: %d belgi, sig'di: %zu\n", n, sizeof(buf) - 1);
+    if (n >= (int)sizeof(buf))
+        printf("natija QISQARTIRILDI!\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra snprintf_misol.c -o snprintf_misol
+$ ./snprintf_misol
+buferda: "/home/foydalanu"
+kerak edi: 30 belgi, sig'di: 15
+natija QISQARTIRILDI!
+```
+
+`snprintf` qaytaradi: **to'liq natija uchun kerak bo'lgan** uzunlikni. Agar u `>= sizeof(buf)` bo'lsa — natija **qisqartirilgan**. Bufer to'lmadi (xotira buzilmadi),
+va biz qisqartirilganini bilamiz. Bu "joy — n, lekin haqiqiy kerakli sonni qaytaraman" uslubi (09-mashq, BSD `strlcpy`) C'ning xavfsiz satr funksiyalari uchun standart.
+
+## 6.9. Satrni o'qish (klaviaturadan)
+
+```c
+/* qator_oqish.c - klaviaturadan qator o'qish */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    char qator[256];
+    if (fgets(qator, sizeof(qator), stdin)) {       /* ko'pi bilan 255 belgi + '\0' */
+        qator[strcspn(qator, "\n")] = '\0';          /* oxiridagi '\n' ni olib tashlash */
+        printf("o'qildi: \"%s\" (%zu belgi)\n", qator, strlen(qator));
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra qator_oqish.c -o qator_oqish
+$ echo "salom dunyo" | ./qator_oqish
+o'qildi: "salom dunyo" (11 belgi)
+```
+
+**Qadamlar:** `fgets(qator, sizeof(qator), stdin)` — "klaviatura (`stdin`)dan qator o'qi, lekin `qator` ga **ko'pi bilan** `sizeof(qator) - 1` belgi yoz" — **bufer hajmini biladi**.
+`fgets` qator oxiridagi `'\n'` ni ham saqlaydi; `strcspn(qator, "\n")` — "birinchi `'\n'` indeksi" — shu joyga `'\0'` yozib, uni olib tashlaymiz. (Biz `echo ... |` bilan "klaviatura" o'rniga matn berdik.)
+
+**Hech qachon `gets` ishlatmang** — u bufer hajmini bilmaydi va standartdan olib tashlangan. `scanf("%s", buf)` ham xuddi shunday xavfli (kenglik ko'rsatilmasa).
+
+## 6.10. Satr ↔ son
+
+```c
+/* satr_son.c - satrni songa aylantirish */
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+    char *end;
+    long x = strtol("123", &end, 10);
+    printf("strtol(\"123\"): %ld, tugadi: %s\n", x, *end == '\0' ? "to'liq" : "qoldiq bor");
+
+    long y = strtol("12abc", &end, 10);
+    printf("strtol(\"12abc\"): %ld, qoldiq: \"%s\"\n", y, end);
+
+    printf("atoi(\"abc\") = %d (xato haqida xabar bermaydi!)\n", atoi("abc"));
+
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", 42);       /* son -> satr */
+    printf("son -> satr: \"%s\"\n", buf);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra satr_son.c -o satr_son
+$ ./satr_son
+strtol("123"): 123, tugadi: to'liq
+strtol("12abc"): 12, qoldiq: "abc"
+atoi("abc") = 0 (xato haqida xabar bermaydi!)
+son -> satr: "42"
+```
+
+**Kodda nimalar bor:**
+
+- `strtol(satr, &end, 10)` — "satrni **10** lik sanoq tizimida songa aylantir; qayergacha o'qiganingni `end` ga yoz". `&end` — `end` ning **manzili** berilyapti, chunki funksiya uni o'zgartirishi kerak (5.4 dagi usul).
+- `*end == '\0'` — "hamma belgi o'qildi". `"12abc"` da son 12, qoldiq `"abc"` — shuning uchun xato aniqlanadi.
+- `atoi("abc")` jim `0` qaytaradi — "xato" va "haqiqiy 0" ni ajratib bo'lmaydi. Shuning uchun `strtol` yaxshiroq.
+- `snprintf(buf, sizeof(buf), "%d", 42)` — son → satr.
+
+11 va 12-mashqlarda bularni **o'zingiz** yozasiz — `printf` ning yuragi (`kernel/lib/kprintf.c`) aynan shunday ishlaydi.
+
+## Hayotdan misol va to'liq dastur
+
+**SMS va haftalik ob-havo.** Bu dasturda: satr (SMS), bufer o'lchami, satr ichida qidirish va ikki o'lchamli massiv.
 
 ```c
 /* sms.c - satrlar, bufer o'lchami va ikki o'lchamli massiv */
@@ -85,236 +718,56 @@ Du: 12..20  Se: 10..18  Ch: 14..25  Pa: 15..27  Ju: 11..19  Sh:  9..16  Ya: 13..
 Eng issiq kun: Pa (27 gradus)
 ```
 
-**Sinab ko'ring:** `char sms[30]` ni `char sms[100]` qiling. `harorat[kun][1]` ni `harorat[kun][2]` qilib,
-`-fsanitize=address` bilan yig'ing — sanitizer nima deydi (6.2)?
+**Kodda nimalar bor:**
 
-## 6.1. Massiv
-
-```c
-int a[5] = { 10, 20, 30, 40, 50 };
-```
-
-Xotirada — **ketma-ket** 5 ta `int`, jami 20 bayt:
-
-```text
-manzil:  1000   1004   1008   1012   1016
-         [ 10 ][ 20 ][ 30 ][ 40 ][ 50 ]
-          a[0]  a[1]  a[2]  a[3]  a[4]
-```
-
-- Indeks **0 dan** boshlanadi: oxirgisi `a[4]`, `a[5]` — massivdan tashqari!
-- O'lcham **qat'iy**: `a` ni 6 elementga "o'stirib" bo'lmaydi.
-- `a[i]` ning manzili = `a` ning manzili + `i * sizeof(int)`. Shuning uchun murojaat O(1) va juda tez.
-
-### Boshlash usullari
-
-```c
-int a[5];                       /* lokal bo'lsa - AXLAT qiymatlar */
-int b[5] = { 0 };               /* hammasi 0 (qolganlari avtomatik 0) */
-int c[] = { 1, 2, 3 };          /* o'lchamni kompilyator hisoblaydi: 3 */
-int d[100] = { [10] = 5, [99] = 7 };    /* nomlangan indekslar, qolgani 0 */
-```
-
-### Massiv uzunligi
-
-```c
-size_t n = sizeof(a) / sizeof(a[0]);    /* 20 / 4 = 5 */
-```
-
-Bu **faqat massiv e'lon qilingan joyda** ishlaydi! Funksiyaga uzatilganda massiv ko'rsatkichga
-aylanadi va `sizeof` ko'rsatkich hajmini (8) beradi:
-
-```c
-void f(int a[])                 /* aslida: int *a */
-{
-    size_t n = sizeof(a) / sizeof(a[0]);    /* 8 / 4 = 2 - XATO! */
-}
-```
-
-GCC buni ogohlantiradi (`sizeof on array function parameter`). Shuning uchun C'da **massiv doim
-uzunligi bilan birga uzatiladi**: `void f(const int *a, size_t n)`. Standart kutubxonada ham, yadroda
-ham — `buf, len` juftligi hamma joyda (`read(fd, buf, len)`, `memcpy(dst, src, n)`).
-
-## 6.2. Chegaradan chiqish — C'ning eng xavfli xatosi
-
-```c
-int a[5];
-a[5] = 99;          /* massivdan tashqariga yozish */
-a[-1] = 0;          /* bu ham */
-```
-
-C **tekshirmaydi**. Kompilyator ham (ko'pincha), ish vaqtida ham. Natija:
-- yonidagi o'zgaruvchi jim buziladi;
-- funksiyaning qaytish manzili ustidan yoziladi → dastur boshqa joyga "sakraydi";
-- yoki hech narsa bo'lmaydi — bugun. Ertaga boshqa kompilyator bilan qulaydi.
-
-Tarixdagi eng ko'p xavfsizlik hujumlari (Morris qurti, 1988-yildan beri) aynan shundan boshlangan:
-foydalanuvchi bergan uzun satr stekdagi buferdan toshib, qaytish manzilini o'zgartiradi.
-
-**Himoya:** `-fsanitize=address` (o'rganishda), har bir indeksni tekshirish, uzunlikni doim uzatish.
-Yadroda sanitizer yo'q — faqat intizom.
-
-## 6.3. Ko'p o'lchamli massivlar
-
-```c
-int m[3][4];                    /* 3 qator, 4 ustun */
-m[1][2] = 7;
-```
-
-Xotirada — qatorma-qator ketma-ket (12 ta `int`): `m[1][2]` manzili = `m + (1 * 4 + 2) * 4`.
-Katta matritsalarni qatorma-qator aylanish (`for i` tashqarida, `for j` ichkarida) keshga mos va tez.
-
-## 6.4. Satr — `'\0'` bilan tugaydigan `char` massivi
-
-C'da alohida "satr" turi **yo'q**. Satr — oxirida **nol bayt** (`'\0'`) bo'lgan `char` massivi:
-
-```c
-char s[] = "salom";
-```
-
-```text
-s[0] s[1] s[2] s[3] s[4] s[5]
- 's'  'a'  'l'  'o'  'm'  '\0'      -> jami 6 bayt!
-```
-
-- `sizeof(s)` = 6, `strlen(s)` = 5 (`'\0'` sanalmaydi).
-- `'\0'` — son **0** (belgi `'0'` emas, u 48). Uni "terminator" deyiladi.
-- Satr uzunligi hech qayerda saqlanmaydi — uni bilish uchun `'\0'` gacha **sanash** kerak (O(n)).
-  Python satri esa uzunligini ichida saqlaydi.
-
-**Savol: nega shunday qilingan?**
-1970-yillarda xotira juda qimmat edi: 1 bayt terminator uzunlik maydonidan tejamliroq. Bugun bu
-qaror "milliard dollarlik xato" deb ataladi — son-sanoqsiz bufer to'lishlari shu yerdan. Lekin C
-va unga asoslangan barcha tizimlar (Linux syscall'lari ham) shunday ishlaydi, shuning uchun uni
-mukammal bilishingiz shart.
-
-### Satr literali va massiv farqi
-
-```c
-char s[] = "salom";         /* MASSIV: 6 baytli nusxa stekda - o'zgartirish mumkin */
-char *p = "salom";          /* KO'RSATKICH: faqat o'qiladigan xotiradagi literalga */
-
-s[0] = 'S';                 /* OK */
-p[0] = 'S';                 /* UB - odatda Segmentation fault (literal .rodata da) */
-```
-
-Literalga ko'rsatkichni doim `const char *p = "salom";` deb yozing — shunda kompilyator `p[0] = ...` ni
-darhol xato deydi.
-
-## 6.5. `<string.h>` — asosiy funksiyalar
-
-| Funksiya | Nima qiladi | Tuzoq |
+| Nom | Tur | Nima uchun |
 |---|---|---|
-| `strlen(s)` | `'\0'` gacha uzunlik | `'\0'` bo'lmasa — xotira bo'ylab "yuguradi" |
-| `strcpy(d, s)` | s ni d ga nusxalash | **d ning hajmini tekshirmaydi** — bufer to'lishi. Ishlatmang |
-| `strncpy(d, s, n)` | ko'pi bilan n bayt | s uzun bo'lsa, `'\0'` **qo'ymaydi**! Chalkash |
-| `snprintf(d, n, "%s", s)` | xavfsiz nusxa/format | ✅ tavsiya etiladi |
-| `strcmp(a, b)` | solishtirish: <0, 0, >0 | `a == b` satrlarni emas, **manzillarni** solishtiradi! |
-| `strncmp(a, b, n)` | birinchi n bayt | prefiks tekshirish uchun |
-| `strchr(s, c)` | c ning birinchi o'rni yoki NULL | |
-| `strstr(s, t)` | t ning s ichidagi o'rni | |
-| `memcpy(d, s, n)` | n baytni nusxalash | d va s ustma-ust tushmasligi kerak |
-| `memmove(d, s, n)` | ustma-ust tushsa ham to'g'ri | |
-| `memset(d, c, n)` | n baytni c bilan to'ldirish | |
-| `memcmp(a, b, n)` | n baytni solishtirish | |
+| `sms` | `char[30]` | 30 baytli bufer: 29 belgi + `'\0'`. SMS ekraniga sig'adigan matn |
+| `ism`, `matn` | `const char *volatile` | matn manzillari. `volatile` — kompilyator oldindan hisoblab ogohlantirmasligi uchun (haqiqiy dasturda matn tashqaridan keladi) |
+| `xabar` | `const char *` | qidiriladigan satr |
+| `kunlar[7]` | 7 ta satr manzili | kun nomlari |
+| `harorat[7][2]` | 7 qator × 2 ustun | har kun: `[0]` — ertalab, `[1]` — kechqurun |
+| `eng_issiq` | `int` | hozirgacha eng issiq kechqurunning **indeksi** |
 
-**`mem*` va `str*` farqi:** `str*` — `'\0'` gacha ishlaydi (matn uchun). `mem*` — aniq n bayt
-(har qanday ma'lumot: struct, rasm, disk sektori). Yadroda `mem*` ko'proq ishlatiladi.
+**Qadamlar:**
 
-MyOS'da bularning hammasi **o'zimiz yozgan**: `user/libc/string.c` (user dasturlar uchun) va
-`kernel/lib/string.c` (yadro uchun). 08-mashqda ulardan uchtasini o'zingiz yozasiz, lab'larda esa
-yadrodagisini.
+1. `snprintf` "Salom Dilnoza! Ertaga soat 9 da uchrashamiz." (44 belgi) ni 30 baytli buferga yozdi: faqat 29 tasi sig'di, qolgani **kesildi** (xotira buzilmadi). Qaytgan `n = 44` — kerak bo'lgan uzunlik.
+2. `strstr(xabar, "Kod: ")` — "Kod: " ning o'rnini topadi; `topildi + 5` — undan 5 belgi keyin (kod boshi); `%.4s` — **faqat 4 belgi** chiqar → `4821`.
+3. Sikl har kunning haroratini chiqaradi; `harorat[kun][1] > harorat[eng_issiq][1]` — joriy kun hozirgi rekorddan issiqmi? Ha → `eng_issiq = kun`. Oxirida `Pa` (27).
 
-## 6.6. Satrni belgima-belgi aylanish
+**Sinab ko'ring:** `char sms[30]` ni `char sms[100]` qiling. `harorat[kun][1]` ni `harorat[kun][2]` qilib, `-fsanitize=address` bilan yig'ing — sanitizer nima deydi (6.2)?
 
-```c
-size_t unli_soni(const char *s)
-{
-    size_t n = 0;
-    for (size_t i = 0; s[i] != '\0'; i++)       /* yoki: s[i] */
-        if (strchr("aeiouAEIOU", s[i]))
-            n++;
-    return n;
-}
-```
+## Bob xulosasi (yodlash uchun)
 
-Ko'rsatkich bilan (7-bobdan keyin shunday yozasiz):
+1. Massiv — bir xil turdagi **ketma-ket** qutilar; indeks **0 dan**; uzunlik **qat'iy**; `a[i]` manzili = boshi + `i * hajm`.
+2. C chegarani **tekshirmaydi** (`a[5]`, 5 elementli massivda — xato). Funksiyaga massivni **uzunligi bilan** bering; `-fsanitize=address` bilan sinang.
+3. Satr = `'\0'` bilan tugaydigan `char` massivi: `"salom"` = 6 bayt (`sizeof`), `strlen` = 5.
+4. Satrni `==` bilan emas, **`strcmp`** bilan solishtiring; nusxalash — **`snprintf`** (`strcpy` emas); o'qish — `fgets` (`gets` emas).
+5. Literal — `const char *p = "..."` (o'zgartirib bo'lmaydi); o'zgartiriladigan satr — `char s[] = "..."`.
 
-```c
-for (const char *p = s; *p; p++)
-    ...
-```
-
-## 6.7. `<ctype.h>` — belgilarni tekshirish
-
-`isdigit(c)`, `isalpha(c)`, `isalnum(c)`, `isspace(c)`, `isupper(c)`, `tolower(c)`, `toupper(c)`.
-
-**Tuzoq:** ularga faqat `unsigned char` qiymati yoki `EOF` berish mumkin. x86'da `char` ishorali:
-UTF-8 dagi `'é'` baytlari (0xC3 0xA9) manfiy son bo'lib qoladi → **UB**. To'g'ri yozuv:
-
-```c
-if (isalpha((unsigned char)s[i]))
-```
-
-(10-mashq aynan shuni tekshiradi.)
-
-## 6.8. Satrlarni solishtirish va nusxalash — to'g'ri usullar
-
-```c
-if (strcmp(buyruq, "exit") == 0) { ... }        /* teng */
-
-char buf[64];
-snprintf(buf, sizeof(buf), "%s/%s", papka, fayl);   /* hech qachon 64 dan oshmaydi */
-```
-
-`snprintf` qaytaradi: **to'liq natija uchun kerak bo'lgan** uzunlikni. Agar u `>= sizeof(buf)` bo'lsa —
-natija qisqartirilgan. Bu "joy — n, lekin haqiqiy kerakli sonni qaytaraman" uslubi (09-mashq,
-BSD `strlcpy`) C'ning xavfsiz satr funksiyalari uchun standart.
-
-## 6.9. Satrni o'qish (klaviaturadan)
-
-```c
-char qator[256];
-if (fgets(qator, sizeof(qator), stdin)) {       /* ko'pi bilan 255 belgi + '\0' */
-    qator[strcspn(qator, "\n")] = '\0';          /* oxiridagi '\n' ni olib tashlash */
-}
-```
-
-**Hech qachon `gets` ishlatmang** — u bufer hajmini bilmaydi va standartdan olib tashlangan.
-`scanf("%s", buf)` ham xuddi shunday xavfli (kenglik ko'rsatilmasa).
-
-## 6.10. Satr ↔ son
-
-```c
-long x = strtol("123", &end, 10);   /* satr -> son, xatolarni tekshirish mumkin */
-int y = atoi("123");                /* oddiy, lekin xatoni bildirmaydi: atoi("abc") == 0 */
-snprintf(buf, sizeof(buf), "%d", 42);   /* son -> satr */
-```
-
-11 va 12-mashqlarda bularni **o'zingiz** yozasiz — `printf` ning yuragi (`kernel/lib/kprintf.c`)
-aynan shunday ishlaydi.
-
-## 6.11. Savol-javob
+## Savol-javob
 
 **`char s[10] = "salom";` — qolgan 4 bayt nima?**
 Nol. Boshlang'ich qiymat qisman berilsa, qolgani 0 bilan to'ldiriladi.
 
 **`char s[5] = "salom";` — xato bo'ladimi?**
-C'da **yo'q** (C++'da xato): 5 ta harf sig'adi, lekin `'\0'` uchun joy yo'q — `s` satr emas, oddiy
-massiv bo'lib qoladi. `strlen(s)` xotira bo'ylab yuguradi. Klassik jim xato.
+C'da **yo'q** (C++'da xato): 5 ta harf sig'adi, lekin `'\0'` uchun joy yo'q — `s` satr emas, oddiy massiv bo'lib qoladi. `strlen(s)` xotira bo'ylab yuguradi. Klassik jim xato.
 
 **UTF-8 (o'zbekcha `o'`, `g'`, kirill) qanday saqlanadi?**
-Lotin o'zbek alifbosi ASCII'da (apostrof ham). Kirill yoki `é` — bir belgi 2–4 bayt. `strlen`
-**baytlarni** sanaydi, belgilarni emas: `strlen("дом")` = 6. MyOS terminal emulyatori UTF-8 ni
-qanday dekodlashini `kernel/drivers/vt.c` da ko'rishingiz mumkin.
+Lotin o'zbek alifbosi ASCII'da (apostrof ham). Kirill yoki `é` — bir belgi 2–4 bayt. `strlen` **baytlarni** sanaydi, belgilarni emas: `strlen("дом")` = 6.
+MyOS terminal emulyatori UTF-8 ni qanday dekodlashini `kernel/drivers/vt.c` da ko'rishingiz mumkin.
 
-## 6.12. O'zingizni tekshiring
+**Nega C massivga `.length` bermaydi?**
+Massiv — shunchaki xotira bo'lagi; hech qayerda uzunlik yozilmagan (Python ro'yxati esa uzunligini ichida saqlaydi). Uzunlikni **siz** saqlaysiz va uzatasiz.
+
+## O'zingizni tekshiring
 
 1. `int a[10];` — `a[10]` ga yozish nima?
 2. `char s[] = "abc";` — `sizeof(s)` va `strlen(s)`?
 3. `if (s == "exit")` nima uchun deyarli doim yolg'on?
 4. Funksiya ichida massiv uzunligini `sizeof` bilan bilsa bo'ladimi?
 5. `strcpy` o'rniga nimani ishlatish kerak?
+6. `int m[3][4];` — `m[2][1]` xotirada nechanchi (0 dan) o'rinda turadi?
 
 <details><summary>Javoblar</summary>
 
@@ -323,9 +776,10 @@ qanday dekodlashini `kernel/drivers/vt.c` da ko'rishingiz mumkin.
 3. Ikki manzil solishtiriladi (massiv va literal manzili), mazmun emas. `strcmp(s, "exit") == 0` kerak.
 4. Yo'q — parametr ko'rsatkichga aylanadi; uzunlikni alohida uzating.
 5. `snprintf(d, sizeof(d), "%s", s)` yoki o'z `strlcpy` (09-mashq).
+6. `2 * 4 + 1 = 9`.
 </details>
 
-## 6.13. Mashqlar
+## Mashq
 
 - **05** — massivlar. **08** — `strlen`, `strchr`, `strcmp` ni o'zingiz yozish.
 - **09** — xavfsiz nusxalash. **10** — ikki ko'rsatkich usuli.
