@@ -1,42 +1,45 @@
 # 30-bob. Yadro arxitekturasi va Linux'ga yo'l
 
-> **Bu bobdan keyin:** yadro turlarini (monolit, mikroyadro, gibrid, exokernel, unikernel), MyOS, xv6
-> va Linux'ni solishtirishni, Linux manba kodining xaritasini, uning kod uslubi va patch yuborish
-> jarayonini bilasiz. Bu — MyOS'dan keyin haqiqiy katta yadroga o'tish uchun xarita. (Odatda "Linux
-> Kernel Development" va "Understanding the Linux Kernel" kitoblaridan o'rganiladigan umumiy manzara.)
+> **Bu bobda nima o'rganasiz:** yadro **nima qilishini** (besh vazifa); yadro turlarini (monolit, mikroyadro, gibrid) va ularning farqini; syscall jadvali qanday ishlashini; yuklanadigan modul nima ekanini; MyOS, xv6 va Linux'ni solishtirishni;
+> Linux manba kodining xaritasini; Linux'ga o'zgartirish (patch) yuborish tartibini. Bu — MyOS'dan keyin haqiqiy katta yadroga o'tish uchun xarita. (Odatda "Linux Kernel Development" va "Understanding the Linux Kernel" kitoblaridan o'rganiladigan umumiy manzara.)
+> **Oldindan nima kerak:** 14-, 23-, 24-, 27-boblar (syscall, jarayonlar, xotira, fayl tizimlari).   **Vaqt:** 5–7 soat.
 
 > **To'liq ishlaydigan misol:** [misollar/30_yadro_moduli/](misollar/30_yadro_moduli/salom_modul.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Yadro — shahar hokimiyati (30.1).** Hokimiyat besh ishni qiladi, yadro ham:
-1. **Resurslarni taqsimlash** — yer uchastkalari (xotira), yo'llardagi navbat (CPU vaqti).
-2. **Himoya** — bir fuqaro boshqasining uyiga kira olmaydi (jarayonlar izolyatsiyasi).
-3. **Xizmatlar** — davlat xizmatlari markazi: ariza berasiz, ular bajaradi (syscall'lar).
-4. **Umumiy infratuzilma** — yo'llar, suv quvurlari (drayverlar, fayl tizimlari, tarmoq).
-5. **Abstraksiya** — fuqaro elektr stantsiyasi qanday ishlashini bilmaydi, faqat rozetkadan foydalanadi
-   (dastur diskning turini bilmaydi, faqat `read` chaqiradi).
+Siz endi yadroning har bir bo'lagini (xotira, jarayonlar, fayl tizimi, qulflar) alohida bilasiz. Bu bobda ularni **bitta rasmga** yig'amiz: yadro **butun** nima qiladi, uni qanday **tuzish** mumkin (arxitektura tanlovi) va katta haqiqiy yadro
+(Linux) ning kodini **qayerdan** o'qish kerak.
 
-**Monolit yadro — bitta katta vazirlik binosi (30.2).** Hamma bo'limlar bir binoda: gaplashish tez
-(oddiy funksiya chaqiruvi). Lekin bitta bo'limda yong'in chiqsa — butun bino yonadi (drayverdagi xato
-butun tizimni qulatadi). Linux — monolit.
+**Hayotdan misol: yadro — shahar hokimiyati.**
 
-**Mikroyadro — alohida binolar (30.2).** Har bir bo'lim o'z binosida, faqat xat (xabar) orqali gaplashadi.
-Bittasi yonsa, boshqalari ishlayveradi — xavfsizroq. Lekin xat yuborish sekinroq. Masalan, seL4, QNX.
+| Hokimiyat nima qiladi | Yadro nima qiladi |
+|---|---|
+| yer uchastkalarini va yo'ldagi navbatni taqsimlaydi | **resurslarni taqsimlash** — xotira, CPU vaqti |
+| bir fuqaro boshqasining uyiga kira olmaydi | **himoya** — jarayonlar izolyatsiyasi |
+| davlat xizmatlari markazi: ariza berasiz, bajarishadi | **xizmatlar** — syscall'lar |
+| yo'llar, suv quvurlari | **umumiy infratuzilma** — drayverlar, fayl tizimlari, tarmoq |
+| fuqaro elektr stantsiyasi qanday ishlashini bilmaydi, rozetkadan foydalanadi | **abstraksiya** — dastur diskning turini bilmaydi, faqat `read` chaqiradi |
 
-**Modul — binoga vaqtinchalik qo'shiladigan bo'lim (30.6).** Yangi xizmat kerak bo'lsa, butun binoni
-qayta qurmaysiz — bo'sh xonaga yangi bo'lim ko'chib kiradi (`insmod`) va keraksiz bo'lganda chiqib ketadi
-(`rmmod`). Linux drayverlarining ko'pi modul.
+## 30.1. Yadro nima qiladi — besh vazifa
 
-**Patch yuborish — qonun loyihasi (30.7).** Taklif yozasiz (patch), u pochta ro'yxatida muhokama
-qilinadi, mutaxassislar (maintainer) tanqid qiladi, siz tuzatasiz (v2, v3...), oxirida qabul qilinadi
-va keyingi relizga kiradi. Jarayon sekin, lekin har bir qator ko'p ko'zdan o'tadi.
+| # | Vazifa | Bobda |
+|---|---|---|
+| 1 | **CPU'ni bo'lish** — jarayonlar, oqimlar, rejalashtirish | 23 |
+| 2 | **Xotirani bo'lish va himoya** — virtual xotira | 24, 25 |
+| 3 | **Qurilmalarni boshqarish** — drayverlar | 16, 27 |
+| 4 | **Fayllar va saqlash** — VFS, fayl tizimlari | 27 |
+| 5 | **Aloqa** — pipe, signallar, soketlar, tarmoq | 14 |
 
-### To'liq dastur: syscall jadvali (yadroning "xizmatlar markazi")
+Hammasi **himoya chegarasi** orqali: **user rejimi** (3-halqa) faqat syscall bilan so'raydi, **yadro** (0-halqa) tekshiradi va bajaradi.
 
-Haqiqiy yadroda syscall raqami funksiyalar jadvalidan kerakli ishlovchini tanlaydi. Bu yerda xuddi shu
-mexanizm oddiy dasturda — funksiya ko'rsatkichlari massivi bilan.
+### Xizmatlar jadvali (syscall jadvali)
+
+**Oddiy qilib aytganda:** dastur yadrodan xizmat so'raganda **raqam** beradi ("7-xizmat"). Yadro shu raqam bo'yicha **funksiyalar jadvalidan** kerakli ishlovchini topib chaqiradi. Bu 7-bobdagi funksiya ko'rsatkichlari massivining
+bevosita qo'llanishi.
+
+**Bu dastur nima qiladi (umumiy):** uchta "xizmat" (`getpid`, `qosh`, `bol`) funksiyalarini jadvalga joylaydi va "arizalar" (raqam + argumentlar) ni qabul qiluvchi `syscall_kirish` funksiyasini yozadi. Noma'lum raqamga yadro xato qaytaradi.
 
 ```c
 /* xizmatlar.c - syscall jadvali: raqam -> ishlovchi funksiya, noma'lum raqamga -ENOSYS */
@@ -98,58 +101,192 @@ syscall  2 (bol   ) -> xato -22 (EINVAL: noto'g'ri argument)
 syscall 99 (?     ) -> xato -38 (ENOSYS: bunday xizmat yo'q)
 ```
 
-Yadro xatolarni **manfiy** son bilan qaytaradi (`-ENOSYS`, `-EINVAL`). libc esa uni musbat `errno` ga
-aylantirib, funksiyadan −1 qaytaradi (12-bob).
+**Qismlar:**
 
-**Sinab ko'ring:** `[3] = x_kopaytir` qo'shing. MyOS'ning haqiqiy jadvalini oching:
-`grep -n "SYS_" kernel/syscall/*.c | head` — xuddi shu tuzilmani taniysizmi?
+| Qism | Vazifasi |
+|---|---|
+| `typedef long (*ishlovchi)(long a, long b)` | "ikkita `long` oladigan, `long` qaytaradigan funksiya" turi (funksiya ko'rsatkichi, 7-bob) |
+| `jadval[] = { [0] = x_getpid, ... }` | **raqam → funksiya** jadvali. `[0] =` — "0-indeksga shuni qo'y" (designated initializer, 9-bob) |
+| `syscall_kirish(raqam, a, b)` | yadroning "qabulxonasi": raqamni tekshiradi, jadvaldan funksiyani topib, chaqiradi |
+| `raqam >= sizeof(jadval)/sizeof(jadval[0]) \|\| !jadval[raqam]` | raqam jadval chegarasidan tashqarida yoki shu katak bo'sh → `-ENOSYS` |
+| `return -EINVAL` (`x_bol` ichida) | argument noto'g'ri (0 ga bo'lish) → xato kodi |
 
-## 30.1. Yadro nima qiladi — besh vazifa
+**Nima ko'rdik:** 5 ariza: `getpid` → 42; `qosh(20, 22)` → 42; `bol(100, 7)` → 14; `bol(5, 0)` → `-22` (**EINVAL**); `99` raqamli xizmat yo'q → `-38` (**ENOSYS**).
 
-1. **CPU'ni bo'lish** — jarayonlar, oqimlar, rejalashtirish (23-bob).
-2. **Xotirani bo'lish va himoya** — virtual xotira (24–25-boblar).
-3. **Qurilmalarni boshqarish** — drayverlar (16, 27-boblar).
-4. **Fayllar va saqlash** — VFS, fayl tizimlari (27-bob).
-5. **Aloqa** — pipe, signallar, soketlar, tarmoq (14-bob).
+Yadro xatolarni **manfiy** son bilan qaytaradi (`-ENOSYS`, `-EINVAL`): musbat sonlar — muvaffaqiyatli natija. libc esa uni musbat `errno` ga aylantirib, funksiyadan `-1` qaytaradi (12-bob).
 
-Hammasi **himoya chegarasi** orqali: user rejimi (3-halqa) faqat syscall bilan so'raydi, yadro (0-halqa)
-tekshiradi va bajaradi.
+**Linux va MyOS'da:** Linux — xuddi shunday jadval: `sys_call_table[__NR_xxx] = sys_xxx`. MyOS esa `kernel/sys/syscall.c` da katta `switch (nr) { case SYS_GETPID: ... }` ishlatadi — g'oya bir xil ("raqam → ishlovchi"), faqat yozilishi boshqa.
+Raqamlar ro'yxati — `include/myos/abi.h`.
 
-## 30.2. Arxitektura turlari
+> **Eslab qoling:** syscall = **raqam** + argumentlar. Yadro jadval (yoki `switch`) orqali ishlovchini topadi; xato — manfiy son (`-ENOSYS` = "bunday xizmat yo'q").
 
-### Monolit yadro
+## 30.2. Arxitektura turlari: yadro qanday tuzilishi mumkin
 
-Hamma xizmatlar (scheduler, xotira, fayl tizimlari, drayverlar, tarmoq) **bitta** manzil maydonida,
-yadro rejimida. Bir-birini oddiy funksiya chaqiruvi bilan chaqiradi.
-- ✅ Tez: qatlamlar orasida xabar almashish yo'q.
-- ❌ Bitta drayvervagi xato butun tizimni qulatadi; kod bazasi ulkan.
-- **Misollar:** Linux, FreeBSD, **MyOS**, xv6.
-- Linux buni **yuklanadigan modullar** bilan yumshatadi: drayverlar alohida `.ko` fayllar, lekin yuklangach
-  — baribir yadroning bir qismi.
+**Oddiy qilib aytganda:** yadro ko'p qismdan iborat (scheduler, xotira, fayl tizimlari, drayverlar, tarmoq). Savol: **bularning hammasi bitta katta dasturdami yoki alohida dasturlarmi?** Javobga qarab yadro turi o'zgaradi.
 
-### Mikroyadro
+| Tur | G'oya | Hayotdan misol |
+|---|---|---|
+| **Monolit** | hammasi yadro rejimida, bitta manzil maydonida | bitta katta vazirlik binosi: bo'limlar bir binoda, gaplashish tez; bittasida yong'in chiqsa — butun bino yonadi |
+| **Mikroyadro** | yadroda faqat eng zarur; qolgani — alohida user serverlari, xabar bilan gaplashadi | alohida binolar, xat orqali aloqa: bittasi yonsa, boshqalari ishlayveradi; lekin xat sekinroq |
+| **Gibrid** | mikroyadro g'oyasi + ko'p xizmat tezlik uchun yadroda | aralash |
 
-Yadroda faqat eng zarur: manzil maydonlari, oqimlar, **xabar almashish (IPC)**, uzilishlar.
-Drayverlar, fayl tizimlari, tarmoq — alohida **user rejimidagi serverlar**.
-- ✅ Ishonchlilik: drayver qulasa — faqat o'sha server qayta ishga tushiriladi. Yadro kichik — tekshirish
-  mumkin (seL4 — matematik isbotlangan yadro).
-- ❌ Har bir amal bir nechta IPC va kontekst almashishni talab qiladi — sekinroq (zamonaviy mikroyadrolar
-  buni ancha kamaytirgan).
-- **Misollar:** Minix 3, seL4, QNX (avtomobillarda), L4 oilasi, Fuchsia (Zircon).
+### Monolit va mikroyadro: farqni "o'lchaymiz"
 
-1992-yildagi mashhur Tanenbaum–Torvalds bahsi aynan shu haqda edi: Minix muallifi "monolit eskirgan"
-dedi, Linux muallifi — "amalda tezlik muhim". Ikkala yondashuv ham bugun yashayapti.
+**Bu dastur nima qiladi (umumiy):** bitta `read()` chaqiruvini ikki arxitekturada modellaydi va ikki narsani ko'rsatadi: (1) **tezlik** — bitta `read` uchun nechta rejim/kontekst almashish kerak; (2) **ishonchlilik** — disk drayverida xato
+(3-blokni o'qishda buziladi) bo'lsa nima bo'ladi.
 
-### Gibrid
+```c
+/* monolit_mikro.c - bitta read() ikki arxitekturada: o'tishlar soni va drayver xatosi */
+#include <stdio.h>
 
-Mikroyadro g'oyalari + ko'p xizmatlar tezlik uchun yadro ichida. **Windows NT**, **macOS XNU** (Mach mikroyadrosi + BSD qatlami).
+static long almashish;                          /* rejim/kontekst almashishlar soni */
+static int tizim_qulagan;                       /* monolitda drayver xatosi shu holatga olib keladi */
 
-### Boshqalar
+/* --- eng pastki qatlam: disk drayveri --- */
+static int disk_oqi(int blok, int *xato)
+{
+    if (blok == 3) {                            /* drayverda XATO bor: 3-blokda buziladi */
+        *xato = 1;
+        return -1;
+    }
+    *xato = 0;
+    return blok * 10;                           /* "blok mazmuni" */
+}
 
-- **Exokernel** — yadro faqat resurslarni xavfsiz taqsimlaydi, abstraksiyalarni (fayl tizimi) dastur
-  kutubxonasi yaratadi.
-- **Unikernel** — bitta dastur + unga kerakli OS qismlari birga, bitta manzil maydonida (bulutda, virtual
-  mashinada tez ishga tushish uchun).
+static int fs_oqi(int blok, int *xato)          /* fayl tizimi qatlami */
+{
+    return disk_oqi(blok, xato);
+}
+
+/* --- MONOLIT: hammasi yadro ichida, qatlamlar oddiy funksiya chaqiruvi --- */
+static int monolit_read(int blok)
+{
+    if (tizim_qulagan)
+        return -1000;
+    almashish++;                                /* user -> yadro (syscall) */
+    int xato;
+    int r = fs_oqi(blok, &xato);                /* yadro ichida: o'tish yo'q */
+    if (xato)
+        tizim_qulagan = 1;                      /* yadro xotirasida xato = butun tizim qulaydi (panic) */
+    almashish++;                                /* yadro -> user */
+    return r;
+}
+
+/* --- MIKROYADRO: har qatlam alohida jarayon (server), faqat xabar bilan gaplashadi --- */
+struct xabar {
+    int blok, natija;
+};
+
+typedef void (*server)(struct xabar *);
+
+static void ipc_chaqir(server s, struct xabar *m)
+{
+    almashish += 2;                             /* yuboruvchi -> yadro -> qabul qiluvchi server */
+    s(m);
+    almashish += 2;                             /* javob: server -> yadro -> yuboruvchi */
+}
+
+static int disk_qayta_ishga_tushdi;
+
+static void disk_server(struct xabar *m)
+{
+    int xato;
+    int r = disk_oqi(m->blok, &xato);
+    if (xato) {
+        disk_qayta_ishga_tushdi++;              /* faqat shu SERVER o'ladi va qayta ishga tushiriladi */
+        m->natija = -5;                         /* EIO */
+    } else {
+        m->natija = r;
+    }
+}
+
+static void fs_server(struct xabar *m)
+{
+    struct xabar d = { m->blok, 0 };
+    ipc_chaqir(disk_server, &d);                /* fayl serveri disk serveridan so'raydi */
+    m->natija = d.natija;
+}
+
+static int mikro_read(int blok)
+{
+    struct xabar m = { blok, 0 };
+    ipc_chaqir(fs_server, &m);                  /* dastur fayl serveridan so'raydi */
+    return m.natija;
+}
+
+int main(void)
+{
+    printf("1) Bitta read() uchun rejim/kontekst almashishlar soni:\n");
+    almashish = 0;
+    monolit_read(1);
+    long m1 = almashish;
+    almashish = 0;
+    mikro_read(1);
+    long m2 = almashish;
+    printf("   monolit:    %ld ta\n   mikroyadro: %ld ta\n", m1, m2);
+    printf("   1000 ta read: monolit %ld, mikroyadro %ld almashish (%ld marta ko'p)\n\n", m1 * 1000, m2 * 1000, m2 / m1);
+
+    printf("2) Drayverda xato bor (3-blokni o'qishda buziladi); bloklar 1..5 o'qiladi:\n");
+    printf("   blok | monolit                    | mikroyadro\n");
+    for (int blok = 1; blok <= 5; blok++) {
+        int a = monolit_read(blok), b = mikro_read(blok);
+        char sa[40], sb[40];
+        snprintf(sa, sizeof(sa), a == -1000 ? "tizim ishlamayapti" : a < 0 ? "PANIC: butun tizim qulaydi" : "%d", a);
+        snprintf(sb, sizeof(sb), b < 0 ? "xato (disk serveri qayta ishga tushdi)" : "%d", b);
+        printf("   %4d | %-26s | %s\n", blok, sa, sb);
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 monolit_mikro.c -o monolit_mikro
+$ ./monolit_mikro
+1) Bitta read() uchun rejim/kontekst almashishlar soni:
+   monolit:    2 ta
+   mikroyadro: 8 ta
+   1000 ta read: monolit 2000, mikroyadro 8000 almashish (4 marta ko'p)
+
+2) Drayverda xato bor (3-blokni o'qishda buziladi); bloklar 1..5 o'qiladi:
+   blok | monolit                    | mikroyadro
+      1 | 10                         | 10
+      2 | 20                         | 20
+      3 | PANIC: butun tizim qulaydi | xato (disk serveri qayta ishga tushdi)
+      4 | tizim ishlamayapti         | 40
+      5 | tizim ishlamayapti         | 50
+```
+
+**Qismlar:**
+
+| Qism | Vazifasi |
+|---|---|
+| `disk_oqi`, `fs_oqi` | qatlamlar: fayl tizimi disk drayverini chaqiradi; `disk_oqi` 3-blokda ataylab "buziladi" |
+| `almashish` | rejim/kontekst almashishlar sanagichi |
+| `monolit_read` | `almashish++` (user → yadro), qatlamlar **oddiy funksiya chaqiruvi** (almashish yo'q), `almashish++` (yadro → user) = **2** |
+| `ipc_chaqir(server, xabar)` | xabar yuborish: `+2` (yuboruvchi → yadro → server), `s(m)`, `+2` (javob qaytishi) |
+| `mikro_read` | dastur → fayl serveri → disk serveri (ikki ichma-ich IPC) = 2×4 = **8** |
+| `tizim_qulagan` | monolitda drayver xatosi yadro xotirasini buzadi → butun tizim to'xtaydi (panic) |
+| `disk_qayta_ishga_tushdi` | mikroyadroda faqat **shu server** o'ladi va qayta yoqiladi |
+
+**Nima ko'rdik:**
+
+| | Monolit | Mikroyadro |
+|---|---|---|
+| Bitta `read` uchun almashishlar | **2** | **8** (4 marta ko'p → sekinroq) |
+| Drayver xatosi (3-blok) | **PANIC** — 4-, 5-bloklar ham o'qilmaydi, butun tizim o'ldi | faqat 3-blok xato berdi, disk serveri qayta ishga tushdi, **4-, 5-bloklar normal** |
+
+**Afzallik/kamchilik:**
+
+- **Monolit:** ✅ tez (qatlamlar orasida xabar yo'q); ❌ bitta drayver xatosi butun tizimni qulatadi; kod bazasi ulkan. **Misollar:** Linux, FreeBSD, **MyOS**, xv6. Linux buni **yuklanadigan modullar** bilan yumshatadi (30.6).
+- **Mikroyadro:** ✅ ishonchli (drayver qulasa — faqat o'sha server qayta yoqiladi), yadro kichik — tekshirish mumkin (seL4 — matematik isbotlangan yadro); ❌ har amal bir nechta IPC va kontekst almashish (zamonaviy mikroyadrolar buni ancha kamaytirgan).
+  **Misollar:** Minix 3, seL4, QNX (avtomobillarda), L4 oilasi, Fuchsia (Zircon).
+- **Gibrid:** **Windows NT**, **macOS XNU** (Mach mikroyadrosi + BSD qatlami).
+
+1992-yildagi mashhur Tanenbaum–Torvalds bahsi aynan shu haqda edi: Minix muallifi "monolit eskirgan" dedi, Linux muallifi — "amalda tezlik muhim". Ikkala yondashuv ham bugun yashayapti.
+
+**Boshqalar:** **Exokernel** — yadro faqat resurslarni xavfsiz taqsimlaydi, abstraksiyalarni (fayl tizimi) dastur kutubxonasi yaratadi. **Unikernel** — bitta dastur + unga kerakli OS qismlari birga, bitta manzil maydonida (bulutda tez ishga tushish uchun).
+
+> **Eslab qoling:** monolit — tez, lekin bitta xato hammani o'ldiradi (Linux, MyOS); mikroyadro — ishonchli, lekin sekinroq (seL4, QNX). Bu **tezlik ↔ ishonchlilik** kelishuvi.
 
 ## 30.3. MyOS, xv6 va Linux
 
@@ -164,8 +301,7 @@ Mikroyadro g'oyalari + ko'p xizmatlar tezlik uchun yadro ichida. **Windows NT**,
 | Tarmoq | yo'q | yo'q | to'liq TCP/IP |
 | Maqsad | o'rganish + haqiqiy apparat | o'rganish | ishlab chiqarish |
 
-MyOS'dagi har bir tushuncha Linux'da ham bor — faqat kattaroq va murakkabroq. Bu jadvalni ko'rib
-qo'rqmang: Linux'ni o'rganish — "MyOS'dagi X ning Linux versiyasi qayerda?" savolidan boshlanadi.
+MyOS'dagi har bir tushuncha Linux'da ham bor — faqat kattaroq va murakkabroq. Bu jadvalni ko'rib qo'rqmang: Linux'ni o'rganish — **"MyOS'dagi X ning Linux versiyasi qayerda?"** savolidan boshlanadi.
 
 ## 30.4. Linux manba kodining xaritasi
 
@@ -176,7 +312,7 @@ git clone --depth 1 https://github.com/torvalds/linux.git
 | Papka | Nima | MyOS'dagi o'xshashi |
 |---|---|---|
 | `arch/x86/` | x86'ga xos: yuklash, uzilishlar, sahifalash, syscall kirishi | `kernel/arch/`, `kernel/boot/` |
-| `arch/x86/entry/` | syscall va uzilish kirish kodi (assembly) | `syscall_entry.asm`, `isr.asm` |
+| `arch/x86/entry/` | syscall va uzilish kirish kodi (assembly) | `kernel/arch/syscall_entry.asm`, `isr.asm` |
 | `init/main.c` | `start_kernel()` — ishga tushirish tartibi | `kernel/main.c` (`kmain`) |
 | `kernel/` | jarayonlar, scheduler (`kernel/sched/`), signallar, `fork.c`, `exit.c` | `kernel/proc/` |
 | `mm/` | xotira: `page_alloc.c` (buddy), `slub.c`, `vmalloc.c`, `memory.c` (page fault), `mmap.c` | `kernel/mm/` |
@@ -193,13 +329,15 @@ git clone --depth 1 https://github.com/torvalds/linux.git
 
 ### Kod bo'ylab yurish usuli
 
-"`read()` syscall qayerda?" → `grep -rn "SYSCALL_DEFINE3(read" fs/` → `fs/read_write.c` → `ksys_read`
-→ `vfs_read` → `file->f_op->read_iter(...)` — 7-bobdagi funksiya jadvali! Brauzerda: **elixir.bootlin.com** —
-Linux kodini istalgan belgini bosib, uning ta'rifi va hamma ishlatilishlariga sakrash bilan o'qish sayti
-(kod inglizcha, lekin sayt interfeysi oddiy — belgilarni bosish yetarli).
+"`read()` syscall qayerda?" → `grep -rn "SYSCALL_DEFINE3(read" fs/` → `fs/read_write.c` → `ksys_read` → `vfs_read` → `file->f_op->read_iter(...)` — 7-bobdagi funksiya jadvali!
+
+MyOS'da shu savol: `grep -n "SYS_READ" ~/C_loyha/kernel/sys/*.c` → `syscall.c` dagi `switch` → fayl tizimiga yo'naltiruvchi funksiya (`sys_fs.c`).
+
+Brauzerda: **elixir.bootlin.com** — Linux kodini istalgan belgini bosib, uning ta'rifi va hamma ishlatilishlariga sakrash bilan o'qish sayti (kod inglizcha, lekin sayt interfeysi oddiy — belgilarni bosish yetarli).
 
 Solishtirib o'qish uchun juftliklar:
-- `kernel/mm/pmm.c` (MyOS buddy) ↔ `mm/page_alloc.c` (`__free_one_page` — juftni birlashtirish)
+
+- `kernel/mm/pmm.c` (MyOS buddy) ↔ `mm/page_alloc.c` (`__free_one_page` — juftni birlashtirish; 25-bob)
 - `kernel/fs/pipe.c` ↔ `fs/pipe.c` (`pipe_read`, `pipe_write` — xuddi shu nomlar!)
 - `kernel/lib/list.h` ↔ `include/linux/list.h`
 - `kernel/proc/signal.c` ↔ `arch/x86/kernel/signal.c` (`setup_rt_frame`) va `kernel/signal.c`
@@ -207,17 +345,25 @@ Solishtirib o'qish uchun juftliklar:
 ## 30.5. Linux kod uslubi (qisqacha)
 
 `Documentation/process/coding-style.rst` — asosiylari (MyOS ham ularga yaqin):
-- chekinish — **TAB** (8 belgi), qator uzunligi ~80–100;
-- funksiya ochuvchi `{` yangi qatorda, `if/for` niki — shu qatorda;
-- nomlar — `kichik_harf_pastki_chiziq`; global nomlar tavsifiy, lokal — qisqa (`i`, `tmp`);
-- `typedef` structlar uchun ishlatilmaydi (9-bob);
-- funksiyalar qisqa, bitta ish qiladi; chuqur ichma-ichlik yomon;
-- xatodan keyin tozalash — `goto` (4-bob);
-- izohlar **nima** va **nega** haqida, **qanday** — kodning o'zidan ko'rinishi kerak.
+
+| Qoida | Izoh |
+|---|---|
+| chekinish — **TAB** (8 belgi), qator ~80–100 belgi | bir xil ko'rinish |
+| funksiya `{` yangi qatorda, `if/for` niki — shu qatorda | |
+| nomlar — `kichik_harf_pastki_chiziq`; global nomlar tavsifiy, lokal — qisqa (`i`, `tmp`) | |
+| `typedef` structlar uchun ishlatilmaydi (9-bob) | `struct list_head` yozasiz, `list_head_t` emas |
+| funksiyalar qisqa, bitta ish qiladi; chuqur ichma-ichlik yomon | |
+| xatodan keyin tozalash — `goto` (4-bob) | |
+| izohlar **nima** va **nega** haqida, **qanday** — kodning o'zidan ko'rinishi kerak | |
 
 `scripts/checkpatch.pl` — uslubni avtomatik tekshiradi.
 
 ## 30.6. Yadro moduli — Linux'dagi birinchi kodingiz
+
+**Oddiy qilib aytganda:** modul — yadroga **ish vaqtida** qo'shiladigan va olib tashlanadigan kod bo'lagi. **Hayotdan misol:** binoga vaqtinchalik qo'shiladigan bo'lim: yangi xizmat kerak bo'lsa, butun binoni qayta qurmaysiz — bo'sh xonaga yangi bo'lim
+ko'chib kiradi (`insmod`) va keraksiz bo'lganda chiqib ketadi (`rmmod`). Linux drayverlarining ko'pi modul.
+
+Haqiqiy Linux modulida ikkita funksiya: `init` (yuklanganda) va `exit` (olib tashlanganda):
 
 ```c
 #include <linux/module.h>
@@ -249,23 +395,206 @@ all:
 make && sudo insmod salom.ko && sudo dmesg | tail -1 && sudo rmmod salom
 ```
 
-(Ehtiyot: modul yadro ichida ishlaydi — undagi xato butun tizimni qulatishi mumkin. Birinchi tajribalarni
-virtual mashinada yoki QEMU'da qiling.)
+(Ehtiyot: modul yadro ichida ishlaydi — undagi xato butun tizimni qulatishi mumkin. Birinchi tajribalarni virtual mashinada yoki QEMU'da qiling.)
+
+### Modul mexanizmi nima qiladi — oddiy dasturda modellash
+
+Haqiqiy modulni bu yerda yuklab bo'lmaydi (yadro sarlavhalari va ruxsat kerak), lekin **g'oyani** oddiy dasturda ko'rish mumkin.
+
+**Bu dastur nima qiladi (umumiy):** "yadro" qurilmalar jadvalini saqlaydi (`/dev`). `insmod` modulning `init` funksiyasini chaqiradi — u yadro jadvaliga qurilma **qo'shadi**; `rmmod` `exit` ni chaqiradi — u qurilmani **olib tashlaydi**. Dastur
+modul yuklanishidan oldin, yuklangandan keyin va olib tashlangandan keyin `read` natijasini ko'rsatadi; `init` xato qaytarsa modul yuklanmasligini ham.
+
+```c
+/* modul_misol.c - yuklanadigan modul g'oyasi: insmod/rmmod yadro jadvaliga drayver qo'shadi/oladi */
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+/* ---------- "YADRO" tomoni ---------- */
+struct qurilma {
+    const char *nom;
+    long (*oqi)(void);
+};
+static struct qurilma qurilmalar[4];            /* yadroning qurilmalar jadvali (/dev) */
+
+static int qurilma_qosh(const char *nom, long (*oqi)(void))
+{
+    for (int i = 0; i < 4; i++)
+        if (qurilmalar[i].nom && strcmp(qurilmalar[i].nom, nom) == 0)
+            return -EEXIST;
+    for (int i = 0; i < 4; i++)
+        if (!qurilmalar[i].nom) {
+            qurilmalar[i] = (struct qurilma){ nom, oqi };
+            return 0;
+        }
+    return -ENOMEM;
+}
+
+static void qurilma_ol(const char *nom)
+{
+    for (int i = 0; i < 4; i++)
+        if (qurilmalar[i].nom && strcmp(qurilmalar[i].nom, nom) == 0)
+            qurilmalar[i].nom = NULL;
+}
+
+static long yadro_read(const char *nom)         /* syscall: read("/dev/nom") */
+{
+    for (int i = 0; i < 4; i++)
+        if (qurilmalar[i].nom && strcmp(qurilmalar[i].nom, nom) == 0)
+            return qurilmalar[i].oqi();
+    return -ENODEV;
+}
+
+struct modul {
+    const char *nom;
+    int (*init)(void);                          /* module_init: yuklanganda */
+    void (*exit)(void);                         /* module_exit: olib tashlanganda */
+    int yuklangan;
+};
+
+static int insmod(struct modul *m)
+{
+    if (m->yuklangan)
+        return -EEXIST;
+    int r = m->init();
+    if (r < 0) {
+        printf("  insmod %s: xato %d, modul YUKLANMADI\n", m->nom, r);
+        return r;
+    }
+    m->yuklangan = 1;
+    return 0;
+}
+
+static void rmmod(struct modul *m)
+{
+    if (m->yuklangan) {
+        m->exit();
+        m->yuklangan = 0;
+    }
+}
+
+/* ---------- MODUL tomoni (alohida "fayl" bo'lishi mumkin edi) ---------- */
+static long tasodif_oqi(void)
+{
+    static long x = 12345;
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    return x % 100;
+}
+
+static int tasodif_init(void)
+{
+    printf("  [dmesg] tasodif: yadroga xush kelibsiz!\n");
+    return qurilma_qosh("tasodif", tasodif_oqi);
+}
+
+static void tasodif_exit(void)
+{
+    printf("  [dmesg] tasodif: xayr!\n");
+    qurilma_ol("tasodif");
+}
+
+static int buzuq_init(void)
+{
+    return -ENOMEM;                             /* init xato qaytardi - modul yuklanmaydi */
+}
+
+static void buzuq_exit(void) { }
+
+static struct modul tasodif = { "tasodif", tasodif_init, tasodif_exit, 0 };
+static struct modul buzuq = { "buzuq", buzuq_init, buzuq_exit, 0 };
+
+int main(void)
+{
+    printf("insmod'dan oldin: read(tasodif) = %ld  (ENODEV = %d: bunday qurilma yo'q)\n", yadro_read("tasodif"), -ENODEV);
+
+    printf(">> insmod tasodif\n");
+    insmod(&tasodif);
+    long a = yadro_read("tasodif");             /* alohida chaqiramiz: printf argumentlari tartibi noaniq */
+    long b = yadro_read("tasodif");
+    long c = yadro_read("tasodif");
+    printf("read(tasodif) uch marta: %ld %ld %ld\n", a, b, c);
+
+    printf(">> insmod tasodif   (ikkinchi marta)\n  natija: %d (EEXIST = %d: allaqachon yuklangan)\n", insmod(&tasodif), -EEXIST);
+
+    printf(">> rmmod tasodif\n");
+    rmmod(&tasodif);
+    printf("rmmod'dan keyin: read(tasodif) = %ld  (yana ENODEV)\n", yadro_read("tasodif"));
+
+    printf(">> insmod buzuq\n");
+    insmod(&buzuq);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -O2 modul_misol.c -o modul_misol
+$ ./modul_misol
+insmod'dan oldin: read(tasodif) = -19  (ENODEV = -19: bunday qurilma yo'q)
+>> insmod tasodif
+  [dmesg] tasodif: yadroga xush kelibsiz!
+read(tasodif) uch marta: 6 75 24
+>> insmod tasodif   (ikkinchi marta)
+  natija: -17 (EEXIST = -17: allaqachon yuklangan)
+>> rmmod tasodif
+  [dmesg] tasodif: xayr!
+rmmod'dan keyin: read(tasodif) = -19  (yana ENODEV)
+>> insmod buzuq
+  insmod buzuq: xato -12, modul YUKLANMADI
+```
+
+**Qismlar:**
+
+| Qism | Vazifasi |
+|---|---|
+| `qurilmalar[4]` | yadroning qurilmalar jadvali: nom → `oqi` funksiyasi |
+| `qurilma_qosh` / `qurilma_ol` | yadro ichki interfeysi: modul shu orqali o'zini yadroga **ro'yxatdan o'tkazadi** va ketayotganda **olib tashlaydi** |
+| `yadro_read(nom)` | `read("/dev/nom")` syscall'i: jadvaldan topadi, topmasa `-ENODEV` ("bunday qurilma yo'q") |
+| `struct modul { init, exit }` | modul — ikki funksiya (`module_init` / `module_exit`) |
+| `insmod` | `init` ni chaqiradi; u **manfiy** son qaytarsa — modul **yuklanmaydi**; allaqachon yuklangan bo'lsa `-EEXIST` |
+| `rmmod` | `exit` ni chaqiradi (tozalash) |
+
+**Nima ko'rdik:** modul yuklanmasdan `read` → `-19` (ENODEV). `insmod` dan keyin `read` ishlaydi (modul qo'shgan funksiya chaqirildi). Ikkinchi `insmod` → `-17` (EEXIST). `rmmod` dan keyin yana ENODEV — modul ketdi, yadro
+yo'qotilgan funksiyani chaqirmaydi. `buzuq` modulning `init` i `-ENOMEM` qaytardi → **yuklanmadi** (haqiqiy `insmod` ham shuni qiladi: init xatosi → "Cannot allocate memory", modul `lsmod` da yo'q).
+
+> **Eslab qoling:** modul = `init` + `exit`; yadroga **ish vaqtida** qo'shiladi; `init` xato qaytarsa yuklanmaydi; yuklangach modul yadro ichida ishlaydi — xatosi butun tizimga ta'sir qiladi (monolit!).
 
 ## 30.7. Linux'ga hissa qo'shish jarayoni
 
-1. **Yig'ish va ishga tushirish:** `make defconfig && make -j$(nproc)`, QEMU'da yuklash.
-2. **Kichik ish topish:** `drivers/staging/` (sifati past, tuzatishga muhtoj kod; har bir papkada `TODO`
-   fayli), `checkpatch.pl` ogohlantirishlari, hujjatlardagi xatolar.
-3. **Patch tayyorlash:** `git commit -s` (Signed-off-by — kodni yuborishga huquqingiz borligi haqida
-   tasdiq), aniq sarlavha: `staging: rtl8723bs: fix spelling mistake`.
-4. **Kimga yuborish:** `scripts/get_maintainer.pl 0001-*.patch` — qaysi mas'ul shaxs va ro'yxatga.
-5. **Yuborish:** `git send-email` (Linux'da patch'lar elektron pochta orqali, GitHub orqali emas!).
-6. **Sharhlarga javob:** mas'ul shaxslar tanqid qiladi — bu normal. Tuzatib `v2` yuborasiz.
+**Oddiy qilib aytganda:** Linux'ga kod qo'shish — **qonun loyihasi** taklif qilishga o'xshaydi: siz patch yozasiz, u pochta ro'yxatida muhokama qilinadi, mutaxassislar (maintainer) tanqid qiladi, siz tuzatasiz (v2, v3...), oxirida qabul
+qilinadi. Jarayon sekin, lekin har bir qator ko'p ko'zdan o'tadi.
 
-Til masalasi: patch sarlavhasi va xat — qisqa inglizcha. Namunalar juda bir xil (`fix`, `remove unused`,
-`add missing check`) — 31-bobdagi lug'at va mavjud commitlardan (`git log --oneline drivers/staging`)
-naqsh olish yetarli.
+| # | Qadam | Qanday |
+|---|---|---|
+| 1 | **Yig'ish va ishga tushirish** | `make defconfig && make -j$(nproc)`, QEMU'da yuklash |
+| 2 | **Kichik ish topish** | `drivers/staging/` (sifati past, tuzatishga muhtoj kod; har papkada `TODO` fayli), `checkpatch.pl` ogohlantirishlari, hujjatlardagi xatolar |
+| 3 | **Patch tayyorlash** | `git commit -s` (Signed-off-by — kodni yuborishga huquqingiz borligi tasdig'i), aniq sarlavha: `staging: rtl8723bs: fix spelling mistake` |
+| 4 | **Kimga yuborish** | `scripts/get_maintainer.pl 0001-*.patch` — qaysi mas'ul shaxs va ro'yxatga |
+| 5 | **Yuborish** | `git send-email` (Linux'da patch'lar elektron pochta orqali, GitHub orqali emas!) |
+| 6 | **Sharhlarga javob** | mas'ul shaxslar tanqid qiladi — bu normal. Tuzatib `v2` yuborasiz |
+
+### Patch qanday ko'rinadi — real tajriba
+
+**Bu dastur nima qiladi (umumiy):** bu — dastur emas, **git buyruqlari ketma-ketligi**: kichik repozitoriy yaratamiz, README'dagi imloviy xatoni (`recieve` → `receive`) tuzatamiz, `-s` bilan commit qilamiz va `git format-patch` bilan **haqiqiy
+patch** hosil qilamiz — Linux'ga elektron pochta bilan aynan shu shaklda yuboriladi.
+
+```console
+$ rm -rf demo_repo && git init -q demo_repo && cd demo_repo && git config user.name "Ali Valiyev" && git config user.email ali@example.com && printf 'recieve data\n' > README && git add README && git commit -q -m "initial"
+$ cd demo_repo && printf 'receive data\n' > README && git commit -q -a -s -m "staging: demo: fix spelling mistake in README" && git format-patch -1 --stdout | grep -E '^(Subject|Signed-off-by|-rec|\+rec)'
+Subject: [PATCH] staging: demo: fix spelling mistake in README
+Signed-off-by: Ali Valiyev <ali@example.com>
+-recieve data
++receive data
+```
+
+**Qanday o'qiladi:**
+
+| Satr | Ma'nosi |
+|---|---|
+| `Subject: [PATCH] staging: demo: fix spelling mistake in README` | sarlavha: **quyi tizim** (`staging: demo:`) + qisqa inglizcha tavsif (`fix ...`) |
+| `Signed-off-by: Ali Valiyev <ali@example.com>` | `commit -s` qo'shdi: "bu kodni yuborishga huquqim bor" (DCO tasdig'i) |
+| `-recieve data` / `+receive data` | o'zgarish: `-` — olib tashlangan, `+` — qo'shilgan satr |
+
+Til masalasi: patch sarlavhasi va xat — qisqa inglizcha. Namunalar juda bir xil (`fix`, `remove unused`, `add missing check`) — 31-bobdagi lug'at va mavjud commitlardan (`git log --oneline drivers/staging`) naqsh olish yetarli.
 
 ## 30.8. Yadro dasturchisining umumiy yo'li
 
@@ -275,7 +604,39 @@ C va tizimlar (darslik)  ->  MyOS ichida (labs)  ->  o'z yadroingiz (QOLLANMA 11
           (xotira / fayl tizimlari / tarmoq / drayverlar / virtualizatsiya / xavfsizlik)
 ```
 
-## 30.9. O'zingizni tekshiring
+## Hayotdan misol va to'liq dastur
+
+**Syscall jadvali.** Bobning to'liq dasturi — 30.1 dagi `xizmatlar.c`: yadroning "xizmatlar markazi". Raqam → ishlovchi funksiya jadvali; noma'lum raqamga `-ENOSYS`, noto'g'ri argumentga `-EINVAL`. Bobdagi qolgan dasturlar shu tizimning
+boshqa tomonlarini ko'rsatadi:
+
+| Dastur | Nimani ko'rsatadi |
+|---|---|
+| `xizmatlar.c` | yadroga xizmat so'rash mexanizmi (syscall jadvali) |
+| `monolit_mikro.c` | arxitektura kelishuvi: tezlik ↔ ishonchlilik |
+| `modul_misol.c` | yuklanadigan modul: `init`/`exit` va yadro jadvali |
+
+**Sinab ko'ring:** `xizmatlar.c` ga `[3] = x_kopaytir` qo'shing. MyOS'ning haqiqiy `switch`'ini oching: `grep -n "SYS_" ~/C_loyha/kernel/sys/syscall.c | head` — xuddi shu g'oyani taniysizmi?
+
+## Bob xulosasi (yodlash uchun)
+
+1. Yadro beshta ish qiladi: **CPU**, **xotira**, **qurilmalar**, **fayllar**, **aloqa** — hammasi **himoya chegarasi** (user ↔ yadro) orqali; xizmat so'rash = **syscall raqami** → jadval → ishlovchi; xato = manfiy son (`-ENOSYS`).
+2. **Monolit** (Linux, MyOS) — tez, lekin drayver xatosi hammani o'ldiradi; **mikroyadro** (seL4, QNX) — ishonchli, lekin ko'p IPC (sekinroq); gibrid — Windows, macOS.
+3. **Modul** — yadroga ish vaqtida qo'shiladigan kod (`init`/`exit`); `init` xato qaytarsa yuklanmaydi; yuklangach yadro ichida ishlaydi.
+4. Linux xaritasi: `arch/` (apparat), `kernel/` (jarayonlar), `mm/`, `fs/`, `drivers/` (~70%), `include/linux/`, `lib/`. O'qish usuli: "MyOS'dagi X ning Linux versiyasi qayerda?"; sayt — elixir.bootlin.com.
+5. Hissa qo'shish: `git commit -s`, `get_maintainer.pl`, `git send-email`, sharhlarga `v2`; boshlash joyi — `drivers/staging`, `checkpatch.pl`.
+
+## Savol-javob
+
+**Savol:** Nega Linux mikroyadro emas, axir ishonchliroq-ku?
+**Javob:** Tezlik. Monolitda qatlamlar orasida xabar almashish yo'q (30.2 da 2 ga 8 almashish). Linux ishonchlilikni boshqa yo'llar bilan oshiradi: kod tekshiruvi, sanitizer'lar (KASAN), modullar, xavfsizlik qatlamlari.
+
+**Savol:** Modulni yuklash xavflimi?
+**Javob:** Ha: modul yadro ichida ishlaydi, uning xatosi butun tizimni qulatadi (monolit!). Shuning uchun birinchi tajribalarni virtual mashinada qiling.
+
+**Savol:** Nega Linux'da patch GitHub orqali emas, pochta orqali yuboriladi?
+**Javob:** Tarixiy va amaliy: minglab dasturchi bitta pochta ro'yxatida ochiq muhokama qiladi, har bir qator ko'p ko'zdan o'tadi; maintainer'lar o'z ish tartibiga moslashgan.
+
+## O'zingizni tekshiring
 
 1. Monolit va mikroyadro farqi, har birining afzalligi?
 2. Linux monolit bo'lsa, modullar nima uchun kerak?
@@ -292,10 +653,9 @@ C va tizimlar (darslik)  ->  MyOS ichida (labs)  ->  o'z yadroingiz (QOLLANMA 11
 5. Asosiy yadroga to'liq tayyor bo'lmagan, tozalashga muhtoj drayverlar — boshlovchilar uchun hissa qo'shish joyi.
 </details>
 
-## 30.10. Mashq
+## Mashq
 
-- Linux manbasini yuklab olib, 30.4-dagi "solishtirib o'qish" juftliklaridan bittasini tanlang: MyOS
-  funksiyasini va Linux funksiyasini yonma-yon o'qing, farqlarini daftarga yozing.
+- Linux manbasini yuklab olib, 30.4-dagi "solishtirib o'qish" juftliklaridan bittasini tanlang: MyOS funksiyasini va Linux funksiyasini yonma-yon o'qing, farqlarini daftarga yozing.
 - Virtual mashinada 30.6-dagi modulni yig'ib yuklang.
 
 <!-- loyiha:boshi -->
