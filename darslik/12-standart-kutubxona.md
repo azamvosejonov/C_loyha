@@ -1,41 +1,466 @@
 # 12-bob. Standart kutubxona (libc)
 
-> **Bu bobdan keyin:** eng kerakli standart funksiyalarni, `printf` formatlarini to'liq, `FILE *`
-> buferlashini, `errno` ni va `qsort` ni bilasiz — va ularning **ichida** nima borligini tushunasiz
-> (chunki yadroda ularning hech biri yo'q, o'zingiz yozasiz). Mashqlar: 11, 12, 19, 24.
+> **Bu bobda nima o'rganasiz:** C'ning tayyor funksiyalar to'plami (**libc**) nima ekanini; `printf` ning hamma imkoniyatlarini; fayl bilan ishlashni (`FILE *`)
+> va **buferlash** nima ekanini; xato sababini bildiruvchi `errno` ni; `qsort` bilan saralashni; `assert` ni — va ularning **ichida** nima borligini
+> (chunki yadroda ularning hech biri yo'q, o'zingiz yozasiz).
+> **Oldindan nima kerak:** 5-, 6-, 7-, 9-boblar.   **Vaqt:** 5–6 soat.
+> Mashqlar: 11, 12, 19, 24.
 
 > **To'liq ishlaydigan misol:** [misollar/12_stdlib.c](misollar/12_stdlib.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**libc — tayyor ehtiyot qismlar do'koni (12.1).** Mashina yig'ayotganda har bir boltni o'zingiz
-yasamaysiz — do'kondan tayyorini olasiz. `printf`, `strlen`, `qsort`, `malloc` — tayyor qismlar. Ularni
-minglab odam yillar davomida sinagan. O'zingiz yozgan `strlen` dan ular tezroq va ishonchliroq.
+Hozirgacha ishlatgan `printf`, `strlen`, `malloc` — bular C **tilining** qismi emas. Ular **tayyor funksiyalar to'plami**ga — **standart kutubxona**ga (**libc**) tegishli.
+Bu bobda eng foydali tayyor qismlarni tartib bilan o'rganamiz: har birining **vazifasi** nima ekanini, keyin qanday ishlatilishini.
 
-**`printf` formatlari — blanka katakchalari (12.2).** Davlat blankalarida har bir maydon uchun ma'lum
-sonli katakcha bor. `%5d` — "son uchun 5 ta katakcha, o'ngga tekisla", `%-10s` — "matn uchun 10 ta
+**Hayotdan misol: tayyor ehtiyot qismlar do'koni.** Mashina yig'ayotganda har bir boltni o'zingiz yasamaysiz — do'kondan tayyorini olasiz. `printf`, `strlen`, `qsort`, `malloc` —
+tayyor qismlar. Ularni minglab odam yillar davomida sinagan. O'zingiz yozgan `strlen` dan ular tezroq va ishonchliroq.
+
+| Do'kondagi bo'lim | libc'da | Vazifasi |
+|---|---|---|
+| chiqarish bo'limi | `printf`, `puts` | ekranga yozish |
+| arxiv | `fopen`, `fgets`, `fclose` | fayllar bilan ishlash |
+| diagnostika | `errno`, `strerror` | xato sababini aytish |
+| kutubxonachi | `qsort` | saralash |
+| nazoratchi | `assert` | "bu hech qachon bo'lmasligi kerak" tekshiruvi |
+
+## 12.1. libc nima
+
+C tilining o'zi juda kichik: kalit so'zlar va operatorlar. `printf`, `malloc`, `strlen`, `fopen` — bular tilning qismi emas, **standart kutubxonaning** (libc) funksiyalari:
+oddiy C'da yozilgan kod. Linux'da — glibc yoki musl, MyOS'da — `user/libc/` (siz o'qiy oladigan ~2000 qator).
+
+Kutubxona funksiyalaridan foydalanish uchun tegishli **sarlavha** (`#include`) qo'shiladi:
+
+| Sarlavha | Vazifasi | Misollar |
+|---|---|---|
+| `<stdio.h>` | kiritish/chiqarish | `printf`, `fopen`, `fgets` |
+| `<stdlib.h>` | umumiy yordamchilar | `malloc`, `free`, `exit`, `strtol`, `qsort`, `abs` |
+| `<string.h>` | satr va xotira bilan ishlash (6-bob) | `strlen`, `memcpy`, `strcmp` |
+| `<ctype.h>` | belgilarni tekshirish | `isdigit`, `toupper` |
+| `<stdint.h>`, `<stddef.h>`, `<stdbool.h>`, `<limits.h>` | turlar va chegaralar | `uint32_t`, `size_t`, `INT_MAX` |
+| `<errno.h>` | xato sababi | `errno`, xato kodlari |
+| `<time.h>` | vaqt | |
+| `<assert.h>` | tekshiruv | `assert(shart)` |
+| `<unistd.h>`, `<fcntl.h>`, `<sys/wait.h>` | **POSIX** (standart C emas) | `read`, `fork` (14-bob) |
+
+Har bir sarlavhaning batafsil tavsifi — [sarlavhalar.md](sarlavhalar.md).
+
+## 12.2. `printf` — to'liq
+
+**Bu nima?** `printf` — ekranga **formatlangan** matn chiqaruvchi funksiya. "Formatlangan" — matn ichiga qiymatlarni (son, harf, manzil) kerakli ko'rinishda qo'yib chiqarish.
+**Asosiy ishi:** qolip matnini olish va undagi `%...` joylarni argumentlar bilan to'ldirib ekranga yozish.
+
+### Qolip tuzilishi
+
+Har bir `%` dan keyin kelgan qism — bitta "bo'sh joy" tavsifi:
+
+```text
+%[bayroqlar][kenglik][.aniqlik][uzunlik]tur
+```
+
+| Qism | Vazifasi | Misol |
+|---|---|---|
+| `tur` | **nimani** chiqarish (majburiy) | `d` butun, `s` matn, `x` o'n oltilik, `c` belgi, `f` kasr, `p` manzil |
+| `kenglik` | **qancha joy** ajratish | `%5d` — 5 katak |
+| `.aniqlik` | kasrda nuqtadan keyin nechta raqam; matnda — nechta belgi | `%.2f`, `%.3s` |
+| `bayroqlar` | tekislash va to'ldirish usuli | `-` chapga tekislash, `0` nol bilan to'ldirish, `+` ishora |
+| `uzunlik` | argument **turi** | `l` long, `z` size_t |
+
+**Hayotdan misol: blanka katakchalari.** Davlat blankalarida har bir maydon uchun ma'lum sonli katakcha bor. `%5d` — "son uchun 5 ta katakcha, o'ngga tekisla", `%-10s` — "matn uchun 10 ta
 katakcha, chapga tekisla", `%05d` — "bo'sh katakchalarga 0 yoz". Jadvallar shuning uchun tekis chiqadi.
 
-**`FILE *` va buferlash — pochta qutisi (12.3).** Pochtachi har bir xat uchun alohida kelmaydi — xatlar
-qutiga yig'iladi va qutiga to'lganda (yoki belgilangan vaqtda) bir yo'la olib ketiladi. `fprintf` ham
-yozuvni avval xotiradagi buferga qo'yadi, keyin bir yo'la diskka yozadi — bu ming marta tezroq.
-`fflush` — "pochtachini hozir chaqir". `fclose` — oxirgi yig'ilganini ham jo'natib, qutini yopish.
-Dastur qulasa, qutidagi xatlar yo'qoladi.
+```c
+/* printf_formatlar.c - printf formatlari bir joyda */
+#include <stdio.h>
 
-**`errno` — mashina panelidagi xato kodi (12.4).** Mashina "Check engine" chirog'ini yoqadi — muammo bor.
-Ammo **qanday** muammo — diagnostika kodi aytadi: P0301. `fopen` ham `NULL` qaytaradi (chiroq), sababini
-esa `errno` aytadi: `ENOENT` (fayl yo'q), `EACCES` (ruxsat yo'q). `strerror` — kodni odam tiliga tarjima qiladi.
+int main(void)
+{
+    printf("[%5d]\n", 42);                 /* kenglik 5, o'ngga tekislangan */
+    printf("[%-5d]\n", 42);                /* - : chapga */
+    printf("[%05d]\n", 42);                /* 0 : nol bilan to'ldirish */
+    printf("[%+d]\n", 42);                 /* + : doim ishora */
+    printf("[%x %X %#x]\n", 255, 255, 255);        /* o'n oltilik: kichik, katta, 0x bilan */
+    printf("[%08lx]\n", 0xBEEFUL);         /* manzillar/registrlar uchun klassik */
+    printf("[%.3s]\n", "salom");           /* satr uchun aniqlik = maksimal uzunlik */
+    printf("[%.2f]\n", 3.14159);           /* nuqtadan keyin 2 raqam */
+    printf("[%*d]\n", 6, 42);              /* kenglik argumentdan olinadi */
+    return 0;
+}
+```
 
-**`qsort` — kutubxonachi (12.5).** Kutubxonachiga aytasiz: "Kitoblarni tartibla". U so'raydi: "Qanday
-qoida bilan? Muallif bo'yichami, yil bo'yichami?" Siz **solishtirish qoidasini** berasiz (funksiya),
-tartiblash ishini u o'zi qiladi. Qoidani o'zgartirsangiz — tartib o'zgaradi, kutubxonachi o'sha.
+```console
+$ gcc -Wall -Wextra printf_formatlar.c -o printf_formatlar
+$ ./printf_formatlar
+[   42]
+[42   ]
+[00042]
+[+42]
+[ff FF 0xff]
+[0000beef]
+[sal]
+[3.14]
+[    42]
+```
 
-**`assert` — uchishdan oldingi tekshiruv ro'yxati (12.6).** Uchuvchi har parvozdan oldin ro'yxat bo'yicha
-tekshiradi: "yoqilg'i bor, g'ildiraklar joyida". Bittasi bajarilmasa — samolyot uchmaydi. `assert(x > 0)`
-ham: shart bajarilmasa, dastur qatorini aytib, darhol to'xtaydi — xato uzoqqa ketmaydi.
+**Bu dastur nima qiladi:** bitta `42` sonini turli qoliplar bilan chiqaradi — shunda har bir qolip farqi ko'rinadi. Kvadrat qavs `[ ]` faqat bo'sh joylar ko'rinsin deb qo'yilgan
+(printf uchun oddiy matn).
 
-### To'liq dastur: imtihon natijalari
+**Har bir qator (avval vazifasi, keyin natija):**
+
+| Qolip | Vazifasi | Natija |
+|---|---|---|
+| `%5d` | son uchun 5 katak, o'ngga tekisla | `[   42]` |
+| `%-5d` | 5 katak, **chapga** tekisla | `[42   ]` |
+| `%05d` | bo'sh kataklarga **nol** yoz | `[00042]` |
+| `%+d` | ishorani doim ko'rsat | `[+42]` |
+| `%x %X %#x` | o'n oltilik: kichik harf, katta harf, `0x` prefiksi bilan | `[ff FF 0xff]` |
+| `%08lx` | 8 katak, nol bilan to'ldirilgan, o'n oltilik, `long` | `[0000beef]` |
+| `%.3s` | satrdan **faqat 3 belgi** | `[sal]` |
+| `%.2f` | kasrdan nuqtadan keyin 2 raqam | `[3.14]` |
+| `%*d` | kenglikni argumentdan ol (`6`), keyin son (`42`) | `[    42]` |
+
+Uzunlik modifikatorlari: `hh` (char), `h` (short), `l` (long), `ll` (long long), `z` (size_t), `t` (ptrdiff_t). `uint64_t` uchun: `%lu` (Linux x86-64) yoki portativ `PRIu64` (`<inttypes.h>`).
+
+### `printf` ning qaytish qiymati
+
+`printf` **chiqarilgan belgilar sonini** qaytaradi. `snprintf(buf, n, ...)` — natijani **buferga** yozadi (ko'pi bilan `n-1` belgi + `'\0'`) va to'liq natija uchun kerakli uzunlikni qaytaradi (6-bob).
+
+### Xavfsizlik: `printf(foydalanuvchi_satri)` — hech qachon!
+
+**Nega xavfli?** Agar foydalanuvchi satrida `%x` yoki `%s` bo'lsa, `printf` uni **qolip** deb o'qiydi va **yo'q argumentlarni** stekdan o'qiy boshlaydi (ma'lumot oqib chiqadi,
+`%n` bilan esa xotiraga yozish ham mumkin: "format string" hujumi). To'g'risi: `printf("%s", satr)`.
+
+```c
+/* format_xavfsizlik.c - satrni qolip sifatida ishlatish */
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+    if (argc < 2)
+        return 1;
+    printf(argv[1]);                    /* XATO: foydalanuvchi satri qolip bo'ldi */
+    printf("\n");
+    printf("%s\n", argv[1]);            /* TO'G'RI: satr oddiy ma'lumot sifatida */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -Wformat-security format_xavfsizlik.c -o format_xavfsizlik # xato kutiladi
+format_xavfsizlik.c: In function ‘main’:
+format_xavfsizlik.c:8:5: warning: format not a string literal and no format arguments [-Wformat-security]
+    8 |     printf(argv[1]);                    /* XATO: foydalanuvchi satri qolip bo'ldi */
+      |     ^~~~~~
+$ ./format_xavfsizlik "salom"
+salom
+salom
+```
+
+Kompilyator ogohlantirdi (`format not a string literal`). Oddiy matn bilan ikkala usul bir xil ishladi; xavf `%` belgilar bilan paydo bo'ladi — shuning uchun doim `printf("%s", satr)`.
+
+### O'zgaruvchan sonli argumentlar: `va_list`
+
+**Bu nima?** `printf` har safar turlicha argument oladi. Shunday funksiyani o'zingiz ham yozish mumkin — buning uchun `<stdarg.h>`.
+**Asosiy ishi:** argumentlar ro'yxatini (`...`) birma-bir olish (`va_arg`).
+
+```c
+/* yigindi.c - o'zgaruvchan sonli argumentlar */
+#include <stdarg.h>
+#include <stdio.h>
+
+static int yigindi(int n, ...)          /* n - keyin nechta son kelishini aytadi */
+{
+    va_list ap;
+    va_start(ap, n);                    /* n dan keyingi argumentlardan boshlash */
+    int s = 0;
+    for (int i = 0; i < n; i++)
+        s += va_arg(ap, int);           /* navbatdagisini int deb ol */
+    va_end(ap);
+    return s;
+}
+
+int main(void)
+{
+    printf("yigindi(3, 10, 20, 30) = %d\n", yigindi(3, 10, 20, 30));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra yigindi.c -o yigindi
+$ ./yigindi
+yigindi(3, 10, 20, 30) = 60
+```
+
+**Qismlar:** `...` — "bu yerga istalgancha argument kelishi mumkin". `va_start` — ro'yxatni boshlash, `va_arg(ap, int)` — "navbatdagi argumentni `int` deb ol", `va_end` — tugatish.
+Funksiya argumentlar **sonini** o'zi bilmaydi, shuning uchun `n` ni birinchi argument qilib beramiz (`printf` esa buni qolipdan biladi: nechta `%`, shuncha argument).
+
+**Ichida nima bor:** format satrini belgima-belgi o'qish, `%` ni ko'rganda `va_arg` bilan navbatdagi argumentni olish, sonni satrga aylantirish (11-mashq!).
+MyOS: `user/libc/printf.c`, `kernel/lib/kprintf.c` — ikkalasi ham ~300 qator.
+
+## 12.3. `FILE *` va buferlash
+
+**Bu nima?** `FILE *` — ochilgan faylni ifodalovchi "tutqich". **Asosiy ishi:** faylni ochish (`fopen`), o'qish/yozish (`fgets`, `fprintf`) va yopish (`fclose`).
+
+```c
+/* fayl_oqish.c - fayl yozish, o'qish va xatoni ushlash */
+#include <stdio.h>
+
+int main(void)
+{
+    FILE *f = fopen("royxat.txt", "w");         /* "w" - yozish uchun (tozalab) ochish */
+    if (!f) {
+        perror("fopen");
+        return 1;
+    }
+    fprintf(f, "birinchi qator\n");
+    fprintf(f, "ikkinchi qator\n");
+    fclose(f);                                   /* yozishni tugatish va yopish */
+
+    f = fopen("royxat.txt", "r");                /* "r" - o'qish uchun */
+    if (!f) {
+        perror("fopen");
+        return 1;
+    }
+    char qator[256];
+    while (fgets(qator, sizeof(qator), f))       /* qatorma-qator */
+        printf("o'qildi: %s", qator);
+    fclose(f);
+
+    f = fopen("yoq_fayl.txt", "r");              /* mavjud bo'lmagan fayl */
+    if (!f)
+        perror("fopen");                          /* sababini chop etadi */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra fayl_oqish.c -o fayl_oqish
+$ ./fayl_oqish
+o'qildi: birinchi qator
+o'qildi: ikkinchi qator
+fopen: No such file or directory
+```
+
+**Bu dastur nima qiladi:** (1) `royxat.txt` faylini yaratib, ichiga ikki qator yozadi; (2) uni qayta ochib, qatorma-qator o'qiydi; (3) mavjud bo'lmagan faylni ochishga urinib, xato sababini ko'rsatadi.
+
+**Qismlar:**
+
+| Qism | Vazifasi | Tafsilot |
+|---|---|---|
+| `fopen(nom, rejim)` | faylni ochish | Rejim: `"r"` o'qish, `"w"` yozish (tozalab), `"a"` oxiriga qo'shish, `"rb"` binar. Muvaffaqiyatsiz bo'lsa `NULL` qaytaradi — **doim tekshiring** |
+| `fprintf(f, ...)` | faylga formatlab yozish | `printf` ning fayl varianti: birinchi argument — fayl |
+| `fgets(qator, hajm, f)` | bitta qatorni o'qish | `hajm` — bufer hajmi (xavfsiz, 6.9). Fayl tugasa `NULL` |
+| `fclose(f)` | faylni yopish | bufer diskka yoziladi va tutqich bo'shatiladi |
+| `perror("fopen")` | xato xabarini chiqarish | "fopen: No such file or directory" — nima va **nega** (12.4) |
+
+`FILE` — opaque struktura (9-bob): ichida fayl deskriptori va **bufer**.
+
+### Buferlash nima
+
+**Hayotdan misol: pochta qutisi.** Pochtachi har bir xat uchun alohida kelmaydi — xatlar qutiga yig'iladi va quti to'lganda (yoki belgilangan vaqtda) bir yo'la olib ketiladi. `fprintf` ham yozuvni
+avval xotiradagi **buferga** qo'yadi, keyin bir yo'la diskka yozadi — bu ming marta tezroq (syscall qimmat: ~100 ns+). `fflush` — "pochtachini hozir chaqir". `fclose` — oxirgi yig'ilganini ham
+jo'natib, qutini yopish. **Dastur qulasa, qutidagi xatlar yo'qoladi.**
+
+Buni ko'ramiz: `printf("salom")` dan keyin dastur qulasa, "salom" ko'rinadimi?
+
+```c
+/* bufer_yoqoladi.c - qulagan dasturda bufer yo'qoladi */
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+    (void)argv;
+    printf("salom (buferda)");           /* bufer: ekranga/faylga hali yozilmadi */
+    if (argc > 1)
+        fflush(stdout);                  /* argument berilsa - buferni darhol yuborish */
+    abort();                             /* dastur "qulaydi" */
+}
+```
+
+```console
+$ gcc -Wall -Wextra bufer_yoqoladi.c -o bufer_yoqoladi
+$ bash -c '(./bufer_yoqoladi > chiqish1.txt) 2>/dev/null; echo "fflush siz: $(wc -c < chiqish1.txt) bayt"' 2>&1 | grep -v Aborted
+fflush siz: 0 bayt
+$ bash -c '(./bufer_yoqoladi x > chiqish2.txt) 2>/dev/null; echo "fflush bilan: $(wc -c < chiqish2.txt) bayt"' 2>&1 | grep -v Aborted
+fflush bilan: 15 bayt
+```
+
+**Nima ko'rdik:** chiqish faylga yo'naltirilganda (`>`) `stdout` **to'liq buferlanadi**. `fflush` siz — hech narsa yozilmadi (0 bayt); `fflush` bilan — matn saqlandi. Terminalda esa
+`\n` gacha buferlanadi.
+
+**Oqibatlar:**
+- `printf` chiqishi darhol ko'rinmasligi mumkin (terminalda `\n` gacha, pipe'da — bufer to'lguncha).
+- Dastur qulasa, buferdagi matn **yo'qoladi**. Debug xabarlari uchun `stderr` (buferlanmaydi) yoki `fflush(stdout)`. Mashqlardagi `TEST_BOSHLA()` aynan shuning uchun `setvbuf(stdout, NULL, _IONBF, 0)` qiladi.
+- `fork` dan oldin `fflush` qilinmasa, buferdagi matn **ikki marta** chiqadi (bola nusxasi ham chiqaradi) — 27-mashqdagi `_exit` maslahati shu sababdan.
+
+Uch standart oqim: `stdin` (0), `stdout` (1), `stderr` (2). MyOS: `user/libc/stdio.c` — `FILE`, buferlash va `fflush` ni o'qib chiqing.
+
+## 12.4. `errno` — xato sababi
+
+**Bu nima?** `errno` — "oxirgi xato sababi" raqami. **Asosiy ishi:** funksiya `-1` yoki `NULL` qaytarib "xato bo'ldi" desa, **nima uchun** bo'lganini aytish.
+
+**Hayotdan misol: mashina panelidagi xato kodi.** Mashina "Check engine" chirog'ini yoqadi — muammo bor. Ammo **qanday** muammo — diagnostika kodi aytadi: P0301. `fopen` ham `NULL` qaytaradi
+(chiroq), sababini esa `errno` aytadi: `ENOENT` (fayl yo'q), `EACCES` (ruxsat yo'q). `strerror` — kodni odam tiliga tarjima qiladi.
+
+```c
+/* errno_misol.c - xato kodini o'qish */
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    FILE *f = fopen("yoq_papka/fayl.txt", "r");
+    if (f == NULL) {                                        /* birinchi: xato bo'ldimi? */
+        int kod = errno;                                    /* keyin: sababi nima? */
+        printf("xato %d: %s\n", kod, strerror(kod));
+        printf("ENOENT = %d\n", ENOENT);
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra errno_misol.c -o errno_misol
+$ ./errno_misol
+xato 2: No such file or directory
+ENOENT = 2
+```
+
+**Qismlar:**
+
+- `f == NULL` — **avval** xato bo'lganini aniqlaymiz (funksiyaning qaytish qiymatidan).
+- `errno` — **keyin** sababini o'qiymiz. Raqam: `2` = `ENOENT` ("fayl/papka yo'q").
+- `strerror(kod)` — raqamni odam tilidagi matnga aylantiradi. `perror("matn")` — qisqasi: "matn: sabab" ni `stderr` ga yozadi.
+
+Boshqa kodlar: `EACCES` (ruxsat yo'q), `ENOMEM` (xotira yo'q), `EINTR` (signal uzdi), `EAGAIN`...
+
+> **Eslab qoling:** `errno` ni faqat funksiya **xato qaytarganda** tekshiring — muvaffaqiyatda u o'zgarmaydi (eski qiymat qoladi).
+
+**Yadro bilan bog'liqlik:** yadro syscall'dan `-ENOENT` (manfiy son) qaytaradi; libc uni ko'rib, `errno = ENOENT` qiladi va `-1` qaytaradi. MyOS: `user/libc/syscall.h` → `__sysret`.
+Kodlar ikkala tomonda bir xil — bitta fayldan: `include/myos/abi.h` (yadro ham, `user/include/errno.h` ham uni ishlatadi).
+
+## 12.5. `<stdlib.h>` — asosiylari
+
+| Funksiya | Vazifasi |
+|---|---|
+| `malloc/calloc/realloc/free` | dinamik xotira (8-bob) |
+| `exit(kod)` | dasturni tugatish (buferlarni `fflush` qilib, `atexit` funksiyalarini chaqirib) |
+| `_exit(kod)` (`<unistd.h>`) | darhol tugatish, buferlarsiz — `fork` qilingan bolada |
+| `strtol(s, &end, baza)` | satr → son, xatoni aniqlash mumkin (12-mashq) |
+| `atoi(s)` | oddiy, lekin xatoni bildirmaydi |
+| `qsort(massiv, n, hajm, cmp)` | saralash |
+| `bsearch(...)` | saralangan massivda ikkilik qidiruv |
+| `abs`, `labs` | modul |
+| `rand`, `srand` | psevdotasodifiy sonlar (kriptografiya uchun emas!) |
+| `getenv("PATH")` | muhit o'zgaruvchisi |
+
+### `qsort` — funksiya ko'rsatkichi amalda
+
+**Bu nima?** `qsort` — massivni tartiblaydigan tayyor funksiya. **Asosiy ishi:** saralash algoritmini o'zi bajarish; **qoidani** (nimani nimadan oldin qo'yish) siz berasiz.
+
+**Hayotdan misol: kutubxonachi.** Kutubxonachiga aytasiz: "Kitoblarni tartibla". U so'raydi: "Qanday qoida bilan? Muallif bo'yichami, yil bo'yichami?" Siz **solishtirish qoidasini** berasiz
+(funksiya), tartiblash ishini u o'zi qiladi. Qoidani o'zgartirsangiz — tartib o'zgaradi, kutubxonachi o'sha.
+
+```c
+/* qsort_misol.c - solishtirish funksiyasi bilan saralash */
+#include <stdio.h>
+#include <stdlib.h>
+
+static int cmp_int(const void *a, const void *b)
+{
+    int x = *(const int *)a;            /* void * -> int * -> qiymat */
+    int y = *(const int *)b;
+    return (x > y) - (x < y);           /* -1, 0 yoki 1 */
+}
+
+int main(void)
+{
+    int a[] = { 5, 2, 9, 1 };
+    qsort(a, 4, sizeof(a[0]), cmp_int);
+    for (int i = 0; i < 4; i++)
+        printf("%d ", a[i]);
+    printf("\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra qsort_misol.c -o qsort_misol
+$ ./qsort_misol
+1 2 5 9 
+```
+
+**Qismlar:**
+
+- `qsort(a, 4, sizeof(a[0]), cmp_int)` — to'rt argument: **qaysi massiv**, **nechta element**, **bitta element hajmi**, **solishtirish funksiyasi** (uning manzili — 5.10).
+- `cmp_int(a, b)` — `qsort` har gal ikki elementning **manzilini** beradi (`const void *` — turi noma'lum, chunki `qsort` massiv turini bilmaydi). Biz uni `(const int *)` ga aylantirib, qiymatni olamiz.
+- Natija: `a` birinchisi kichik bo'lsa **manfiy**, teng bo'lsa **0**, katta bo'lsa **musbat**.
+
+**Nega `return x - y;` emas?** `x - y` katta qarama-qarshi ishorali sonlarda **toshadi** (UB): masalan `2147483647 - (-5)` `int` ga sig'maydi, ishora noto'g'ri chiqadi.
+`(x > y) - (x < y)` hech qachon toshmaydi. 19-mashq.
+
+> **Eslab qoling:** `qsort` massiv turini bilmaydi; faqat baytlar (`void *`) va element hajmini. Taqqoslashni **sizning funksiyangiz** hal qiladi.
+
+## 12.6. `assert`
+
+**Bu nima?** `assert(shart)` — "shu shart **rost bo'lishi shart**" degan tekshiruv. **Asosiy ishi:** shart yolg'on bo'lsa, dasturni darhol to'xtatib, **qaysi qatorda** ekanini aytish — xato uzoqqa ketmaydi.
+
+**Hayotdan misol: uchishdan oldingi tekshiruv ro'yxati.** Uchuvchi har parvozdan oldin ro'yxat bo'yicha tekshiradi: "yoqilg'i bor, g'ildiraklar joyida". Bittasi bajarilmasa — samolyot uchmaydi.
+
+```c
+/* assert_misol.c - assert */
+#include <assert.h>
+#include <stdio.h>
+
+static int bol(int a, int b)
+{
+    assert(b != 0);                     /* b nol bo'lmasligi KERAK */
+    return a / b;
+}
+
+int main(void)
+{
+    printf("10 / 2 = %d\n", bol(10, 2));
+    printf("10 / 0 = %d\n", bol(10, 0));    /* shart buziladi */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra assert_misol.c -o assert_misol
+$ bash -c './assert_misol 2>&1; echo "chiqish kodi: $?"' 2>&1 | grep -v Aborted
+assert_misol: assert_misol.c:7: bol: Assertion `b != 0' failed.
+chiqish kodi: 134
+```
+
+**Nima ko'rdik:** birinchi chaqiruv (`10 / 2`) o'tdi; ikkinchisida `assert` fayl, qator, funksiya va **shart matnini** chiqarib, `abort()` qildi (chiqish kodi 134 = 128 + 6, signal `SIGABRT`).
+
+Diqqat: `10 / 2 = 5` qatori ekranda **ko'rinmadi**! Chiqish `|` orqali yo'naltirilgani uchun `stdout` buferlangan va `abort()` buferni yubormadi — bu 12.3 dagi dars: qulagan dasturda bufer **yo'qoladi**. Xato xabari (`stderr`) esa buferlanmaydi, shuning uchun ko'rindi.
+
+`-DNDEBUG` bilan yig'sangiz, `assert` butunlay **o'chadi** — shuning uchun ichiga yon ta'sirli kod (`assert(x++ > 0)`) yozmang. Yadroda analogi — `BUG_ON(shart)` / `panic()` (MyOS: `kernel/lib/panic.c`).
+
+## 12.7. Yadroda libc yo'q — nima qilinadi
+
+Yadro `-ffreestanding -nostdlib` bilan yig'iladi: `printf`, `malloc`, `strlen`, hatto `memcpy` ham **yo'q**. Hammasi yadroning o'zida qayta yoziladi:
+
+| libc | MyOS yadrosida |
+|---|---|
+| `printf` | `kprintf` — `kernel/lib/kprintf.c` (ekran + serial + dmesg) |
+| `malloc/free` | `kmalloc/kfree` — `kernel/mm/slab.c` |
+| `memcpy/strlen/...` | `kernel/lib/string.c` |
+| `assert/abort` | `panic()` — `kernel/lib/panic.c` |
+| `errno` | yo'q — xato kodi to'g'ridan-to'g'ri qaytariladi (`-ENOMEM`) |
+| mutex | `kernel/lib/spinlock.c`, `mutex.c` |
+
+Faqat bir nechta sarlavha freestanding'da ham bor, chunki ular faqat tur va makrolar: `<stdint.h>`, `<stddef.h>`, `<stdbool.h>`, `<stdarg.h>`, `<limits.h>`. 18-bobda batafsil.
+
+## Hayotdan misol va to'liq dastur
+
+**Imtihon natijalari.** Talabalarni ball bo'yicha tartiblaymiz (`qsort`), faylga yozamiz (`fprintf`), qayta o'qib jadval chiqaramiz (`fscanf`, `printf` formatlari) va xatoni ushlaymiz (`errno`).
 
 ```c
 /* imtihon.c - qsort, faylga yozish/o'qish, printf formatlari, errno */
@@ -113,181 +538,43 @@ Jasur 78
 Otabek 64
 ```
 
-**Sinab ko'ring:** `ball_boyicha` ni o'zgartirib, ism bo'yicha alifbo tartibida saralang. `fclose(f);`
-(birinchisini) o'chirib, o'rniga `abort();` qo'ying — `natijalar.txt` da nima qoladi?
+**Bu dastur nima qiladi (umumiy):** 5 talabaning ballini kamayish tartibida saralaydi, `natijalar.txt` ga yozadi, fayldan qayta o'qib baholar bilan jadval chiqaradi va oxirida mavjud bo'lmagan faylni ochib xato kodini ko'rsatadi.
 
-## 12.1. libc nima
+**Qismlar (har birining vazifasi):**
 
-C tilining o'zi juda kichik: kalit so'zlar va operatorlar. `printf`, `malloc`, `strlen`, `fopen` — bular
-tilning qismi emas, **standart kutubxonaning** (libc) funksiyalari: oddiy C'da yozilgan kod. Linux'da —
-glibc yoki musl, MyOS'da — `user/libc/` (siz o'qiy oladigan ~2000 qator).
-
-| Sarlavha | Nima |
+| Qism | Vazifasi |
 |---|---|
-| `<stdio.h>` | kiritish/chiqarish: `printf`, `fopen`, `fgets` |
-| `<stdlib.h>` | `malloc`, `free`, `exit`, `strtol`, `qsort`, `abs` |
-| `<string.h>` | `strlen`, `memcpy`, `strcmp`... (6-bob) |
-| `<ctype.h>` | `isdigit`, `toupper`... |
-| `<stdint.h>`, `<stddef.h>`, `<stdbool.h>`, `<limits.h>` | turlar va chegaralar |
-| `<errno.h>` | `errno` va xato kodlari |
-| `<time.h>` | vaqt |
-| `<assert.h>` | `assert(shart)` |
-| `<unistd.h>`, `<fcntl.h>`, `<sys/wait.h>` | **POSIX** (standart C emas): `read`, `fork`... (14-bob) |
+| `struct talaba` | bitta talaba: ism + ball |
+| `ball_boyicha` | `qsort` uchun **qoida**: ball katta bo'lsa oldin; teng bo'lsa — ism alifbo tartibida (`strcmp`) |
+| `qsort(guruh, n, sizeof(...), ball_boyicha)` | saralashni bajaradi |
+| `fopen("natijalar.txt", "w")` + `fprintf` + `fclose` | tartiblangan ro'yxatni faylga yozish |
+| `fscanf(f, "%19s %d", ism, &ball)` | fayldan "ism son" juftini o'qish; `%19s` — ko'pi bilan 19 belgi (bufer to'lmasin); `== 2` — ikkala qiymat ham o'qildi |
+| `ball >= 86 ? "a'lo" : ball >= 71 ? ...` | ball bo'yicha baho matnini tanlash (3.7) |
+| `%-5d %-10s %5d` | jadval ustunlarini tekis chiqarish (12.2) |
+| `errno`, `strerror` | oxirgi xato sababi (12.4) |
 
-## 12.2. `printf` — to'liq
+**Sinab ko'ring:** `ball_boyicha` ni o'zgartirib, ism bo'yicha alifbo tartibida saralang. `fclose(f);` (birinchisini) o'chirib, o'rniga `abort();` qo'ying — `natijalar.txt` da nima qoladi?
 
-Format: `%[bayroqlar][kenglik][.aniqlik][uzunlik]tur`
+## Bob xulosasi (yodlash uchun)
 
-```c
-printf("[%5d]\n", 42);          /* [   42]  kenglik 5, o'ngga tekislangan */
-printf("[%-5d]\n", 42);         /* [42   ]  - : chapga */
-printf("[%05d]\n", 42);         /* [00042]  0 : nol bilan to'ldirish */
-printf("[%+d]\n", 42);          /* [+42]    + : doim ishora */
-printf("[%x %X %#x]\n", 255, 255, 255);   /* [ff FF 0xff] */
-printf("[%08lx]\n", 0xBEEFUL);  /* [0000beef] - manzillar/registrlar uchun klassik */
-printf("[%.3s]\n", "salom");    /* [sal]    satr uchun aniqlik = maksimal uzunlik */
-printf("[%.2f]\n", 3.14159);    /* [3.14] */
-printf("[%*d]\n", 6, 42);       /* [    42] kenglik argumentdan */
-```
+1. libc — tilning qismi emas, **tayyor funksiyalar to'plami**; har biri uchun tegishli sarlavha (`<stdio.h>`...) qo'shiladi.
+2. `printf` — qolip + argumentlar; qolipdagi `%tur` joylarni to'ldiradi; kenglik, aniqlik, bayroqlar jadvalni tekis qiladi; foydalanuvchi satrini **hech qachon qolip qilmang**.
+3. `FILE *`: `fopen` (NULL ni tekshiring) → `fprintf`/`fgets` → `fclose`; chiqish **buferlanadi** (`fflush`, qulasa yo'qoladi).
+4. `errno` — xato sababi; avval qaytish qiymatini tekshiring, keyin `errno`/`strerror`/`perror`.
+5. `qsort(massiv, n, hajm, cmp)` — qoidani siz berasiz; `cmp` da `x - y` emas, `(x > y) - (x < y)`. `assert(shart)` — "bu hech qachon bo'lmasligi kerak".
 
-Uzunlik modifikatorlari: `hh` (char), `h` (short), `l` (long), `ll` (long long), `z` (size_t),
-`t` (ptrdiff_t). `uint64_t` uchun: `%lu` (Linux x86-64) yoki portativ `PRIu64` (`<inttypes.h>`).
+## Savol-javob
 
-**`printf` ning qaytish qiymati** — chiqarilgan belgilar soni. **`snprintf(buf, n, ...)`** — natijani
-buferga, ko'pi bilan `n-1` belgi + `'\0'`, qaytish — to'liq natija uchun kerakli uzunlik (6-bob).
+**Nega Python'da `import` kerak, C'da `#include`?**
+Ikkalasi ham tayyor funksiyalarni "ulash" uchun. C'da `#include` e'lonlarni ko'chiradi, ta'riflarni esa linker kutubxonadan oladi (1-bob).
 
-**Xavfsizlik:** `printf(foydalanuvchi_satri)` — **hech qachon!** Satrda `%s`/`%n` bo'lsa, `printf`
-stekdan yo'q argumentlarni o'qiydi ("format string" hujumi). Doim: `printf("%s", satr)`.
+**`puts` bilan `printf` farqi?**
+`puts("matn")` — oddiy matnni va oxiriga `\n` ni chiqaradi, qolipsiz (tezroq). Kompilyator `printf("matn\n")` ni ko'pincha `puts` ga o'zi almashtiradi (1-bob).
 
-**Ichida nima bor:** format satrini belgima-belgi o'qish, `%` ni ko'rganda `va_arg` bilan navbatdagi
-argumentni olish, sonni satrga aylantirish (11-mashq!). MyOS: `user/libc/printf.c`,
-`kernel/lib/kprintf.c` — ikkalasi ham ~300 qator. O'zgaruvchan sonli argumentlar:
+**Nega `fgets`, `gets` emas?**
+`gets` bufer hajmini bilmaydi (to'lishi mumkin), shuning uchun standartdan olib tashlangan. `fgets` hajmni qabul qiladi (6.9).
 
-```c
-#include <stdarg.h>
-int yigindi(int n, ...)
-{
-    va_list ap;
-    va_start(ap, n);            /* n dan keyingi argumentlar */
-    int s = 0;
-    for (int i = 0; i < n; i++)
-        s += va_arg(ap, int);   /* navbatdagisi, turi int deb */
-    va_end(ap);
-    return s;
-}
-yigindi(3, 10, 20, 30);         /* 60 */
-```
-
-## 12.3. `FILE *` va buferlash
-
-```c
-FILE *f = fopen("ma'lumot.txt", "r");     /* "r" o'qish, "w" yozish (tozalab), "a" qo'shish, "rb" binar */
-if (!f) {
-    perror("fopen");                      /* "fopen: No such file or directory" */
-    return 1;
-}
-char qator[256];
-while (fgets(qator, sizeof(qator), f))    /* qatorma-qator */
-    printf("%s", qator);
-fclose(f);
-```
-
-`FILE` — opaque struktura (9-bob): ichida fayl deskriptori va **bufer**. `fputc` har bir belgi uchun
-syscall qilmaydi — buferga yig'adi va to'lganda (yoki `\n` da, yoki `fflush` da) bitta `write` qiladi.
-Syscall qimmat (~100 ns+), shuning uchun buferlash dasturni o'nlab marta tezlashtiradi.
-
-**Oqibatlar:**
-- `printf` chiqishi darhol ko'rinmasligi mumkin (terminalda `\n` gacha, pipe'da — bufer to'lguncha).
-- Dastur qulasa, buferdagi matn **yo'qoladi**. Debug xabarlari uchun `stderr` (buferlanmaydi) yoki
-  `fflush(stdout)`. Mashqlardagi `TEST_BOSHLA()` aynan shuning uchun `setvbuf(stdout, NULL, _IONBF, 0)` qiladi.
-- `fork` dan oldin `fflush` qilinmasa, buferdagi matn **ikki marta** chiqadi (bola nusxasi ham chiqaradi) —
-  27-mashqdagi `_exit` maslahati shu sababdan.
-
-Uch standart oqim: `stdin` (0), `stdout` (1), `stderr` (2).
-
-MyOS: `user/libc/stdio.c` — `FILE`, buferlash va `fflush` ni o'qib chiqing.
-
-## 12.4. `errno` — xato sababi
-
-```c
-#include <errno.h>
-#include <string.h>
-
-int fd = open("yoq.txt", O_RDONLY);
-if (fd < 0) {
-    printf("xato %d: %s\n", errno, strerror(errno));   /* xato 2: No such file or directory */
-    perror("open");                                    /* qisqasi */
-}
-```
-
-- Funksiya xato qilganda (-1 yoki NULL qaytarib) sababni global `errno` ga yozadi: `ENOENT` (fayl yo'q),
-  `EACCES` (ruxsat yo'q), `ENOMEM`, `EINTR` (signal uzdi), `EAGAIN`...
-- `errno` ni faqat funksiya **xato qaytarganda** tekshiring — muvaffaqiyatda u o'zgarmaydi (eski qiymat).
-- **Yadro bilan bog'liqlik:** yadro syscall'dan `-ENOENT` (manfiy son) qaytaradi; libc uni ko'rib,
-  `errno = ENOENT` qiladi va `-1` qaytaradi. MyOS: `user/libc/syscall.h` → `__sysret`. Kodlar ikkala
-  tomonda bir xil — bitta fayldan: `include/myos/abi.h` (yadro ham, `user/include/errno.h` ham uni ishlatadi).
-
-## 12.5. `<stdlib.h>` — asosiylari
-
-| Funksiya | Nima |
-|---|---|
-| `malloc/calloc/realloc/free` | 8-bob |
-| `exit(kod)` | dasturni tugatish (buferlarni `fflush` qilib, `atexit` funksiyalarini chaqirib) |
-| `_exit(kod)` (`<unistd.h>`) | darhol tugatish, buferlarsiz — `fork` qilingan bolada |
-| `strtol(s, &end, baza)` | satr → son, xatoni aniqlash mumkin (12-mashq) |
-| `atoi(s)` | oddiy, lekin xatoni bildirmaydi |
-| `qsort(massiv, n, hajm, cmp)` | saralash |
-| `bsearch(...)` | saralangan massivda ikkilik qidiruv |
-| `abs`, `labs` | modul |
-| `rand`, `srand` | psevdotasodifiy sonlar (kriptografiya uchun emas!) |
-| `getenv("PATH")` | muhit o'zgaruvchisi |
-
-### `qsort` — funksiya ko'rsatkichi amalda
-
-```c
-static int cmp_int(const void *a, const void *b)
-{
-    int x = *(const int *)a;        /* void * -> int * -> qiymat */
-    int y = *(const int *)b;
-    return (x > y) - (x < y);       /* -1, 0, 1. "x - y" TOSHISHI mumkin! */
-}
-
-int a[] = { 5, 2, 9, 1 };
-qsort(a, 4, sizeof(a[0]), cmp_int);
-```
-
-`qsort` massiv turini bilmaydi — faqat baytlar (`void *`) va element hajmini. Taqqoslashni sizning
-funksiyangizga topshiradi (19-mashq).
-
-## 12.6. `assert`
-
-```c
-#include <assert.h>
-assert(n > 0);          /* yolg'on bo'lsa: "Assertion `n > 0' failed" va abort() */
-```
-
-"Bu hech qachon bo'lmasligi kerak" degan invariantlar uchun. `-DNDEBUG` bilan o'chadi — shuning uchun
-ichiga yon ta'sirli kod (`assert(x++ > 0)`) yozmang. Yadroda analogi — `BUG_ON(shart)` / `panic()`
-(MyOS: `kernel/lib/panic.c`).
-
-## 12.7. Yadroda libc yo'q — nima qilinadi
-
-Yadro `-ffreestanding -nostdlib` bilan yig'iladi: `printf`, `malloc`, `strlen`, hatto `memcpy` ham
-**yo'q**. Hammasi yadroning o'zida qayta yoziladi:
-
-| libc | MyOS yadrosida |
-|---|---|
-| `printf` | `kprintf` — `kernel/lib/kprintf.c` (ekran + serial + dmesg) |
-| `malloc/free` | `kmalloc/kfree` — `kernel/mm/slab.c` |
-| `memcpy/strlen/...` | `kernel/lib/string.c` |
-| `assert/abort` | `panic()` — `kernel/lib/panic.c` |
-| `errno` | yo'q — xato kodi to'g'ridan-to'g'ri qaytariladi (`-ENOMEM`) |
-| mutex | `kernel/lib/spinlock.c`, `mutex.c` |
-
-Faqat bir nechta sarlavha freestanding'da ham bor, chunki ular faqat tur va makrolar: `<stdint.h>`,
-`<stddef.h>`, `<stdbool.h>`, `<stdarg.h>`, `<limits.h>`. 18-bobda batafsil.
-
-## 12.8. O'zingizni tekshiring
+## O'zingizni tekshiring
 
 1. `printf("%08x", 255)` nima chiqaradi?
 2. Nega `printf(s)` xavfli?
@@ -304,11 +591,10 @@ Faqat bir nechta sarlavha freestanding'da ham bor, chunki ular faqat tur va makr
 5. Katta qarama-qarshi ishorali sonlarda ayirish toshadi (UB) va ishora noto'g'ri chiqadi.
 </details>
 
-## 12.9. Mashqlar
+## Mashq
 
 - **11** (son → satr — `printf` yuragi), **12** (`strtol` o'xshashi), **19** (`qsort`), **24** (parsing).
-- Qo'shimcha: `va_list` bilan o'z mini-`printf`ingizni yozing: `%d`, `%s`, `%x`, `%c`, `%%` —
-  chiqarish uchun faqat `putchar` ishlating. Keyin MyOS `kernel/lib/kprintf.c` bilan solishtiring.
+- Qo'shimcha: `va_list` bilan o'z mini-`printf`ingizni yozing: `%d`, `%s`, `%x`, `%c`, `%%` — chiqarish uchun faqat `putchar` ishlating. Keyin MyOS `kernel/lib/kprintf.c` bilan solishtiring.
 
 <!-- loyiha:boshi -->
 ## Loyiha: server log tahlilchisi

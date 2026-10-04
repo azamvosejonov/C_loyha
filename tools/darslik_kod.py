@@ -28,7 +28,7 @@ def tekshir(bob, nom, bolim):
                     open(os.path.join(wd, f.group(1)), 'w').write(tana)
             elif til == 'console':
                 for q in tana.splitlines():
-                    if not re.match(r'\$ (gcc|make)\b', q) or '# xato kutiladi' in q:
+                    if not re.match(r'\$ (gcc|make|ar)\b', q) or '# xato kutiladi' in q:
                         continue
                     buyruq = q[2:].split(' && ')[0]        # faqat yig'ish qismi
                     r = subprocess.run(['bash', '-c', buyruq], cwd=wd, capture_output=True, text=True)

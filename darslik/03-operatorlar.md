@@ -47,10 +47,10 @@ yetganda boshidan boshlanadi. Hafta kunlari (`% 7`), oylar (`% 12`), yadrodagi a
 
 int main(void)
 {
-    printf("7 / 2 = %d,  7 %% 2 = %d\n", 7 / 2, 7 % 2);
-    printf("-7 / 2 = %d, -7 %% 2 = %d\n", -7 / 2, -7 % 2);
-    printf("7 / 2.0 = %.1f\n", 7 / 2.0);
-    printf("soat: (22 + 5) %% 24 = %d\n", (22 + 5) % 24);
+    printf("7 bo'lingan 2 = %d,  7 ning 2 ga qoldig'i = %d\n", 7 / 2, 7 % 2);
+    printf("-7 bo'lingan 2 = %d, -7 ning 2 ga qoldig'i = %d\n", -7 / 2, -7 % 2);
+    printf("7 bo'lingan 2.0 = %.1f\n", 7 / 2.0);
+    printf("soat: (22 + 5) ning 24 ga qoldig'i = %d\n", (22 + 5) % 24);
     return 0;
 }
 ```
@@ -58,21 +58,67 @@ int main(void)
 ```console
 $ gcc -Wall -Wextra hisob.c -o hisob
 $ ./hisob
-7 / 2 = 3,  7 % 2 = 1
--7 / 2 = -3, -7 % 2 = -1
-7 / 2.0 = 3.5
-soat: (22 + 5) % 24 = 3
+7 bo'lingan 2 = 3,  7 ning 2 ga qoldig'i = 1
+-7 bo'lingan 2 = -3, -7 ning 2 ga qoldig'i = -1
+7 bo'lingan 2.0 = 3.5
+soat: (22 + 5) ning 24 ga qoldig'i = 3
 ```
 
-**Kodda nimalar bor:**
+**Bu dastur nima qiladi:** to'rtta hisobni bajaradi va natijasini ekranga yozadi. Asosiy maqsad — `/` (bo'lish) va `%` (qoldiq) amallari
+**butun sonlarda** qanday ishlashini ko'rish. Dastur ikki xil ish qiladi, ularni alohida ko'ramiz:
 
-| Qator | Nima qiladi | Nega shunday |
-|---|---|---|
-| `printf("... %%  ...")` | `%%` — ekranda **bitta `%`** | `%` printf'da maxsus belgi, shuning uchun haqiqiy `%` ni ikkita yozamiz |
-| `7 / 2` | ikkala son `int` → **butun** bo'lish → `3` | kasr qismi tashlanadi |
-| `7 / 2.0` | `2.0` kasr → natija kasr: `3.5` | bittasini kasr qilsak, hisob kasrda bo'ladi |
-| `-7 / 2` | `-3` (**nolga tomon** kesadi) | Python'da `-7 // 2 == -4` (pastga yaxlitlaydi) — farq! |
-| `-7 % 2` | `-1` (ishorasi bo'linuvchiniki) | Python'da `1`. Manfiy sonlar bilan `%` ehtiyot bo'lib ishlating |
+**1) Chiqarish (`printf`).** `printf` — ekranga matn chiqaradigan funksiya; uning **asosiy ishi** shu. Qavs ichida avval qo'shtirnoqdagi matn (**qolip**), keyin vergul bilan
+qiymatlar yoziladi. Qolipdagi `%d` — "shu yerga butun son qo'y" degani; qiymatlar qolipdagi `%d` larga **tartib bilan** joylashadi:
+
+```text
+printf("7 bo'lingan 2 = %d,  7 ning 2 ga qoldig'i = %d\n",   7 / 2,   7 % 2);
+                       ^                                ^       ^       ^
+                       1-%d  <-------- 7 / 2 = 3 --------+       |       |
+                                                       2-%d <----+-- 7 % 2 = 1
+```
+
+**2) Hisoblash.** Bu amallar printf'ning ichida **qiymat sifatida** hisoblanadi:
+
+| Ifoda | Nima qiladi | Natija | Izoh |
+|---|---|---|---|
+| `7 / 2` | bo'lish; ikkala son `int` bo'lgani uchun **butun** bo'lish | `3` | kasr qismi (0.5) tashlanadi |
+| `7 % 2` | **qoldiq**: 7 ni 2 ga bo'lganda ortib qolgani | `1` | 7 = 3·2 + **1** |
+| `7 / 2.0` | `2.0` kasr son → natija ham kasr | `3.5` | bittasini kasr qilsak, hisob kasrda bo'ladi |
+| `-7 / 2` | manfiy son bo'linganda **nolga tomon** kesadi | `-3` | Python'da `-7 // 2 == -4` (pastga yaxlitlaydi) — farq! |
+| `-7 % 2` | qoldiqning ishorasi **bo'linuvchiniki** | `-1` | Python'da `1`. Manfiy sonlar bilan `%` ehtiyot bo'lib ishlating |
+| `(22 + 5) % 24` | soat hisobi: 27 soat = 1 sutka + 3 soat | `3` | qoldiq aylanishni beradi |
+
+### Maxsus holat: ekranda `%` belgisini chiqarish
+
+Yuqoridagi dasturda `%` belgisi **ikki xil joyda** uchradi, ularni adashtirmang:
+
+- `printf` **qolipi ichida** (`"...%d..."`): bu yerda `%` — **buyruq belgisi** ("shu yerga qiymat qo'y").
+- **hisoblashda** (`7 % 2`): bu yerda `%` — **qoldiq** amali.
+
+Endi savol: agar ekranda oddiy `%` harfini ko'rsatmoqchi bo'lsak-chi (masalan "QQS 12%")? Qolip ichida `%` buyruq hisoblanadi, shuning uchun oddiy `%` ni
+**ikkita** yozamiz: `%%`. `printf` buni "ekranga bitta `%` yoz" deb tushunadi.
+
+```c
+/* foiz.c - ekranda % belgisini chiqarish */
+#include <stdio.h>
+
+int main(void)
+{
+    int stavka = 12;
+    printf("QQS stavkasi: %d%%\n", stavka);      /* %d - son o'rniga, %% - oddiy % belgisi */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra foiz.c -o foiz
+$ ./foiz
+QQS stavkasi: 12%
+```
+
+Qolipni chapdan o'ngga o'qing: `%d` → `12` qo'yildi; keyingi `%%` → ekranda bitta `%`; `\n` → yangi qator. Natija: `QQS stavkasi: 12%`.
+
+> **Eslab qoling:** printf qolipida `%` — buyruq belgisi. Oddiy `%` kerak bo'lsa — `%%`.
 
 **Nega `-7 / 2` C'da −3, Python'da −4?** C "nolga tomon kesadi" (CPU'ning bo'lish buyrug'i shunday ishlaydi — tez).
 Python "pastga yaxlitlaydi". Aylanma bufer indeksida `(i - 1) % n` manfiy chiqib qolishi mumkin; to'g'risi `(i + n - 1) % n`.
