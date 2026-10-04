@@ -1,43 +1,503 @@
 # 20-bob. Sonlar kompyuterda: butun sonlar va kasr sonlar (IEEE 754)
 
-> **Bu bobdan keyin:** istalgan sonni ikkilik va o'n oltilik tizimda boshingizda aylantira olasiz,
-> ikkiga to'ldirish (two's complement) nega ishlashini **isbotlay** olasiz, ishora kengayishi va qirqishni,
-> `float` ning bitlarini va `0.1 + 0.2 != 0.3` sababini bilasiz. (Mavzu odatda "Computer Systems:
-> A Programmer's Perspective" kitobining 2-bobidan o'rganiladi.) Mashqlar: 03, 04, 41.
+> **Bu bobda nima o'rganasiz:** istalgan sonni ikkilik va o'n oltilik tizimda boshingizda aylantirishni; ikkiga to'ldirish (two's complement) nega ishlashini **isbotlashni**; ishora kengayishi va qirqishni;
+> `float` ning bitlarini va `0.1 + 0.2 != 0.3` sababini. (Mavzu odatda "Computer Systems: A Programmer's Perspective" kitobining 2-bobidan o'rganiladi.)
+> **Oldindan nima kerak:** 2-, 3-boblar (turlar, bit amallar).   **Vaqt:** 6–8 soat.
+> Mashqlar: 03, 04, 41.
 
 > **To'liq ishlaydigan misol:** [misollar/20_sonlar.c](misollar/20_sonlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Pozitsion sanoq tizimi — kupyuralar (20.1).** 3 745 so'm — bu 3 ta mingtalik, 7 ta yuztalik, 4 ta
-o'ntalik va 5 ta birtalik. Raqamning **joyi** uning qiymatini belgilaydi. Ikkilik tizimda ham xuddi
-shunday, faqat "kupyuralar" 1, 2, 4, 8, 16... va har biridan ko'pi bilan bitta: `1101` = 8 + 4 + 1 = 13.
-O'n oltilik tizim — ikkilikning qisqa yozuvi: har bir o'n oltilik raqam — to'rtta bit.
+2-bobda `int` toshishini va `float` aniq emasligini ko'rdingiz. Endi **nega** shunday ekanini ochamiz: kompyuter sonni **bitlarda** qanday saqlaydi? Manfiy son qanday? Kasr son qanday?
+Bu bilim bo'lmasa, "tushunarsiz" xatolar (`-INT_MIN`, `0.1 + 0.2`) siz uchun sirligicha qoladi.
 
-**Ikkiga to'ldirish — orqaga aylanadigan hisoblagich (20.3).** Uch xonali hisoblagich 000 dan bitta
-orqaga aylantirilsa — 999 ko'rsatadi. Demak "−1" ni 999 deb kelishish mumkin: 999 + 1 = 000 — to'g'ri!
-8 bitli sonlarda ham: −1 = `11111111`. Shu kelishuv tufayli protsessorga ayirish uchun alohida
-sxema kerak emas — qo'shish sxemasi ishorali sonlar uchun ham ishlaydi.
+**Hayotdan misol: pozitsion sanoq tizimi — kupyuralar.** 3 745 so'm — bu 3 ta mingtalik, 7 ta yuztalik, 4 ta o'ntalik va 5 ta birtalik. Raqamning **joyi** uning qiymatini belgilaydi. Ikkilik tizimda ham xuddi shunday,
+faqat "kupyuralar" 1, 2, 4, 8, 16... va har biridan ko'pi bilan bitta: `1101` = 8 + 4 + 1 = 13. O'n oltilik tizim — ikkilikning qisqa yozuvi: har bir o'n oltilik raqam — to'rtta bit.
 
-**Ishora kengayishi — narxni kattaroq blankaga ko'chirish (20.4).** Kichik blankada "−5" yozilgan.
-Katta blankaga ko'chirganda bo'sh katakchalarni to'ldirish kerak: musbat son uchun 0 lar bilan,
-manfiy son uchun — 1 lar bilan (ikkiga to'ldirishda manfiy sonning boshi 1 lardan iborat).
-Aks holda −5 katta musbat songa aylanib qoladi.
+## 20.1. Pozitsion sanoq tizimlari
 
-**Qirqish — sig'magan raqamlarni kesib tashlash (20.4).** 4 xonali displeyga 12 345 ni yozsangiz,
-faqat oxirgi 4 raqami qoladi: 2345. Katta sonni kichik turga o'tkazganda ham yuqori bitlar kesiladi.
+O'nlik: `347 = 3·10² + 4·10¹ + 7·10⁰`. Har bir o'rin — asosning darajasi.
 
-**`float` — ilmiy yozuv va kalkulyator ekrani (20.6).** Kalkulyator ekranida faqat 8–10 raqam sig'adi.
-Juda katta son `6.02e23` ko'rinishida yoziladi: raqamlar (mantissa) va daraja. `float` da ~7 ta aniq
-raqam bor. Shuning uchun 16 777 217 ni `float` da aniq saqlab bo'lmaydi, 0.1 ni esa umuman aniq
-saqlab bo'lmaydi (ikkilikda u cheksiz kasr — o'nlikdagi 1/3 = 0.3333... kabi).
+Ikkilik (asos 2): `1011₂ = 1·8 + 0·4 + 1·2 + 1·1 = 11`.
 
-**Qat'iy nuqta — pulni tiyinda sanash (20.7).** Bankda hisob "12 650.55 so'm" deb emas, "1 265 055 tiyin"
-deb saqlanadi — butun son, hech qanday yaxlitlash xatosi yo'q. Yadroda `float` ishlatilmaydi, shuning
-uchun foizlar, vaqt va boshqalar aynan shunday butun sonlar bilan hisoblanadi.
+O'n oltilik (asos 16, raqamlar `0–9, a–f`): `0x2F = 2·16 + 15 = 47`.
 
-### To'liq dastur: valyuta ayirboshlash shoxobchasi
+**Nega kompyuterda ikkilik:** tranzistor ikki holatda ishonchli: "tok bor" / "tok yo'q".
+
+**Nega dasturchilar o'n oltilikni yaxshi ko'radi:** har bir o'n oltilik raqam aynan **4 bit**:
+
+```text
+0x  F    F    8    0    1    0    0    0
+  1111 1111 1000 0000 0001 0000 0000 0000
+```
+
+Shuning uchun `0xFFFFFFFF80100000` ni ko'rib, bitlarini darhol "ko'rish" mumkin. Ikkilikda yozilsa 64 ta raqam, o'n oltilikda — 16 ta.
+
+### O'nlikdan ikkilikka: ketma-ket bo'lish
+
+**Qoida:** sonni 2 ga bo'lamiz, **qoldiq**ni yozamiz, bo'linmani yana 2 ga bo'lamiz — 0 ga yetguncha. Qoldiqlar **pastdan yuqoriga** o'qiladi.
+
+```c
+/* ondan_ikkiga.c - 13 ni ikkilikka aylantirish: qadamma-qadam */
+#include <stdio.h>
+
+int main(void)
+{
+    unsigned son = 13;
+    unsigned x = son;
+    char bit[33];
+    int n = 0;
+
+    printf("%u ni 2 ga ketma-ket bo'lamiz:\n", son);
+    while (x > 0) {
+        printf("  %2u / 2 = %2u, qoldiq %u\n", x, x / 2, x % 2);
+        bit[n++] = (char)('0' + x % 2);         /* qoldiq - keyingi bit (pastdan yuqoriga) */
+        x /= 2;
+    }
+
+    printf("qoldiqlarni PASTDAN yuqoriga o'qiymiz: ");
+    for (int i = n - 1; i >= 0; i--)
+        putchar(bit[i]);
+    printf("  (= %u)\n", son);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ondan_ikkiga.c -o ondan_ikkiga
+$ ./ondan_ikkiga
+13 ni 2 ga ketma-ket bo'lamiz:
+  13 / 2 =  6, qoldiq 1
+   6 / 2 =  3, qoldiq 0
+   3 / 2 =  1, qoldiq 1
+   1 / 2 =  0, qoldiq 1
+qoldiqlarni PASTDAN yuqoriga o'qiymiz: 1101  (= 13)
+```
+
+**Bu dastur nima qiladi:** 13 ni ikkilikka aylantirishni qadamlarini ko'rsatib bajaradi. Har bo'lishda **qoldiq** (0 yoki 1) — navbatdagi bit. Birinchi qoldiq — **eng pastki** bit (0-kalit),
+oxirgisi — eng yuqorisi; shuning uchun teskari tartibda o'qiymiz → `1101`.
+
+### Boshda aylantirish
+
+Yodlash kerak bo'lgan jadval (bir marta o'rganing — butun umr ishlatasiz):
+
+| hex | ikkilik | o'nlik | | hex | ikkilik | o'nlik |
+|---|---|---|---|---|---|---|
+| 0 | 0000 | 0 | | 8 | 1000 | 8 |
+| 1 | 0001 | 1 | | 9 | 1001 | 9 |
+| 2 | 0010 | 2 | | a | 1010 | 10 |
+| 3 | 0011 | 3 | | b | 1011 | 11 |
+| 4 | 0100 | 4 | | c | 1100 | 12 |
+| 5 | 0101 | 5 | | d | 1101 | 13 |
+| 6 | 0110 | 6 | | e | 1110 | 14 |
+| 7 | 0111 | 7 | | f | 1111 | 15 |
+
+Ikkining darajalari: 2¹⁰ = 1024 (1 KiB), 2¹² = 4096 (sahifa), 2²⁰ ≈ million (1 MiB), 2³⁰ ≈ milliard (1 GiB), 2³² ≈ 4.29 milliard, 2⁴⁸ = 256 TiB (x86-64 virtual manzil maydoni), 2⁶⁴ ≈ 1.8·10¹⁹.
+
+`2ⁿ` ni tez hisoblash: `2^(10a + b) = 2^b · 1024^a`. Masalan 2³⁹ = 2⁹ · 2³⁰ = 512 GiB — bitta PML4 yozuvi qamraydigan hudud (31-mashq).
+
+> **Eslab qoling:** hex raqam = 4 bit. `0xF` = `1111`, `0x8` = `1000`. Jadvalni yodlang — keyin istalgan hex sonni "ko'rasiz".
+
+## 20.2. Ishorasiz butun sonlar
+
+w bitli ishorasiz son: `B = b[w-1]·2^(w-1) + ... + b[1]·2 + b[0]`. Oraliq: `0 .. 2^w − 1`. Arifmetika **mod 2^w**: natijaning ortiqcha bitlari tashlanadi.
+
+```text
+8 bit:  255 + 1 = 1 0000 0000  ->  0000 0000 = 0
+        0 - 1   = 1111 1111 = 255
+```
+
+C'da bu **aniqlangan** xatti-harakat (2-bob). Shuning uchun xesh funksiyalar, tasodifiy son generatorlari, bitli hisoblar ishorasiz turda yoziladi.
+
+## 20.3. Ikkiga to'ldirish (two's complement) — nega aynan shunday
+
+**Hayotdan misol: orqaga aylanadigan hisoblagich.** Uch xonali hisoblagich 000 dan bitta orqaga aylantirilsa — 999 ko'rsatadi. Demak "−1" ni 999 deb kelishish mumkin: 999 + 1 = 000 — to'g'ri!
+8 bitli sonlarda ham: −1 = `11111111`. Shu kelishuv tufayli protsessorga ayirish uchun alohida sxema kerak emas — qo'shish sxemasi ishorali sonlar uchun ham ishlaydi.
+
+w bitli ishorali son: eng yuqori bitning "og'irligi" **manfiy**:
+
+```text
+B = -b[w-1]·2^(w-1) + b[w-2]·2^(w-2) + ... + b[0]
+```
+
+8 bit uchun: `1000 0000 = -128`, `1111 1111 = -128 + 127 = -1`, `0111 1111 = 127`. Oraliq: `-2^(w-1) .. 2^(w-1) - 1` (masalan int: −2147483648 .. 2147483647). Manfiylar bittaga ko'p.
+
+**Ishorani o'zgartirish qoidasi:** `-x = ~x + 1` (hamma bitlarni teskari qilib, 1 qo'shish):
+
+```text
+ 5 = 0000 0101
+~5 = 1111 1010
++1 = 1111 1011 = -5     tekshirish: -128 + 64+32+16+8+2+1 = -128 + 123 = -5 ✓
+```
+
+```c
+/* ikkiga_toldirish.c - -x = ~x + 1 */
+#include <stdint.h>
+#include <stdio.h>
+
+static void bitlar8(const char *nom, uint8_t x)
+{
+    printf("%-14s ", nom);
+    for (int i = 7; i >= 0; i--)
+        putchar((x >> i) & 1 ? '1' : '0');
+    printf("  ishorasiz = %3u, ishorali = %4d\n", x, (int8_t)x);
+}
+
+int main(void)
+{
+    uint8_t x = 5;
+    bitlar8("x = 5", x);
+    bitlar8("~x", (uint8_t)~x);
+    bitlar8("~x + 1", (uint8_t)(~x + 1));
+    bitlar8("-5 (to'g'ri)", (uint8_t)-5);
+
+    printf("\nbir xil 8 bit, ikki talqin:\n");
+    bitlar8("0xFB", 0xFB);
+    bitlar8("0x80", 0x80);
+    bitlar8("0x7F", 0x7F);
+
+    int8_t kichik = -128;                   /* eng kichik: -(-128) sig'maydi */
+    printf("\n-(-128) int8_t da: %d (yana -128!)\n", (int8_t)(-kichik));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra ikkiga_toldirish.c -o ikkiga_toldirish
+$ ./ikkiga_toldirish
+x = 5          00000101  ishorasiz =   5, ishorali =    5
+~x             11111010  ishorasiz = 250, ishorali =   -6
+~x + 1         11111011  ishorasiz = 251, ishorali =   -5
+-5 (to'g'ri)   11111011  ishorasiz = 251, ishorali =   -5
+
+bir xil 8 bit, ikki talqin:
+0xFB           11111011  ishorasiz = 251, ishorali =   -5
+0x80           10000000  ishorasiz = 128, ishorali = -128
+0x7F           01111111  ishorasiz = 127, ishorali =  127
+
+-(-128) int8_t da: -128 (yana -128!)
+```
+
+**Bu dastur nima qiladi:** bir xil 8 bitni ikkita usulda — **ishorasiz** va **ishorali** — o'qib ko'rsatadi; `-5` ni `~5 + 1` qoidasi bilan hosil qiladi; eng kichik sonning ishorasini o'zgartirishda nima bo'lishini ko'rsatadi.
+
+**Qismlar:**
+
+| Qism | Vazifasi |
+|---|---|
+| `bitlar8` | 8 bitni chap→o'ngga chiqaradi (3.4.9 dagi usul) va ikki talqinni ko'rsatadi: `x` (ishorasiz) va `(int8_t)x` (ishorali) |
+| `~x`, `~x + 1` | `5` → `11111010` (250) → `11111011` (251 = −5 ishorali) — ishorani o'zgartirish qoidasi |
+| `0xFB`, `0x80`, `0x7F` | `-5`, `-128` (eng kichik), `127` (eng katta) |
+| `-(-128)` | `~10000000 + 1 = 01111111 + 1 = 10000000` — **yana −128**: musbati sig'maydi |
+
+**Nega kompyuterlar shuni tanladi:** qo'shish/ayirish/ko'paytirish **ishorali va ishorasiz uchun bir xil sxema** bilan bajariladi — faqat natijani talqin qilish boshqa. `1111 1111 + 0000 0001`:
+ishorasiz talqinda 255 + 1 = 0 (mod 256), ishorali talqinda −1 + 1 = 0. CPU'da bitta qo'shuvchi — ikki xil ma'no. Shu sababli CPU'da `add` bitta, lekin taqqoslashdan keyingi sakrashlar ikki xil:
+`jl/jg` (ishorali) va `jb/ja` (ishorasiz) — 17-bob.
+
+**Muhim nosimmetriklik:** `-INT_MIN` — sig'maydi (`~1000...0 + 1 = 1000...0` — yana o'zi!). Shuning uchun `abs(INT_MIN)`, `INT_MIN / -1` — UB (03, 20-mashqlar).
+
+> **Eslab qoling:** manfiy son = `~x + 1`. Eng yuqori bit — "minus" (og'irligi manfiy). Bitlar bir xil — talqin (turi) boshqa.
+
+## 20.4. Ishora kengayishi va qirqish
+
+**Hayotdan misol: narxni kattaroq blankaga ko'chirish.** Kichik blankada "−5" yozilgan. Katta blankaga ko'chirganda bo'sh katakchalarni to'ldirish kerak: musbat son uchun 0 lar bilan, manfiy son uchun —
+1 lar bilan (ikkiga to'ldirishda manfiy sonning boshi 1 lardan iborat). Aks holda −5 katta musbat songa aylanib qoladi.
+
+Kichik turdan kattasiga o'tkazish:
+
+- **ishorasiz** → yuqoriga **nollar** qo'shiladi (zero extension);
+- **ishorali** → yuqoriga **ishora biti** takrorlanadi (sign extension).
+
+Kattadan kichikka — **qirqish**: pastki bitlar qoladi. **Hayotdan misol:** 4 xonali displeyga 12 345 ni yozsangiz, faqat oxirgi 4 raqami qoladi: 2345.
+
+```c
+/* kengaytirish.c - ishora kengayishi, nol kengayishi va qirqish */
+#include <stdint.h>
+#include <stdio.h>
+
+int main(void)
+{
+    int8_t a = -5;                          /* 1111 1011 */
+    int32_t b = a;                          /* ishora kengayishi: qiymat saqlanadi */
+    printf("int8_t -5 -> int32_t: %d (0x%08X)\n", b, (unsigned)b);
+
+    uint8_t c = 0xFB;                       /* 251 */
+    uint32_t d = c;                         /* nol kengayishi */
+    printf("uint8_t 251 -> uint32_t: %u (0x%08X)\n", d, d);
+
+    int32_t x = 300;                        /* 0001 0010 1100 */
+    int8_t y = (int8_t)x;                   /* qirqish: pastki 8 bit */
+    printf("300 ni int8_t ga qirqish: %d (300 %% 256 = %d)\n", y, 300 % 256);
+
+    printf("12345 ni uint8_t ga qirqish: %u (12345 %% 256 = %d)\n", (uint8_t)12345, 12345 % 256);
+
+    int8_t m1 = -1;
+    uint32_t katta = (uint32_t)m1;          /* avval ishora kengayishi, keyin ishorasiz */
+    printf("int8_t -1 -> uint32_t: %u (0x%08X)\n", katta, katta);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra kengaytirish.c -o kengaytirish
+$ ./kengaytirish
+int8_t -5 -> int32_t: -5 (0xFFFFFFFB)
+uint8_t 251 -> uint32_t: 251 (0x000000FB)
+300 ni int8_t ga qirqish: 44 (300 % 256 = 44)
+12345 ni uint8_t ga qirqish: 57 (12345 % 256 = 57)
+int8_t -1 -> uint32_t: 4294967295 (0xFFFFFFFF)
+```
+
+**Qadamlar:**
+
+- `-5` (`1111 1011`) ni 32 bitga kengaytirganda **1 lar** bilan to'ldiriladi → `0xFFFFFFFB` = −5 (qiymat saqlandi).
+- `0xFB` (ishorasiz, 251) → **0 lar** bilan → 251.
+- `300` = `0001 0010 1100`: pastki 8 bit `0010 1100` = 44 (= 300 mod 256).
+- `-1` ishorasiz katta turga o'tkazilganda avval ishora kengayadi (`0xFFFFFFFF`), keyin ishorasiz talqin → 4294967295.
+
+**Klassik tuzoq — `char` va EOF:**
+
+```c
+char c;                          /* x86 da ishorali */
+while ((c = getchar()) != EOF)   /* 0xFF bayt -> c = -1 -> EOF bilan teng -> sikl oldin tugaydi! */
+```
+
+`getchar` `int` qaytaradi (0..255 yoki −1). Natijani `int` da saqlang. Buni ko'ramiz:
+
+```c
+/* getchar_tuzoq.c - char va EOF */
+#include <stdio.h>
+
+int main(void)
+{
+    int soni = 0;
+    char c;                                  /* XATO: int bo'lishi kerak edi */
+    while ((c = (char)getchar()) != EOF)
+        soni++;
+    printf("char bilan o'qildi: %d bayt (3 bo'lishi kerak edi)\n", soni);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra getchar_tuzoq.c -o getchar_tuzoq
+$ printf 'a\377b' | ./getchar_tuzoq
+char bilan o'qildi: 1 bayt (3 bo'lishi kerak edi)
+```
+
+Kirishda 3 bayt bor: `a`, `0xFF`, `b`. Lekin `0xFF` `char` (ishorali) ga sig'ganda `-1` bo'ldi, u `EOF` (−1) bilan teng chiqdi va sikl **erta** tugadi (1 bayt o'qildi). Yechim: `int c = getchar();`.
+
+**Yadrodagi misol — kanonik manzillar:** x86-64 da virtual manzil 48 bitli, lekin registr 64 bit. 63..48-bitlar 47-bitning **ishora kengayishi** bo'lishi shart: shuning uchun yadro manzillari `0xFFFF8000...`
+dan boshlanadi (47-bit = 1 → yuqori bitlar ham 1). 31-mashqdagi kanonik tekshiruv — shu.
+
+## 20.5. Butun son arifmetikasining xossalari
+
+- Qo'shish, ko'paytirish **mod 2^w** — halqa: kommutativ, assotsiativ, hatto toshish bo'lganda ham (ishorasiz uchun; ishorali uchun C'da UB, lekin apparat darajasida xuddi shu).
+- Ikkining darajasiga ko'paytirish = chapga surish: `x * 8 == x << 3`.
+- Ikkining darajasiga bo'lish = o'ngga surish, **lekin** manfiy son uchun yaxlitlash farq qiladi: `-7 / 2 == -3` (C, nolga tomon), `-7 >> 1 == -4` (pastga). Kompilyator buni to'g'rilash uchun
+  qo'shimcha buyruq qo'yadi — shuning uchun `unsigned` bo'lish tezroq.
+- `x % 2^k == x & (2^k - 1)` — faqat ishorasiz (yoki manfiy bo'lmagan) x uchun.
+
+## 20.6. Kasr sonlar: IEEE 754 standarti
+
+**Hayotdan misol: kalkulyator ekrani va ilmiy yozuv.** Kalkulyator ekranida faqat 8–10 raqam sig'adi. Juda katta son `6.02e23` ko'rinishida yoziladi: raqamlar (**mantissa**) va **daraja**.
+`float` da ~7 ta aniq raqam bor. Shuning uchun 16 777 217 ni `float` da aniq saqlab bo'lmaydi, 0.1 ni esa umuman aniq saqlab bo'lmaydi (ikkilikda u cheksiz kasr — o'nlikdagi 1/3 = 0.3333... kabi).
+
+Kompyuterlarning deyarli hammasi `float` (32 bit) va `double` (64 bit) ni bir xil standart bo'yicha saqlaydi:
+
+```text
+float (32 bit):   [ S | E E E E E E E E | M M M M ... M (23 bit) ]
+                   1       8 bit              23 bit
+double (64 bit):  [ S | 11 bit eksponenta | 52 bit mantissa ]
+```
+
+**Normal son qiymati:**
+
+```text
+qiymat = (-1)^S × 1.M × 2^(E - 127)          (double uchun 127 o'rniga 1023)
+```
+
+- `S` — ishora (0 musbat, 1 manfiy).
+- `E` — **siljitilgan** (biased) eksponenta: haqiqiy daraja + 127. Nega siljitilgan: shunda musbat sonlarning bitlari butun son sifatida solishtirilsa ham tartib to'g'ri chiqadi.
+- `1.M` — "yashirin bir": normal sonda mantissa doim `1.xxx` ko'rinishida, shuning uchun 1 saqlanmaydi — bitta bit tejaladi.
+
+**Misol: 6.5 ni float'ga**
+
+```text
+6.5 = 110.1₂ = 1.101₂ × 2²
+S = 0,  E = 2 + 127 = 129 = 1000 0001,  M = 101 0000 ... (1. dan keyingi qism)
+bitlar: 0 10000001 10100000000000000000000 = 0x40D00000
+```
+
+Buni dastur bilan tekshiramiz:
+
+```c
+/* float_bitlar.c - float ning ichki tuzilishi */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+static void ajrat(const char *nom, float f)
+{
+    uint32_t u;
+    memcpy(&u, &f, sizeof(u));                      /* float baytlarini songa nusxalash */
+    unsigned s = u >> 31;
+    unsigned e = (u >> 23) & 0xFF;
+    unsigned m = u & 0x7FFFFF;
+    printf("%-10s 0x%08X  S=%u  E=%3u  M=0x%06X\n", nom, u, s, e, m);
+}
+
+int main(void)
+{
+    volatile float nol = 0.0f;                      /* volatile: kompilyator oldindan hisoblamasin */
+    ajrat("6.5", 6.5f);
+    ajrat("-1.0", -1.0f);
+    ajrat("0.1", 0.1f);
+    ajrat("0.0", 0.0f);
+    ajrat("+inf", 1.0f / nol);
+    ajrat("NaN", nol / nol);
+    ajrat("denormal", 1e-45f);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra float_bitlar.c -o float_bitlar
+$ ./float_bitlar
+6.5        0x40D00000  S=0  E=129  M=0x500000
+-1.0       0xBF800000  S=1  E=127  M=0x000000
+0.1        0x3DCCCCCD  S=0  E=123  M=0x4CCCCD
+0.0        0x00000000  S=0  E=  0  M=0x000000
++inf       0x7F800000  S=0  E=255  M=0x000000
+NaN        0xFFC00000  S=1  E=255  M=0x400000
+denormal   0x00000001  S=0  E=  0  M=0x000001
+```
+
+**Bu dastur nima qiladi:** `float` ning 32 bitini `S` (ishora), `E` (siljitilgan daraja), `M` (mantissa) maydonlariga ajratib ko'rsatadi. (`memcpy` — baytlarni nusxalash, 13.3 dagi xavfsiz usul.)
+
+**Tekshiruv:** `6.5` → `0x40D00000`, `S=0`, `E=129` (= 2 + 127), `M=0x500000` (= `101` va 20 ta nol) — qo'lda hisoblaganimiz bilan mos. `-1.0` → `S=1`, `E=127`, `M=0`. `NaN` da ishora biti ahamiyatsiz (x86 da `0.0/0.0` natijasi `S=1`); muhimi — `E=255` va `M≠0`. `0.1` ning `M=0x4CCCCD` — `CCCC...` davriy kasr, oxiri `D` ga yaxlitlangan.
+
+**Maxsus qiymatlar:**
+
+| E | M | Nima |
+|---|---|---|
+| 0 | 0 | ±0 (ha, −0 ham bor!) |
+| 0 | ≠0 | **denormal**: `0.M × 2^(-126)` — nolga juda yaqin sonlar, asta-sekin yo'qolish |
+| 1..254 | istalgan | normal son |
+| 255 | 0 | ±∞ (`1.0/0.0`) |
+| 255 | ≠0 | NaN ("son emas": `0.0/0.0`, `sqrt(-1)`). `NaN != NaN` — hatto o'zi bilan ham! |
+
+### Nega `0.1 + 0.2 != 0.3`
+
+0.1 ikkilikda cheksiz davriy kasr: `0.0001100110011...₂` (xuddi 1/3 o'nlikda 0.333... kabi). 52 bitda qirqiladi → kichik xato. Ikki xatoli son yig'indisi 0.3 ning eng yaqin tasviriga
+teng chiqmaydi.
+
+```c
+/* nol_bir.c - 0.1 + 0.2 va float yig'ilishi */
+#include <math.h>
+#include <stdio.h>
+
+int main(void)
+{
+    double a = 0.1, b = 0.2;
+    printf("0.1 + 0.2 = %.17g\n", a + b);
+    printf("0.3       = %.17g\n", 0.3);
+    printf("(a + b) == 0.3 ? %d\n", (a + b) == 0.3);
+    printf("fabs(a + b - 0.3) < 1e-9 ? %d   (to'g'ri taqqoslash)\n", fabs(a + b - 0.3) < 1e-9);
+
+    float x = 0.0f;
+    for (int i = 0; i < 10; i++)
+        x += 0.1f;                          /* 10 marta 0.1 */
+    printf("float: 0.1 ni 10 marta qo'shsak = %.9f  (x == 1.0 ? %d)\n", x, x == 1.0f);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra nol_bir.c -o nol_bir -lm
+$ ./nol_bir
+0.1 + 0.2 = 0.30000000000000004
+0.3       = 0.29999999999999999
+(a + b) == 0.3 ? 0
+fabs(a + b - 0.3) < 1e-9 ? 1   (to'g'ri taqqoslash)
+float: 0.1 ni 10 marta qo'shsak = 1.000000119  (x == 1.0 ? 0)
+```
+
+**Qoida:** kasr sonlarni `==` bilan solishtirmang, `fabs(a - b) < eps` ishlating; pul hisobida — butun sonlar (tiyinlar). (`-lm` — matematika kutubxonasi, 1-bob.)
+Shu sababli `for (float x = 0; x != 1.0; x += 0.1)` cheksiz sikl bo'lishi mumkin: yig'indi hech qachon aynan 1.0 bo'lmasligi mumkin.
+
+**Yaxlitlash:** standart bo'yicha — "eng yaqiniga, teng bo'lsa juftiga" (round-to-nearest-even): 2.5 → 2, 3.5 → 4. Nega juftiga: ko'p yaxlitlashda xatolar bir tomonga to'planmaydi.
+
+**Aniqlik:** `float` ~7 o'nlik raqam, `double` ~15–16. 2²⁴ + 1 = 16777217 ni `float` aniq saqlay olmaydi: `(float)16777217 == 16777216`. Shuning uchun `int` → `float` aylantirish ma'lumot yo'qotishi mumkin.
+
+```c
+/* aniqlik.c - float chegarasi va yaxlitlash */
+#include <math.h>
+#include <stdio.h>
+
+int main(void)
+{
+    printf("(float)16777216 = %.0f\n", (double)(float)16777216);
+    printf("(float)16777217 = %.0f  (2^24 + 1 sig'maydi)\n", (double)(float)16777217);
+    printf("rint(2.5) = %.0f, rint(3.5) = %.0f  (juftiga yaxlitlash)\n", rint(2.5), rint(3.5));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra aniqlik.c -o aniqlik -lm
+$ ./aniqlik
+(float)16777216 = 16777216
+(float)16777217 = 16777216  (2^24 + 1 sig'maydi)
+rint(2.5) = 2, rint(3.5) = 4  (juftiga yaxlitlash)
+```
+
+> **Eslab qoling:** `float` = ishora + daraja + mantissa; 0.1 aniq emas; kasrni `==` bilan solishtirmang; pul — butun sonda; 2²⁴ dan katta butun sonlar `float` da aniq emas.
+
+## 20.7. Yadroda kasr sonlar o'rniga — qat'iy nuqtali (fixed-point) arifmetika
+
+**Hayotdan misol: pulni tiyinda sanash.** Bankda hisob "12 650.55 so'm" deb emas, "1 265 055 tiyin" deb saqlanadi — butun son, hech qanday yaxlitlash xatosi yo'q. Yadroda `float` ishlatilmaydi,
+shuning uchun foizlar, vaqt va boshqalar aynan shunday butun sonlar bilan hisoblanadi.
+
+Yadro FPU registrlarini ishlatmaydi (18-bob). Kasr kerak bo'lsa — butun sonni "masshtab" bilan:
+
+```c
+/* qat_nuqta.c - qat'iy nuqtali hisob: foiz va vaqt */
+#include <stdint.h>
+#include <stdio.h>
+
+int main(void)
+{
+    /* CPU yuklamasi foizda, 2 xona aniqlik: 12.34% -> 1234 */
+    uint64_t band_tiklar = 1234, jami_tiklar = 10000;
+    uint32_t yuklama_x100 = (uint32_t)(band_tiklar * 10000 / jami_tiklar);
+    printf("yuklama: %u.%02u%%\n", yuklama_x100 / 100, yuklama_x100 % 100);
+
+    /* TSC chastotasi kHz da saqlanadi - Hz da float emas */
+    uint64_t tsc_khz = 2400000;              /* 2.4 GHz = 2 400 000 kHz */
+    uint64_t tsc_farq = 4800000;             /* shuncha takt o'tdi */
+    uint64_t mikrosekund = tsc_farq * 1000 / tsc_khz;
+    printf("%llu takt = %llu mikrosekund\n", (unsigned long long)tsc_farq, (unsigned long long)mikrosekund);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra qat_nuqta.c -o qat_nuqta
+$ ./qat_nuqta
+yuklama: 12.34%
+4800000 takt = 2000 mikrosekund
+```
+
+**Qadamlar:** foiz uchun avval **ko'paytiramiz** (`× 10000`), keyin **bo'lamiz** — butun sonlarda tartib shunday bo'lishi kerak (aks holda `1234 / 10000 = 0` — aniqlik yo'qoladi). `1234 × 10000 / 10000 = 1234` → `12.34%`.
+Vaqt: 4 800 000 takt ÷ 2 400 000 kHz = 2 ms = 2000 mikrosekund.
+
+Linux ham shunday qiladi: yuklama o'rtachalari (load average), scheduler og'irliklari — hammasi butun sonlarda. Tartib muhim: avval ko'paytirish, keyin bo'lish (aks holda aniqlik yo'qoladi), lekin toshishga e'tibor (64 bit).
+
+## Hayotdan misol va to'liq dastur
+
+**Valyuta ayirboshlash shoxobchasi.** `float` xatosi yig'ilishini va tiyin/sentlarda **aniq** hisobni ko'ramiz; shuningdek, ikkilik/o'n oltilik ko'rinish, ikkiga to'ldirish va qirqish.
 
 ```c
 /* valyuta.c - float xatosi yig'ilishi va qat'iy nuqtali (tiyinli) hisob */
@@ -95,205 +555,22 @@ sent bilan:   1000.00 dollar (aniq 1000.00 bo'lishi kerak)
 (float)16777217 = 16777216
 ```
 
-`float` bilan 100 000 ta 0.01 ni qo'shish 1000 dan sezilarli farq qildi — har bir qo'shishdagi
-kichik yaxlitlash xatosi yig'ilib boradi. Sentlar esa doim aniq.
+**Bu dastur nima qiladi (umumiy):** (1) 100 000 marta 0.01 dollar qo'shishni `float` da va **sentlarda** (butun son) bajarib, ikkalasini solishtiradi; (2) so'm/dollar kursini tiyinlarda hisoblaydi; (3) 13 ning ikkilik/o'n oltilik
+ko'rinishini, `-5` ning ikkiga to'ldirilgan va kengaytirilgan ko'rinishini, qirqishni va `float` aniqlik chegarasini ko'rsatadi.
 
-**Sinab ko'ring:** `float` ni `double` ga almashtiring — xato kamayadimi, yo'qoladimi? 12345 ni 8 bitga
-qirqish natijasini qo'lda hisoblang: 12345 % 256.
+`float` bilan 100 000 ta 0.01 ni qo'shish 1000 dan sezilarli farq qildi — har bir qo'shishdagi kichik yaxlitlash xatosi yig'ilib boradi. Sentlar esa doim aniq.
 
-## 20.1. Pozitsion sanoq tizimlari
+**Sinab ko'ring:** `float` ni `double` ga almashtiring — xato kamayadimi, yo'qoladimi? 12345 ni 8 bitga qirqish natijasini qo'lda hisoblang: 12345 % 256.
 
-O'nlik: `347 = 3·10² + 4·10¹ + 7·10⁰`. Har bir o'rin — asosning darajasi.
+## Bob xulosasi (yodlash uchun)
 
-Ikkilik (asos 2): `1011₂ = 1·8 + 0·4 + 1·2 + 1·1 = 11`.
+1. Pozitsion sanoq: ikkilik (1, 2, 4, 8...), hex raqam = **4 bit**; o'nlikdan ikkilikka — ketma-ket 2 ga bo'lish (qoldiqlar pastdan yuqoriga).
+2. **Ikkiga to'ldirish:** `-x = ~x + 1`; eng yuqori bit — "minus"; qo'shish ishorali va ishorasiz uchun **bir xil**; `-INT_MIN` sig'maydi.
+3. Kengaytirish: ishorasiz → **nollar**, ishorali → **ishora biti** takrorlanadi; qirqish — pastki bitlar qoladi (`mod 2^w`). `getchar()` natijasini **`int`** da saqlang.
+4. **IEEE 754:** `(-1)^S × 1.M × 2^(E−127)`; `0.1` aniq emas; `==` bilan solishtirmang; ±∞, NaN, denormal maxsus qiymatlar; 2²⁴ dan katta butun sonlar `float` da aniq emas.
+5. Yadroda kasr yo'q: **qat'iy nuqta** (butun son × masshtab); avval ko'paytiring, keyin bo'ling.
 
-O'n oltilik (asos 16, raqamlar `0–9, a–f`): `0x2F = 2·16 + 15 = 47`.
-
-**Nega kompyuterda ikkilik:** tranzistor ikki holatda ishonchli: "tok bor" / "tok yo'q".
-**Nega dasturchilar o'n oltilikni yaxshi ko'radi:** har bir o'n oltilik raqam aynan **4 bit**:
-
-```text
-0x  F    F    8    0    1    0    0    0
-  1111 1111 1000 0000 0001 0000 0000 0000
-```
-
-Shuning uchun `0xFFFFFFFF80100000` ni ko'rib, bitlarini darhol "ko'rish" mumkin. Ikkilikda yozilsa 64 ta
-raqam, o'n oltilikda — 16 ta.
-
-### Boshda aylantirish
-
-Yodlash kerak bo'lgan jadval (bir marta o'rganing — butun umr ishlatasiz):
-
-| hex | ikkilik | o'nlik | | hex | ikkilik | o'nlik |
-|---|---|---|---|---|---|---|
-| 0 | 0000 | 0 | | 8 | 1000 | 8 |
-| 1 | 0001 | 1 | | 9 | 1001 | 9 |
-| 2 | 0010 | 2 | | a | 1010 | 10 |
-| 3 | 0011 | 3 | | b | 1011 | 11 |
-| 4 | 0100 | 4 | | c | 1100 | 12 |
-| 5 | 0101 | 5 | | d | 1101 | 13 |
-| 6 | 0110 | 6 | | e | 1110 | 14 |
-| 7 | 0111 | 7 | | f | 1111 | 15 |
-
-Ikkining darajalari: 2¹⁰ = 1024 (1 KiB), 2¹² = 4096 (sahifa), 2²⁰ ≈ million (1 MiB), 2³⁰ ≈ milliard (1 GiB),
-2³² ≈ 4.29 milliard, 2⁴⁸ = 256 TiB (x86-64 virtual manzil maydoni), 2⁶⁴ ≈ 1.8·10¹⁹.
-
-`2ⁿ` ni tez hisoblash: `2^(10a + b) = 2^b · 1024^a`. Masalan 2³⁹ = 2⁹ · 2³⁰ = 512 GiB — bitta PML4
-yozuvi qamraydigan hudud (31-mashq).
-
-## 20.2. Ishorasiz butun sonlar
-
-w bitli ishorasiz son: `B = b[w-1]·2^(w-1) + ... + b[1]·2 + b[0]`. Oraliq: `0 .. 2^w − 1`.
-Arifmetika **mod 2^w**: natijaning ortiqcha bitlari tashlanadi.
-
-```text
-8 bit:  255 + 1 = 1 0000 0000  ->  0000 0000 = 0
-        0 - 1   = 1111 1111 = 255
-```
-
-C'da bu **aniqlangan** xatti-harakat (2-bob). Shuning uchun xesh funksiyalar, tasodifiy son
-generatorlari, bitli hisoblar ishorasiz turda yoziladi.
-
-## 20.3. Ikkiga to'ldirish (two's complement) — nega aynan shunday
-
-w bitli ishorali son: eng yuqori bitning "og'irligi" **manfiy**:
-
-```text
-B = -b[w-1]·2^(w-1) + b[w-2]·2^(w-2) + ... + b[0]
-```
-
-8 bit uchun: `1000 0000 = -128`, `1111 1111 = -128 + 127 = -1`, `0111 1111 = 127`.
-Oraliq: `-2^(w-1) .. 2^(w-1) - 1` (masalan int: −2147483648 .. 2147483647). Manfiylar bittaga ko'p.
-
-**Ishorani o'zgartirish qoidasi:** `-x = ~x + 1` (hamma bitlarni teskari qilib, 1 qo'shish):
-
-```text
- 5 = 0000 0101
-~5 = 1111 1010
-+1 = 1111 1011 = -5     tekshirish: -128 + 64+32+16+8+2+1 = -128 + 123 = -5 ✓
-```
-
-**Nega kompyuterlar shuni tanladi:** qo'shish/ayirish/ko'paytirish **ishorali va ishorasiz uchun bir xil
-sxema** bilan bajariladi — faqat natijani talqin qilish boshqa. `1111 1111 + 0000 0001`: ishorasiz
-talqinda 255 + 1 = 0 (mod 256), ishorali talqinda −1 + 1 = 0. CPU'da bitta qo'shuvchi — ikki xil ma'no.
-Shu sababli CPU'da `add` bitta, lekin taqqoslashdan keyingi sakrashlar ikki xil: `jl/jg` (ishorali)
-va `jb/ja` (ishorasiz) — 17-bob.
-
-**Muhim nosimmetriklik:** `-INT_MIN` — sig'maydi (`~1000...0 + 1 = 1000...0` — yana o'zi!). Shuning
-uchun `abs(INT_MIN)`, `INT_MIN / -1` — UB (03, 20-mashqlar).
-
-## 20.4. Ishora kengayishi va qirqish
-
-Kichik turdan kattasiga o'tkazish:
-- **ishorasiz** → yuqoriga **nollar** qo'shiladi (zero extension);
-- **ishorali** → yuqoriga **ishora biti** takrorlanadi (sign extension).
-
-```c
-int8_t  a = -5;         /* 1111 1011 */
-int32_t b = a;          /* 1111 1111 1111 1111 1111 1111 1111 1011 = -5 (qiymat saqlandi) */
-uint8_t c = 0xFB;       /* 251 */
-uint32_t d = c;         /* 0000 ... 1111 1011 = 251 */
-```
-
-Kattadan kichikka — **qirqish**: pastki bitlar qoladi.
-
-```c
-int32_t x = 300;        /* ... 0001 0010 1100 */
-int8_t  y = (int8_t)x;  /* 0010 1100 = 44 */
-```
-
-**Klassik tuzoq — `char` va EOF:**
-
-```c
-char c;                          /* x86 da ishorali */
-while ((c = getchar()) != EOF)   /* 0xFF bayt -> c = -1 -> EOF bilan teng -> sikl oldin tugaydi! */
-```
-
-`getchar` `int` qaytaradi (0..255 yoki −1). Natijani `int` da saqlang.
-
-**Yadrodagi misol — kanonik manzillar:** x86-64 da virtual manzil 48 bitli, lekin registr 64 bit.
-63..48-bitlar 47-bitning **ishora kengayishi** bo'lishi shart: shuning uchun yadro manzillari
-`0xFFFF8000...` dan boshlanadi (47-bit = 1 → yuqori bitlar ham 1). 31-mashqdagi kanonik tekshiruv — shu.
-
-## 20.5. Butun son arifmetikasining xossalari
-
-- Qo'shish, ko'paytirish **mod 2^w** — halqa: kommutativ, assotsiativ, hatto toshish bo'lganda ham
-  (ishorasiz uchun; ishorali uchun C'da UB, lekin apparat darajasida xuddi shu).
-- Ikkining darajasiga ko'paytirish = chapga surish: `x * 8 == x << 3`.
-- Ikkining darajasiga bo'lish = o'ngga surish, **lekin** manfiy son uchun yaxlitlash farq qiladi:
-  `-7 / 2 == -3` (C, nolga tomon), `-7 >> 1 == -4` (pastga). Kompilyator buni to'g'rilash uchun
-  qo'shimcha buyruq qo'yadi — shuning uchun `unsigned` bo'lish tezroq.
-- `x % 2^k == x & (2^k - 1)` — faqat ishorasiz (yoki manfiy bo'lmagan) x uchun.
-
-## 20.6. Kasr sonlar: IEEE 754 standarti
-
-Kompyuterlarning deyarli hammasi `float` (32 bit) va `double` (64 bit) ni bir xil standart bo'yicha saqlaydi:
-
-```text
-float (32 bit):   [ S | E E E E E E E E | M M M M ... M (23 bit) ]
-                   1       8 bit              23 bit
-double (64 bit):  [ S | 11 bit eksponenta | 52 bit mantissa ]
-```
-
-**Normal son qiymati:**
-
-```text
-qiymat = (-1)^S × 1.M × 2^(E - 127)          (double uchun 127 o'rniga 1023)
-```
-
-- `S` — ishora (0 musbat, 1 manfiy).
-- `E` — **siljitilgan** (biased) eksponenta: haqiqiy daraja + 127. Nega siljitilgan: shunda musbat
-  sonlarning bitlari butun son sifatida solishtirilsa ham tartib to'g'ri chiqadi.
-- `1.M` — "yashirin bir": normal sonda mantissa doim `1.xxx` ko'rinishida, shuning uchun 1 saqlanmaydi —
-  bitta bit tejaladi.
-
-**Misol: 6.5 ni float'ga**
-
-```text
-6.5 = 110.1₂ = 1.101₂ × 2²
-S = 0,  E = 2 + 127 = 129 = 1000 0001,  M = 101 0000 ... (1. dan keyingi qism)
-bitlar: 0 10000001 10100000000000000000000 = 0x40D00000
-```
-
-**Maxsus qiymatlar:**
-
-| E | M | Nima |
-|---|---|---|
-| 0 | 0 | ±0 (ha, −0 ham bor!) |
-| 0 | ≠0 | **denormal**: `0.M × 2^(-126)` — nolga juda yaqin sonlar, asta-sekin yo'qolish |
-| 1..254 | istalgan | normal son |
-| 255 | 0 | ±∞ (`1.0/0.0`) |
-| 255 | ≠0 | NaN ("son emas": `0.0/0.0`, `sqrt(-1)`). `NaN != NaN` — hatto o'zi bilan ham! |
-
-**Nega `0.1 + 0.2 != 0.3`:** 0.1 ikkilikda cheksiz davriy kasr: `0.0001100110011...₂` (xuddi 1/3 o'nlikda
-0.333... kabi). 52 bitda qirqiladi → kichik xato. Ikki xatoli son yig'indisi 0.3 ning eng yaqin
-tasviriga teng chiqmaydi. Qoida: kasr sonlarni `==` bilan solishtirmang, `fabs(a - b) < eps` ishlating;
-pul hisobida — butun sonlar (tiyinlar).
-
-**Yaxlitlash:** standart bo'yicha — "eng yaqiniga, teng bo'lsa juftiga" (round-to-nearest-even):
-2.5 → 2, 3.5 → 4. Nega juftiga: ko'p yaxlitlashda xatolar bir tomonga to'planmaydi.
-
-**Aniqlik:** `float` ~7 o'nlik raqam, `double` ~15–16. 2²⁴ + 1 = 16777217 ni `float` aniq saqlay olmaydi:
-`(float)16777217 == 16777216`. Shuning uchun `int` → `float` aylantirish ma'lumot yo'qotishi mumkin.
-
-## 20.7. Yadroda kasr sonlar o'rniga — qat'iy nuqtali (fixed-point) arifmetika
-
-Yadro FPU registrlarini ishlatmaydi (18-bob). Kasr kerak bo'lsa — butun sonni "masshtab" bilan:
-
-```c
-/* CPU yuklamasi foizda, 2 xona aniqlik: 12.34% -> 1234 */
-uint32_t yuklama_x100 = (band_tiklar * 10000) / jami_tiklar;
-kprintf("%u.%02u%%\n", yuklama_x100 / 100, yuklama_x100 % 100);
-
-/* TSC chastotasi kHz da saqlanadi (MyOS: tsc_khz) - Hz da float emas */
-uint64_t mikrosekund = tsc_farq * 1000 / tsc_khz;
-```
-
-Linux ham shunday qiladi: yuklama o'rtachalari (load average), scheduler og'irliklari — hammasi
-butun sonlarda. Tartib muhim: avval ko'paytirish, keyin bo'lish (aks holda aniqlik yo'qoladi), lekin
-toshishga e'tibor (64 bit).
-
-## 20.8. O'zingizni tekshiring
+## O'zingizni tekshiring
 
 1. `0xC0` ni ikkilik va o'nlikda yozing.
 2. 8 bitli ikkiga to'ldirishda `1000 0001` nechaga teng?
@@ -310,10 +587,9 @@ toshishga e'tibor (64 bit).
 5. 0.1 aniq tasvirlanmaydi — yig'indi hech qachon aynan 1.0 ga teng bo'lmasligi mumkin.
 </details>
 
-## 20.9. Mashqlar
+## Mashq
 
-- **41** (float bitlari) — float'ni sign/eksponenta/mantissaga ajratish va butun sonni qo'lda float'ga
-  aylantirish (yaxlitlash bilan).
+- **41** (float bitlari) — float'ni sign/eksponenta/mantissaga ajratish va butun sonni qo'lda float'ga aylantirish (yaxlitlash bilan).
 - **04** (bitlar) va **03** (toshish) — bu bob bilan qayta ko'ring.
 - Qo'shimcha: `union { float f; uint32_t u; }` bilan 1.0, −2.5, 0.1 ning bitlarini chiqarib, qo'lda hisoblaganingiz bilan solishtiring.
 

@@ -1,49 +1,333 @@
 # 19-bob. Linux terminali va Git — dasturchining ish stoli
 
-> **II qism boshlanishi.** I qism (00–18) — C tili. II qism (19–31) — kompyuter tizimlari va
-> operatsion tizimlar nazariyasi: odatda ingliz tilidagi bir nechta kitobdan o'rganiladigan bilimlar
-> shu yerda o'zbek tilida jamlangan. Bu bob — hamma narsaning poydevori: terminalda ishlash va Git.
-> Agar terminalni allaqachon yaxshi bilsangiz, 19.6 dan (Git) boshlang.
+> **II qism boshlanishi.** I qism (00–18) — C tili. II qism (19–31) — kompyuter tizimlari va operatsion tizimlar nazariyasi: odatda ingliz tilidagi bir nechta kitobdan o'rganiladigan bilimlar
+> shu yerda o'zbek tilida jamlangan. Bu bob — hamma narsaning poydevori: terminalda ishlash va Git. Agar terminalni allaqachon yaxshi bilsangiz, 19.6 dan (Git) boshlang.
+>
+> **Bu bobda nima o'rganasiz:** terminalda papkalar bo'ylab yurishni; fayllar bilan ishlashni; kod ichidan qidirishni (`grep`); buyruqlarni quvur (`|`) bilan ulashni; fayl ruxsatlarini;
+> Git bilan "saqlash nuqtalari" yaratish va ularga qaytishni.
+> **Oldindan nima kerak:** 0-bob (o'rnatish).   **Vaqt:** 5–6 soat.
 
 > **To'liq ishlaydigan misol:** [misollar/19_terminal.sh](misollar/19_terminal.sh) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Terminal — SMS bilan boshqarish (19.1).** Grafik oynalar — televizor pultidagi tugmalar: qulay, lekin
-faqat ishlab chiqaruvchi qo'ygan tugmalar bor. Terminal — aniq buyruqlar yozish: "fayllar ichidan
-'xato' so'zi bor qatorlarni top, sanab, eng ko'pini ko'rsat". Buni tugmalar bilan qilib bo'lmaydi.
-Serverlarda va yadro ishida esa oyna umuman yo'q — faqat terminal.
+Dasturchi kuniga yuzlab marta terminalga yozadi: "bu papkaga kir", "bu so'zni hamma fayldan top", "o'zgarishni saqla". Bu bob — shu kundalik ishning **to'liq lug'ati**. Hamma buyruq bu yerda
+**haqiqatan bajarilgan** (kichik "sandbox" papkada), shuning uchun natijani o'z kompyuteringizda ko'rganingiz bilan solishtirishingiz mumkin.
 
-**Fayl tizimi — shkaf, tortma va papka (19.2).** `/` — butun shkaf, `/home/ali` — Alining tortmasi,
-`/home/ali/loyiha` — tortmadagi papka. `pwd` — "men qaysi tortmadaman?", `cd` — boshqa tortmaga o'tish,
+**Hayotdan misol: SMS bilan boshqarish.** Grafik oynalar — televizor pultidagi tugmalar: qulay, lekin faqat ishlab chiqaruvchi qo'ygan tugmalar bor. Terminal — aniq buyruqlar yozish: "fayllar ichidan
+'xato' so'zi bor qatorlarni top, sanab, eng ko'pini ko'rsat". Buni tugmalar bilan qilib bo'lmaydi. Serverlarda va yadro ishida esa oyna umuman yo'q — faqat terminal.
+
+| Televizor pulti | Terminal |
+|---|---|
+| tayyor tugmalar | o'zingiz buyruq yozasiz |
+| bitta bosish — bitta ish | buyruqlarni zanjirga ulash (`\|`) mumkin |
+| takrorlash qiyin | skript qilib saqlab, istalgan vaqt qayta ishga tushirish mumkin |
+
+## 19.1. Nega terminal
+
+Grafik oyna (sichqoncha bilan bosish) qulay, lekin dasturchi uchun terminal kuchliroq:
+
+- har bir amalni **aniq yozib**, qayta takrorlash mumkin (skript);
+- kichik dasturlarni **quvur** (`|`) bilan birlashtirib, murakkab ish qilish mumkin;
+- serverlar, yadrolar, o'rnatilgan tizimlar — deyarli hammasida faqat terminal bor;
+- MyOS'ning o'zida ham shell bor — siz uni yozgansiz (40-mashq).
+
+Terminalda ishlaydigan dastur — **shell** (Linux'da odatda `bash`). U siz yozgan qatorni o'qiydi, so'zlarga bo'ladi, dasturni topib ishga tushiradi (`fork` + `exec`, 14-bob) va natijani ko'rsatadi.
+
+## 19.2. Fayl tizimi bo'ylab yurish
+
+**Hayotdan misol: shkaf, tortma va papka.** `/` — butun shkaf, `/home/ali` — Alining tortmasi, `/home/ali/loyiha` — tortmadagi papka. `pwd` — "men qaysi tortmadaman?", `cd` — boshqa tortmaga o'tish,
 `ls` — "bu tortmada nima bor?". `..` — bir daraja yuqori.
 
-**Quvur `|` — konveyer lentasi (19.5).** Zavoddagi lenta: birinchi stanok detalni kesadi, ikkinchisi
-teshadi, uchinchisi bo'yaydi. `cat log | grep xato | wc -l` — birinchi buyruq faylni o'qiydi, ikkinchisi
+Mashq qilish uchun kichik "yadro"-ga o'xshash papka daraxti yaratamiz (haqiqiy fayllarga tegmaymiz):
+
+```console
+$ mkdir -p ish/kernel/mm ish/kernel/fs ish/user
+$ touch ish/kernel/mm/pmm.c ish/kernel/mm/slab.c ish/kernel/fs/pipe.c ish/user/sh.c ish/README
+$ ls -R ish
+ish:
+README
+kernel
+user
+
+ish/kernel:
+fs
+mm
+
+ish/kernel/fs:
+pipe.c
+
+ish/kernel/mm:
+pmm.c
+slab.c
+
+ish/user:
+sh.c
+```
+
+**Qismlar:** `mkdir -p` — ichma-ich papkalarni birdaniga yaratish (`-p`: oraliqlari yo'q bo'lsa ham). `touch` — bo'sh fayl yaratish. `ls -R` — papkani ichidagilari bilan (rekursiv) ko'rsatish.
+
+```bash
+pwd                     # qaysi papkadaman (print working directory)
+ls                      # papkada nima bor
+ls -la                  # batafsil: ruxsatlar, hajm, sana, yashirin fayllar (. bilan boshlanadigan)
+cd kernel/mm            # papkaga kirish
+cd ..                   # bir daraja yuqoriga
+cd ~                    # uy papkasiga (/home/ism)
+cd -                    # oldingi papkaga qaytish
+```
+
+Yurish tajribasi (bir qatorda, chunki har buyruq alohida ishlaydi; manzilning boshini `...` bilan qisqartiramiz):
+
+```console
+$ cd ish/kernel/mm; pwd | sed 's#.*/ish#.../ish#'; cd ..; pwd | sed 's#.*/ish#.../ish#'; cd ../user; pwd | sed 's#.*/ish#.../ish#'; ls
+.../ish/kernel/mm
+.../ish/kernel
+.../ish/user
+sh.c
+```
+
+**Nima ko'rdik:** `cd ish/kernel/mm` → shu papkadamiz; `cd ..` → bir daraja yuqori (`kernel`); `cd ../user` → yuqoriga chiqib, `user` ga kirdik. `ls` — `user` ichidagi fayllarni ko'rsatdi.
+
+| Belgi | Ma'nosi |
+|---|---|
+| `/` | ildiz papka (yoki yo'l ajratgichi) |
+| `.` | joriy papka |
+| `..` | ota papka |
+| `~` | uy papkangiz |
+| `*` | istalgan belgilar (`*.c` — hamma C fayllar) |
+| `?` | bitta istalgan belgi |
+
+**Mutlaq yo'l** `/` bilan boshlanadi (`/home/ali/C_loyha`), **nisbiy yo'l** — joriy papkadan (`kernel/mm/pmm.c`).
+
+```console
+$ ls ish/kernel/*/*.c
+ish/kernel/fs/pipe.c
+ish/kernel/mm/pmm.c
+ish/kernel/mm/slab.c
+$ ls ish/kernel/mm/?lab.c
+ish/kernel/mm/slab.c
+```
+
+`*` — "istalgan belgilar": `ish/kernel/*/*.c` = "kernel ichidagi istalgan papkadagi istalgan `.c` fayl". `?` — aynan bitta belgi: `?lab.c` → `slab.c`. Shu belgilarni (`*`, `?`) **shell** ochadi,
+buyruqning o'zi ularni ko'rmaydi (u tayyor fayl ro'yxatini oladi).
+
+## 19.3. Fayllar bilan ishlash
+
+```bash
+cat fayl.txt            # mazmunini chiqarish
+less fayl.txt           # sahifalab o'qish (q - chiqish, / - qidirish)
+head -20 fayl.c         # birinchi 20 qator
+tail -f log.txt         # oxiri + yangi qatorlarni kuzatish
+cp a.txt b.txt          # nusxalash
+mv a.txt papka/         # ko'chirish yoki nomini o'zgartirish
+rm fayl.txt             # o'chirish (QAYTARIB BO'LMAYDI - savat yo'q!)
+rm -r papka             # papkani ichidagilari bilan o'chirish - ehtiyot bo'ling
+mkdir -p a/b/c          # papkalar yaratish
+touch yangi.c           # bo'sh fayl yaratish
+```
+
+Amalda (har buyruq natijasi ko'rinadi):
+
+```console
+$ printf 'birinchi qator\nikkinchi qator\nuchinchi qator\nto'"'"'rtinchi qator\n' > ish/matn.txt
+$ cat ish/matn.txt
+birinchi qator
+ikkinchi qator
+uchinchi qator
+to'rtinchi qator
+$ head -2 ish/matn.txt
+birinchi qator
+ikkinchi qator
+$ tail -1 ish/matn.txt
+to'rtinchi qator
+$ cp ish/matn.txt ish/nusxa.txt
+$ mv ish/nusxa.txt ish/user/
+$ ls ish ish/user
+ish:
+README
+kernel
+matn.txt
+user
+
+ish/user:
+nusxa.txt
+sh.c
+$ rm ish/user/nusxa.txt
+$ ls ish/user
+sh.c
+```
+
+**Nima ko'rdik:** `printf '...\n...' > fayl` matnni faylga yozdi (`>` — yo'naltirish, 19.5). `head -2` — birinchi 2 qator; `tail -1` — oxirgi qator. `cp` nusxa yaratdi, `mv` uni `user/` ga ko'chirdi
+(`ls` ikkala papkani ko'rsatdi), `rm` esa o'chirdi (undan keyin `user/` da faqat `sh.c` qoldi). `rm` **savatga tashlamaydi** — qaytarib bo'lmaydi.
+
+> **Eslab qoling:** `rm` qaytarib bo'lmaydi. Papkani o'chirishdan oldin `ls` bilan tekshiring.
+
+## 19.4. Qidirish — eng ko'p ishlatiladigan buyruqlar
+
+**Bu nima?** `grep` — fayllar ichidan **matn qidiradi**; `find` — fayllarni **nomi bo'yicha** qidiradi. **Asosiy ishi:** katta kod bazasida kerakli joyni topish.
+
+```bash
+grep -rn "buddy_alloc" kernel/         # kernel/ ichida hamma fayllardan qidirish (qator raqami bilan)
+grep -rn "struct process {" kernel/    # struktura qayerda ta'riflangan
+grep -rl "spin_lock" kernel/ | wc -l   # nechta faylda ishlatiladi
+find . -name "*.h" | head              # fayllarni nomi bo'yicha qidirish
+```
+
+Sandbox'ga mazmun solib, sinaymiz:
+
+```console
+$ echo 'void *buddy_alloc(int order);' > ish/kernel/mm/pmm.c
+$ printf 'void slab_init(void);\nvoid *buddy_alloc(int);\nspin_lock(&l);\n' > ish/kernel/mm/slab.c
+$ echo 'spin_lock(&pipe_lock);' > ish/kernel/fs/pipe.c
+$ grep -rn "buddy_alloc" ish/kernel
+ish/kernel/mm/pmm.c:1:void *buddy_alloc(int order);
+ish/kernel/mm/slab.c:2:void *buddy_alloc(int);
+$ grep -rl "spin_lock" ish | sort
+ish/kernel/fs/pipe.c
+ish/kernel/mm/slab.c
+$ grep -rl "spin_lock" ish | wc -l
+2
+$ find ish -name "*.c" | sort
+ish/kernel/fs/pipe.c
+ish/kernel/mm/pmm.c
+ish/kernel/mm/slab.c
+ish/user/sh.c
+```
+
+**Qismlar:**
+
+| Buyruq | Vazifasi |
+|---|---|
+| `grep -rn "so'z" papka` | `-r` — papka ichini **rekursiv** qidir; `-n` — **qator raqamini** ko'rsat |
+| `grep -rl "so'z" papka` | `-l` — faqat **fayl nomlarini** ko'rsat (qaysi fayllarda bor) |
+| `\| wc -l` | natijadagi qatorlarni sanash → "nechta faylda?" |
+| `find papka -name "*.c"` | nomi `.c` bilan tugaydigan fayllarni top |
+
+Katta kod bazasida (MyOS, keyin Linux) `grep -rn` — sizning eng yaqin do'stingiz. "Bu funksiya qayerda yozilgan va kim uni chaqiradi?" — har kuni beriladigan savol.
+
+## 19.5. Quvurlar, yo'naltirish va jarayonlar
+
+**Hayotdan misol: konveyer lentasi.** Zavoddagi lenta: birinchi stanok detalni kesadi, ikkinchisi teshadi, uchinchisi bo'yaydi. `cat log | grep xato | wc -l` — birinchi buyruq faylni o'qiydi, ikkinchisi
 xatolarni ajratadi, uchinchisi sanaydi. Har bir buyruq kichik, lekin lenta bilan ulansa — kuchli.
 
-**Git commit — o'yindagi saqlash nuqtasi (19.6).** Kompyuter o'yinida qiyin joydan oldin "saqlaysiz".
-Yutqazsangiz — shu joydan qayta boshlaysiz. `git commit` ham loyihangizning butun holatini saqlaydi.
+```bash
+ls | wc -l                      # stdout -> keyingi dasturning stdin'i
+make 2>&1 | tee build.log       # xatolarni ham, ekranga ham faylga ham
+./dastur > natija.txt           # chiqishni faylga
+./dastur < kirish.txt           # kirishni fayldan
+./dastur &                      # fonda ishga tushirish
+ps aux | grep qemu              # ishlayotgan jarayonlar
+kill 1234                       # jarayonga SIGTERM
+Ctrl-C                          # joriy dasturni to'xtatish (SIGINT)
+Ctrl-Z, keyin fg / bg           # pauza va davom ettirish
+echo $?                         # oxirgi buyruqning chiqish kodi
+```
+
+Bularning **hammasi qanday ishlashini** siz bilasiz: 14-bob va 40-mashq. MyOS'ning shell'i ham aynan shularni qiladi.
+
+```console
+$ cat ish/matn.txt | grep qator | wc -l
+4
+$ cat ish/matn.txt | grep ikkinchi
+ikkinchi qator
+$ echo "salom" > ish/yozuv.txt; echo "dunyo" >> ish/yozuv.txt; cat ish/yozuv.txt
+salom
+dunyo
+$ wc -l < ish/yozuv.txt
+2
+$ ls ish/yoq_fayl 2>/dev/null; echo "chiqish kodi: $?"
+chiqish kodi: 2
+$ ls ish/README; echo "chiqish kodi: $?"
+ish/README
+chiqish kodi: 0
+```
+
+**Nima ko'rdik:**
+
+| Yozuv | Vazifasi |
+|---|---|
+| `a \| b` | `a` ning chiqishi `b` ga **kirish** bo'ladi (konveyer) |
+| `>` | chiqishni **faylga yozish** (tozalab); `>>` — faylning **oxiriga qo'shish** |
+| `<` | kirishni **fayldan olish** |
+| `2>/dev/null` | xato xabarlarini (`stderr`, 2) "axlat qutisi"ga tashlash |
+| `$?` | oxirgi buyruqning **chiqish kodi**: `0` — muvaffaqiyat, boshqa — xato (`ls` yo'q faylda 2 qaytardi) |
+
+`cat ish/matn.txt | grep qator | wc -l` — to'rt qatorning to'rttasida "qator" so'zi bor → `4`; `grep ikkinchi` — faqat bitta qatorni qoldirdi.
+
+Fonda ishga tushirish:
+
+```console
+$ sleep 0.2 & echo "fonda ishga tushdi"; wait; echo "fon ishi tugadi"
+fonda ishga tushdi
+fon ishi tugadi
+```
+
+`&` buyruqni **fonda** boshlaydi (shell kutmaydi); `wait` — fon ishlari tugashini kutadi.
+
+### Ruxsatlar
+
+**Bu nima?** Har bir faylning ruxsati bor: kim o'qishi, yozishi, bajarishi mumkin. **Asosiy ishi:** begonalardan himoya va "bu faylni ishga tushirib bo'ladimi" ni belgilash.
+
+```console
+$ printf '#!/bin/sh\necho "dastur ishladi"\n' > ish/dastur.sh
+$ chmod 754 ish/dastur.sh && ls -l ish/dastur.sh | cut -c1-10
+-rwxr-xr--
+$ ./ish/dastur.sh
+dastur ishladi
+$ chmod -x ish/dastur.sh && ls -l ish/dastur.sh | cut -c1-10
+-rw-r--r--
+$ ./ish/dastur.sh 2>&1 | sed 's/^.*: Permission/Permission/' # xato kutiladi
+Permission denied
+```
+
+`ls -l` ning birinchi 10 belgisi: `-rwxr-xr--`. Birinchi belgi — tur (`-` oddiy fayl, `d` papka), keyin uch guruh: **egasi** (`rwx`), **guruh** (`r-x`), **boshqalar** (`r--`).
+`r` — o'qish, `w` — yozish, `x` — bajarish. Sakkizlik: `r=4, w=2, x=1` → `rwx`=7, `r-x`=5, `r--`=4 → **`754`**. `chmod +x` — bajariladigan qilish; `chmod -x` bilan olib tashlaganda dastur
+ishga tushmay qoldi ("Permission denied").
+
+`sudo buyruq` — administrator (root) nomidan bajarish. **Ehtiyot:** `sudo` bilan xato buyruq tizimni buzishi mumkin (masalan, `dd` bilan noto'g'ri diskka yozish — YAKUNIY.md, 5-bo'lim).
+
+### Qo'llanma — tarjimasiz yo'l
+
+`man ls` — ingliz tilida. Tushunish qiyin bo'lsa: `ls --help`, shu darslikdagi lug'at (31-bob) va misollar. Eng ko'p kerak bo'ladigan bayroqlar shu bobda yozilgan.
+
+## 19.6. Git — vaqt mashinasi
+
+**Hayotdan misol: o'yindagi saqlash nuqtasi.** Kompyuter o'yinida qiyin joydan oldin "saqlaysiz". Yutqazsangiz — shu joydan qayta boshlaysiz. `git commit` ham loyihangizning butun holatini saqlaydi.
 Keyin istalgan saqlash nuqtasiga qaytish mumkin. Qancha ko'p saqlasangiz — shuncha kam narsa yo'qotasiz.
 
-**`git diff` — "ikki rasm orasidagi farqni top" (19.6).** Bolalar jurnallaridagi o'yin: ikki rasm
-deyarli bir xil, 7 ta farqni toping. `git diff` buni siz uchun qiladi: qaysi qator qo'shildi (`+`),
+**Bu nima?** Git — kodning **har bir o'zgarishini** saqlaydigan tizim. **Asosiy ishi:** tarixni saqlash. Nega kerak:
+
+- xato qilsangiz — istalgan oldingi holatga qaytasiz;
+- "qachon buzildi?" — tarix aytib beradi (`git bisect`);
+- boshqalar bilan birga ishlash (GitHub);
+- MyOS'ning butun tarixi — o'quv qo'llanma: har bir commit bitta bosqich.
+
+Asosiy tushunchalar:
+
+| Atama | Ma'nosi |
+|---|---|
+| **repository (repo)** | loyiha + uning butun tarixi (`.git` papkasi) |
+| **commit** | loyihaning bir lahzadagi "surati" + izoh |
+| **branch (tarmoq)** | commitlarning alohida yo'nalishi (`main` — asosiysi) |
+| **remote** | boshqa joydagi nusxa (masalan, GitHub'dagi `origin`) |
+| **working tree** | siz tahrirlayotgan fayllar |
+| **staging (index)** | keyingi commitga kiradigan o'zgarishlar |
+
+**Hayotdan misol: `git diff` — "ikki rasm orasidagi farqni top".** Bolalar jurnallaridagi o'yin: ikki rasm deyarli bir xil, 7 ta farqni toping. `git diff` buni siz uchun qiladi: qaysi qator qo'shildi (`+`),
 qaysi biri o'chirildi (`-`).
 
-**Branch — qoralama daftar (19.6).** Asosiy ishni buzmasdan, yangi g'oyani alohida qoralamada sinab
-ko'rasiz. Yaxshi chiqsa — asosiyga ko'chirasiz (merge), yomon chiqsa — qoralamani tashlab yuborasiz.
+### Birinchi tajriba: kundalik va vaqt mashinasi
 
-### To'liq skript: kundalik va vaqt mashinasi
-
-Bu skript vaqtinchalik papkada ishlaydi va hech narsani buzmaydi. Har bir buyruqni keyin o'zingiz
-qo'lda takrorlang.
+**Bu skript nima qiladi (umumiy):** vaqtinchalik papkada Git repo yaratadi; ikki "kun" yozib saqlaydi (commit); uchinchi kuni hamma narsani o'chirib yuboradi; `git diff` bilan nima o'zgarganini ko'radi;
+xatoni bekor qilib oxirgi saqlangan holatga qaytadi; tarixni ko'radi. Skript hech narsani buzmaydi (vaqtinchalik papkada).
 
 ```sh
 # kundalik.sh - terminal va git: saqlash, farq, tarix, qaytish
 set -e
 cd "$(mktemp -d)"
-git init -q
+git init -q -b main
 git config user.name "O'quvchi"
 git config user.email "oquvchi@example.com"
 
@@ -85,124 +369,19 @@ $ sh kundalik.sh
 2
 ```
 
-**Sinab ko'ring:** skriptdagi buyruqlarni o'z papkangizda birma-bir qo'lda yozing. `git log --oneline`
-bilan tarixni ko'ring va `git show HEAD~1` bilan 1-kundagi saqlash nuqtasini oching.
+**Qadam-baqadam:**
 
-## 19.1. Nega terminal
-
-Grafik oyna (sichqoncha bilan bosish) qulay, lekin dasturchi uchun terminal kuchliroq:
-- har bir amalni **aniq yozib**, qayta takrorlash mumkin (skript);
-- kichik dasturlarni **quvur** (`|`) bilan birlashtirib, murakkab ish qilish mumkin;
-- serverlar, yadrolar, o'rnatilgan tizimlar — deyarli hammasida faqat terminal bor;
-- MyOS'ning o'zida ham shell bor — siz uni yozgansiz (40-mashq).
-
-Terminalda ishlaydigan dastur — **shell** (Linux'da odatda `bash`). U siz yozgan qatorni o'qiydi,
-so'zlarga bo'ladi, dasturni topib ishga tushiradi (`fork` + `exec`, 14-bob) va natijani ko'rsatadi.
-
-## 19.2. Fayl tizimi bo'ylab yurish
-
-```bash
-pwd                     # qaysi papkadaman (print working directory)
-ls                      # papkada nima bor
-ls -la                  # batafsil: ruxsatlar, hajm, sana, yashirin fayllar (. bilan boshlanadigan)
-cd kernel/mm            # papkaga kirish
-cd ..                   # bir daraja yuqoriga
-cd ~                    # uy papkasiga (/home/ism)
-cd -                    # oldingi papkaga qaytish
-```
-
-| Belgi | Ma'nosi |
+| Buyruq | Vazifasi |
 |---|---|
-| `/` | ildiz papka (yoki yo'l ajratgichi) |
-| `.` | joriy papka |
-| `..` | ota papka |
-| `~` | uy papkangiz |
-| `*` | istalgan belgilar (`*.c` — hamma C fayllar) |
-| `?` | bitta istalgan belgi |
+| `git init` | bo'sh repo yaratish (`.git` papkasi) |
+| `git add fayl` | faylni keyingi commitga **tayyorlash** (staging) |
+| `git commit -m "izoh"` | tayyorlanganlarni tarixga **saqlash** (saqlash nuqtasi) |
+| `git commit -am "izoh"` | `-a`: o'zgargan (allaqachon kuzatilayotgan) fayllarni avtomatik tayyorlab saqlash |
+| `git diff` | saqlanmagan o'zgarishlar: `-` — o'chirilgan, `+` — qo'shilgan qator |
+| `git checkout -- fayl` | faylni oxirgi saqlangan holatga **qaytarish** |
+| `git log --format='%s'` | tarix (faqat izohlar) |
 
-**Mutlaq yo'l** `/` bilan boshlanadi (`/home/ali/C_loyha`), **nisbiy yo'l** — joriy papkadan
-(`kernel/mm/pmm.c`).
-
-## 19.3. Fayllar bilan ishlash
-
-```bash
-cat fayl.txt            # mazmunini chiqarish
-less fayl.txt           # sahifalab o'qish (q - chiqish, / - qidirish)
-head -20 fayl.c         # birinchi 20 qator
-tail -f log.txt         # oxiri + yangi qatorlarni kuzatish
-cp a.txt b.txt          # nusxalash
-mv a.txt papka/         # ko'chirish yoki nomini o'zgartirish
-rm fayl.txt             # o'chirish (QAYTARIB BO'LMAYDI - savat yo'q!)
-rm -r papka             # papkani ichidagilari bilan o'chirish - ehtiyot bo'ling
-mkdir -p a/b/c          # papkalar yaratish
-touch yangi.c           # bo'sh fayl yaratish
-```
-
-## 19.4. Qidirish — eng ko'p ishlatiladigan buyruqlar
-
-```bash
-grep -rn "buddy_alloc" kernel/         # kernel/ ichida hamma fayllardan qidirish (qator raqami bilan)
-grep -rn "struct process {" kernel/    # struktura qayerda ta'riflangan
-grep -rl "spin_lock" kernel/ | wc -l   # nechta faylda ishlatiladi
-find . -name "*.h" | head              # fayllarni nomi bo'yicha qidirish
-```
-
-Katta kod bazasida (MyOS, keyin Linux) `grep -rn` — sizning eng yaqin do'stingiz. "Bu funksiya qayerda
-yozilgan va kim uni chaqiradi?" — har kuni beriladigan savol.
-
-## 19.5. Quvurlar, yo'naltirish va jarayonlar
-
-```bash
-ls | wc -l                      # stdout -> keyingi dasturning stdin'i
-make 2>&1 | tee build.log       # xatolarni ham, ekranga ham faylga ham
-./dastur > natija.txt           # chiqishni faylga
-./dastur < kirish.txt           # kirishni fayldan
-./dastur &                      # fonda ishga tushirish
-ps aux | grep qemu              # ishlayotgan jarayonlar
-kill 1234                       # jarayonga SIGTERM
-Ctrl-C                          # joriy dasturni to'xtatish (SIGINT)
-Ctrl-Z, keyin fg / bg           # pauza va davom ettirish
-echo $?                         # oxirgi buyruqning chiqish kodi
-```
-
-Bularning **hammasi qanday ishlashini** siz bilasiz: 14-bob va 40-mashq. MyOS'ning shell'i ham aynan
-shularni qiladi.
-
-### Ruxsatlar
-
-```bash
-ls -l dastur.sh
--rwxr-xr-- 1 ali ali 120 ... dastur.sh
-```
-
-`rwx` uch guruh: **egasi**, **guruh**, **boshqalar**. `r` — o'qish, `w` — yozish, `x` — bajarish.
-Sakkizlik: `r=4, w=2, x=1` → `rwxr-xr--` = `754`. `chmod +x skript.sh` — bajariladigan qilish.
-`sudo buyruq` — administrator (root) nomidan bajarish. **Ehtiyot:** `sudo` bilan xato buyruq
-tizimni buzishi mumkin (masalan, `dd` bilan noto'g'ri diskka yozish — YAKUNIY.md, 5-bo'lim).
-
-### Qo'llanma — tarjimasiz yo'l
-
-`man ls` — ingliz tilida. Tushunish qiyin bo'lsa: `ls --help`, shu darslikdagi lug'at (31-bob) va
-misollar. Eng ko'p kerak bo'ladigan bayroqlar shu bobda yozilgan.
-
-## 19.6. Git — vaqt mashinasi
-
-Git — kodning **har bir o'zgarishini** saqlaydigan tizim. Nega kerak:
-- xato qilsangiz — istalgan oldingi holatga qaytasiz;
-- "qachon buzildi?" — tarix aytib beradi (`git bisect`);
-- boshqalar bilan birga ishlash (GitHub);
-- MyOS'ning butun tarixi — o'quv qo'llanma: har bir commit bitta bosqich.
-
-Asosiy tushunchalar:
-
-| Atama | Ma'nosi |
-|---|---|
-| **repository (repo)** | loyiha + uning butun tarixi (`.git` papkasi) |
-| **commit** | loyihaning bir lahzadagi "surati" + izoh |
-| **branch (tarmoq)** | commitlarning alohida yo'nalishi (`main` — asosiysi) |
-| **remote** | boshqa joydagi nusxa (masalan, GitHub'dagi `origin`) |
-| **working tree** | siz tahrirlayotgan fayllar |
-| **staging (index)** | keyingi commitga kiradigan o'zgarishlar |
+**Nima ko'rdik:** `git diff` ikki eski qator o'chirilib, bitta yangi qator paydo bo'lganini ko'rsatdi; `checkout` fayl mazmunini 2-kundagi holatga qaytardi — "hamma narsani o'chirib yubordim" xatosi yo'qoldi.
 
 ### Kundalik ish
 
@@ -219,6 +398,61 @@ git commit -m "01-mashq: kvadratlar yig'indisi"
 git log --oneline               # tarix
 ```
 
+### Tarmoqlar (branch) va saqlab turish (stash)
+
+**Hayotdan misol: qoralama daftar.** Asosiy ishni buzmasdan, yangi g'oyani alohida qoralamada sinab ko'rasiz. Yaxshi chiqsa — asosiyga ko'chirasiz (**merge**), yomon chiqsa — qoralamani tashlab yuborasiz.
+
+```sh
+# shoxcha.sh - branch, merge va stash
+set -e
+cd "$(mktemp -d)"
+git init -q -b main
+git config user.name "O'quvchi"
+git config user.email "oquvchi@example.com"
+
+echo "asosiy kod" > kod.txt
+git add kod.txt && git commit -q -m "boshlang'ich kod"
+
+git checkout -q -b yangi_goya           # yangi tarmoq yaratib, unga o'tish
+echo "tajriba qatori" >> kod.txt
+git commit -q -am "yangi g'oya"
+echo "--- yangi_goya tarmog'ida:"; cat kod.txt
+
+git checkout -q main                     # asosiyga qaytish
+echo "--- main tarmog'ida (tajriba ko'rinmaydi):"; cat kod.txt
+
+git merge -q yangi_goya                  # g'oyani asosiyga qo'shish
+echo "--- merge dan keyin main:"; cat kod.txt
+
+echo "yarim qolgan ish" >> kod.txt
+git stash -q                             # saqlanmagan ishni chetga olib qo'yish
+echo "--- stash dan keyin (toza):"; cat kod.txt
+git stash pop -q                         # qaytarib olish
+echo "--- stash pop dan keyin:"; cat kod.txt
+```
+
+```console
+$ sh shoxcha.sh
+--- yangi_goya tarmog'ida:
+asosiy kod
+tajriba qatori
+--- main tarmog'ida (tajriba ko'rinmaydi):
+asosiy kod
+--- merge dan keyin main:
+asosiy kod
+tajriba qatori
+--- stash dan keyin (toza):
+asosiy kod
+tajriba qatori
+--- stash pop dan keyin:
+asosiy kod
+tajriba qatori
+yarim qolgan ish
+```
+
+**Nima ko'rdik:** `git checkout -b` yangi tarmoq yaratib o'tdi; `yangi_goya` tarmog'ida qo'shilgan qator `main` da **ko'rinmadi**; `git merge` uni asosiyga qo'shdi. `git stash` — saqlanmagan ishni vaqtincha chetga oldi
+(fayl toza holatga qaytdi), `stash pop` — qaytardi.
+
 ### Xatolarni tuzatish
 
 ```bash
@@ -233,33 +467,72 @@ git checkout main               # hozirgi holatga qaytish
 
 ### Shaxsiy nusxangiz
 
-Mashqlarni yechib, GitHub'ga saqlash uchun: GitHub'da loyihani **fork** qiling (o'z hisobingizga nusxa),
-keyin o'z nusxangizni `git clone` qiling. Shunda har kuni `git commit` + `git push` bilan ishingiz
+Mashqlarni yechib, GitHub'ga saqlash uchun: GitHub'da loyihani **fork** qiling (o'z hisobingizga nusxa), keyin o'z nusxangizni `git clone` qiling. Shunda har kuni `git commit` + `git push` bilan ishingiz
 saqlanadi va rezyumega ko'rsatish mumkin bo'ladi.
 
 ### `git bisect` — xatoni topuvchi
 
-"Bir hafta oldin ishlardi, endi yo'q" — 50 ta commitdan qaysi biri buzdi?
+**Bu nima?** "Bir hafta oldin ishlardi, endi yo'q" — 50 ta commitdan qaysi biri buzdi? `git bisect` **ikkilik qidiruv** (28-bob) bilan aybdorni topadi: o'rtadagi commitni ochadi, siz "yaxshi" yoki "yomon" deysiz,
+Git yarimiga qisqartiradi. ~6 qadamda 50 commitdan topiladi.
 
-```bash
-git bisect start
-git bisect bad                  # hozirgi holat - buzuq
-git bisect good 9cf0d2d         # bu commit - yaxshi edi
-# git o'rtadagi commitni ochadi: sinaysiz va "git bisect good" yoki "git bisect bad" deysiz
-# ~6 qadamda aybdor commit topiladi (ikkilik qidiruv - 28-bob!)
-git bisect reset
+Buni avtomatik bajaramiz: 6 ta commit, 4-chisi dasturni buzadi; `git bisect run` testni o'zi takrorlaydi.
+
+```sh
+# bisect.sh - aybdor commitni avtomatik topish
+set -e
+cd "$(mktemp -d)"
+git init -q -b main
+git config user.name "O'quvchi"
+git config user.email "oquvchi@example.com"
+
+for n in 1 2 3 4 5 6; do
+    if [ "$n" -ge 4 ]; then
+        echo "buzuq $n" > holat.txt            # 4-commitdan boshlab buzuq
+    else
+        echo "yaxshi $n" > holat.txt
+    fi
+    git add holat.txt
+    git commit -q -m "commit $n"
+done
+
+git bisect start HEAD HEAD~5 >/dev/null             # HEAD - buzuq, HEAD~5 (1-commit) - yaxshi
+git bisect run sh -c 'grep -q yaxshi holat.txt' > bisect.log
+bad=$(grep -o '^[0-9a-f]\{40\} is the first bad commit' bisect.log | cut -c1-40)
+echo "birinchi buzuq commit: $(git log -1 --format=%s "$bad")"
+git bisect reset >/dev/null 2>&1
 ```
+
+```console
+$ sh bisect.sh
+birinchi buzuq commit: commit 4
+```
+
+**Nima ko'rdik:** Git ikkilik qidiruv bilan atigi bir necha qadamda "`commit 4` — birinchi buzuq commit" ni topdi (test: fayl "yaxshi" so'zini o'z ichiga oladimi). Haqiqiy loyihada test — dasturingizni ishga tushirish yoki `make test`.
 
 ## 19.7. Muharrir
 
 Muhim emas qaysi biri — muhimi uni tez ishlatish:
-- **VS Code** — boshlovchi uchun eng qulay. "C/C++" kengaytmasi: funksiyaga sakrash (F12),
-  hamma chaqiruvlarni topish (Shift+F12).
-- **vim/nano** — terminalda, serverda. `nano fayl.c` — oddiy; `vim` — kuchli, lekin o'rganish kerak
-  (`i` — yozish, `Esc` — buyruq rejimi, `:wq` — saqlab chiqish, `:q!` — saqlamasdan chiqish).
+
+- **VS Code** — boshlovchi uchun eng qulay. "C/C++" kengaytmasi: funksiyaga sakrash (F12), hamma chaqiruvlarni topish (Shift+F12).
+- **vim/nano** — terminalda, serverda. `nano fayl.c` — oddiy; `vim` — kuchli, lekin o'rganish kerak (`i` — yozish, `Esc` — buyruq rejimi, `:wq` — saqlab chiqish, `:q!` — saqlamasdan chiqish).
 - **MyOS ichida**: `edit fayl` — o'zimiz yozgan muharrir (`user/bin/edit.c`).
 
-## 19.8. O'zingizni tekshiring
+## Hayotdan misol va to'liq dastur
+
+Bobning to'liq namunasi — yuqoridagi uchta skript: `kundalik.sh` (saqlash/qaytish), `shoxcha.sh` (tarmoq/merge/stash), `bisect.sh` (aybdorni topish). Ular birgalikda dasturchining kundalik **vaqt mashinasi**:
+saqlaysiz, tajriba qilasiz, xato bo'lsa qaytasiz, buzilganda qachon buzilganini topasiz.
+
+**Sinab ko'ring:** skriptdagi buyruqlarni o'z papkangizda birma-bir qo'lda yozing. `git log --oneline` bilan tarixni ko'ring va `git show HEAD~1` bilan 1-kundagi saqlash nuqtasini oching.
+
+## Bob xulosasi (yodlash uchun)
+
+1. Terminal — aniq buyruqlar; `pwd`, `ls`, `cd` (`..`, `~`, `-`), `*` va `?` — yurish va fayllarni tanlash. `rm` — **qaytarib bo'lmaydi**.
+2. `grep -rn "so'z" papka` — matn qidirish; `find -name` — fayl qidirish; `|` (quvur), `>`/`>>`/`<` (yo'naltirish), `$?` (chiqish kodi).
+3. Ruxsatlar: `rwx` × (egasi, guruh, boshqalar); `r=4, w=2, x=1` → `754`; `chmod +x`.
+4. Git: `add` (tayyorla) → `commit` (saqla) → `log`/`diff` (ko'r) → `checkout`/`restore` (qayt); `branch` + `merge` — alohida tajriba; `stash` — vaqtincha chetga.
+5. `git bisect` — ikkilik qidiruv bilan buzgan commitni topadi.
+
+## O'zingizni tekshiring
 
 1. `cd ..` va `cd -` farqi?
 2. `rwxr-x---` sakkizlikda qanday yoziladi?
@@ -276,7 +549,7 @@ Muhim emas qaysi biri — muhimi uni tez ishlatish:
 5. Ikkilik qidiruv (binary search).
 </details>
 
-## 19.9. Mashq
+## Mashq
 
 - Loyihani o'z GitHub hisobingizga fork qiling va clone qiling. Har bir yechilgan mashqdan keyin commit qiling.
 - `grep -rn` bilan MyOS'da `kmalloc` chaqirilgan 5 ta joyni toping va har biri nimaga xotira so'rayotganini aniqlang.
