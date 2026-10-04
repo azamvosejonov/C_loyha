@@ -428,6 +428,17 @@ Birinchi holatda xotiradan **8 barobar ko'p bayt** olib kelinadi (64 vs 8 bayt/n
 4. Manzil = `teg | indeks | siljish`; bir uyaga tushgan turli qatorlar bir-birini siqadi (to'qnashuv).
 5. **False sharing:** turli yadrolar bitta qatordagi turli o'zgaruvchilarga yozadi → sekin; yechim: alohida qatorlar (`aligned(64)`, per-CPU). **TLB** — manzil tarjimasi keshi. Doim **o'lchang**.
 
+## Savol-javob
+
+**Savol:** Nega massivni qator bo'ylab aylanish ustun bo'ylab aylanishdan tezroq?
+**Javob:** Qator elementlari xotirada yonma-yon, bitta kesh qatori (64 bayt) bir nechta elementni birga olib keladi. Ustun bo'ylab har qadam yangi kesh qatoriga tushadi — ko'p kesh xatolari (21.2, 21.3).
+
+**Savol:** False sharing nima?
+**Javob:** Ikki oqim **turli** o'zgaruvchilarni o'zgartiradi, lekin ular bitta kesh qatorida turibdi: yadrolar qatorni tinmay bir-biridan tortib oladi va dastur sekinlashadi. Davo: o'zgaruvchilarni 64 baytga tekislab (padding) alohida qatorga qo'yish (21.5).
+
+**Savol:** TLB va kesh bir narsami?
+**Javob:** Yo'q. Kesh **ma'lumotni** tezlashtiradi; TLB esa **manzil tarjimasini** (virtual → fizik) keshlaydi, aks holda har murojaatda sahifa jadvalini o'qish kerak bo'lardi (21.6, 24-bob).
+
 ## O'zingizni tekshiring
 
 1. Nega `int` massivini ketma-ket o'qish har bir elementni alohida olishdan tezroq?

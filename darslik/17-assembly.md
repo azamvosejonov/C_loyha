@@ -469,6 +469,17 @@ Uni `gcc -O0 -S` va `gcc -O2 -S` bilan solishtiring — kompilyator inline asm b
 4. Intel: `mov QAYERGA, QAYERDAN`; `[ ]` — xotira; `lea` — faqat manzilni hisoblash; `cmp` + `jXX` — shart.
 5. Inline assembly: `__asm__ volatile("buyruq" : chiqish : kirish : buziladiganlar)`; `"memory"`; `syscall` `rcx` va `r11` ni buzadi.
 
+## Savol-javob
+
+**Savol:** Men C yozaman, nega assembly o'rganishim kerak?
+**Javob:** Yadroda assembly'siz bo'lmaydigan joylar bor (kirish nuqtasi, kontekst almashish, uzilish kirishi), va xatoni topishda `objdump -d`/gdb orqali kompilyator **nima qilganini** ko'ra bilish kerak. Hamma narsani assembly'da yozmaysiz, lekin **o'qiy olishingiz** shart (17.3).
+
+**Savol:** `caller-saved` va `callee-saved` registrlar farqi nima?
+**Javob:** Funksiyani chaqiruvchi o'zi saqlashi kerak bo'lgan registrlar — `caller-saved` (chaqirilgan funksiya ularni buzishi mumkin). Chaqirilgan funksiya qaytishdan oldin tiklab berishi shart bo'lganlari — `callee-saved` (17.4). Bu qoida bo'lmasa, funksiyalar bir-birining qiymatlarini buzib yuborardi.
+
+**Savol:** Inline assembly qachon ishlatiladi?
+**Javob:** C'da ifodalab bo'lmaydigan bitta buyruq kerak bo'lganda (`rdtsc`, `cli`/`sti`, port I/O). Xato qilsangiz kompilyator sizning registr o'zgarishingizni bilmay qoladi — shuning uchun `clobber` ro'yxati to'g'ri yozilishi shart (17.5).
+
 ## O'zingizni tekshiring
 
 1. Funksiyaning 1-argumenti va qaytish qiymati qaysi registrlarda?

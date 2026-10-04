@@ -566,6 +566,17 @@ Maskalar bilan ajratish: yil 2026, oy 9, kun 27
 4. MMIO — registrlar xotira manzillari sifatida; port I/O — `in`/`out`. Apparatni kutishda **doim vaqt chegarasi**.
 5. Bitmap — 1 bit = 1 obyekt (`i/64` so'z, `i%64` bit); `ctz`, `popcount` bilan tez ishlaydi.
 
+## Savol-javob
+
+**Savol:** `volatile` qo'ysam, ko'p oqimli dasturdagi poyga ham yo'qoladimi?
+**Javob:** Yo'q. `volatile` kompilyatorga faqat "bu xotirani har safar qayta o'qi/yoz" deydi (qurilma registri uchun to'g'ri). U amalni **bo'linmas** qilmaydi va protsessorlar orasidagi tartibni kafolatlamaydi — buning uchun atomik amallar va qulflar kerak (15, 26-boblar).
+
+**Savol:** Nega registrga `reg = X` o'rniga `reg |= X` yozamiz?
+**Javob:** `reg = X` registrdagi **hamma** bitlarni qayta yozadi, boshqa kalitlarni ham o'chirib yuboradi. `|=` esa avval joriy qiymatni o'qiydi, faqat kerakli bitni yoqadi, qolganlariga tegmaydi (16.2). Ba'zi registrlarda o'qishning o'zi yon ta'sir qiladi (masalan, o'qilganda tozalanadi) — qurilma hujjatiga qarang.
+
+**Savol:** Nega tarmoq tartibi big-endian, kompyuterlar esa little-endian?
+**Javob:** Tarixiy tanlov: ilk tarmoq protokollari "katta bayt birinchi" deb kelishgan; x86 esa little-endian. Shuning uchun tarmoqqa chiqarishdan oldin `htons`/`htonl` bilan aylantiriladi (16.1).
+
 ## O'zingizni tekshiring
 
 1. `uint32_t x = 1;` x86'da xotiradagi birinchi bayt nechaga teng?

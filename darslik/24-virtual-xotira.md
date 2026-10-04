@@ -622,6 +622,17 @@ Yuqorida ko'rgan real o'lchovlar (talab bo'yicha sahifalash, COW, `mmap`, almash
 4. Almashtirish: OPT (o'lchov), FIFO (Belady anomaliyasi), LRU (yaxshi, qimmat), Clock (A biti, arzon); xotira yetmasa — **thrashing**.
 5. **COW:** `fork` xotirani nusxalamaydi, yozishda nusxalaydi; **`mmap`** fayl yoki anonim xotirani manzil maydoniga xaritalaydi.
 
+## Savol-javob
+
+**Savol:** Ikki jarayon bir xil virtual manzildan foydalansa, nega bir-birini buzmaydi?
+**Javob:** Har jarayonning o'z sahifa jadvali bor: bir xil virtual manzil turli fizik sahifaga tarjima qilinadi (24.1, 24.3). Jarayon boshqasining jadvaliga murojaat qila olmaydi.
+
+**Savol:** `fork` katta jarayonni qanday qilib tez nusxalaydi?
+**Javob:** Copy-on-write: xotira darhol nusxalanmaydi, ota va bola bir xil fizik sahifalarni **faqat o'qish** rejimida bo'lishadi. Kimdir yozmoqchi bo'lganda faqat o'sha sahifa nusxalanadi (24.8).
+
+**Savol:** Page fault doim xatomi?
+**Javob:** Yo'q. Ko'pi oddiy ishchi hodisa: sahifa hali xotiraga olinmagan (demand paging), swap'dan qaytarish kerak yoki COW nusxasi kerak. Faqat ruxsatsiz manzilga murojaat bo'lsa, jarayon `SIGSEGV` bilan o'ldiriladi (24.4, 24.5).
+
 ## O'zingizni tekshiring
 
 1. Nega bir darajali sahifa jadvali amalda ishlatilmaydi?

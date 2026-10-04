@@ -388,6 +388,17 @@ U yadro dasturchisi uchun "hello world": hech narsa tayyor emas, hammasi o'zingi
 4. CPU yoqilgach C'gacha: assembly (`boot.asm`) stek, sahifalar va 64-bit rejimni tayyorlaydi → `kmain`.
 5. Yadroda xato: page fault → PANIC; ishlovchida xato → triple fault (qayta yuklanish). MyOS'ni v0.1 dan, hujjat + kod birga o'qing.
 
+## Savol-javob
+
+**Savol:** Yadroda `printf` va `malloc` nega yo'q?
+**Javob:** Ular libc'da, libc esa OS ustida ishlaydi (fayl, syscall, heap). Yadro o'zi OS — uning ostida hech narsa yo'q. Shuning uchun yadro o'zining `kprintf` va allocator'ini yozadi (18.1, 18.5).
+
+**Savol:** Linker skripti nima uchun kerak?
+**Javob:** Oddiy dasturda OS o'zi xotiraga joylashtiradi. Yadroni esa kim joylashtiradi? Linker skripti kod, o'qiladigan va yoziladigan ma'lumot bo'limlari **xotiraning qaysi manzilida** turishini aniq belgilaydi (18.3).
+
+**Savol:** Yadro kodi nega maxsus kompilyatsiya bayroqlari bilan yig'iladi?
+**Javob:** Oddiy bayroqlar user dasturi uchun mo'ljallangan: standart kutubxona, SSE registrlari, stek ostidagi "red zone" kabi taxminlar yadroda xavfli (masalan, uzilish kelganda red zone buziladi). Shuning uchun `-ffreestanding` va boshqa bayroqlar kerak (18.2).
+
 ## O'zingizni tekshiring
 
 1. Nega yadroda `printf` yo'q, lekin `<stdint.h>` bor?

@@ -570,6 +570,17 @@ ko'rinishini, `-5` ning ikkiga to'ldirilgan va kengaytirilgan ko'rinishini, qirq
 4. **IEEE 754:** `(-1)^S × 1.M × 2^(E−127)`; `0.1` aniq emas; `==` bilan solishtirmang; ±∞, NaN, denormal maxsus qiymatlar; 2²⁴ dan katta butun sonlar `float` da aniq emas.
 5. Yadroda kasr yo'q: **qat'iy nuqta** (butun son × masshtab); avval ko'paytiring, keyin bo'ling.
 
+## Savol-javob
+
+**Savol:** Nega `0.1 + 0.2 == 0.3` rost emas?
+**Javob:** 0.1 va 0.2 ikkilik tizimda cheksiz kasr bo'lib chiqadi (xuddi 1/3 o'nlikda 0.333…), kompyuter ularni qisqartirib saqlaydi. Yig'indi 0.3 ga **juda yaqin**, lekin aynan teng emas. Shuning uchun kasrlarni `==` bilan emas, kichik farq (epsilon) bilan taqqoslang (20.6).
+
+**Savol:** Nega pulni `float`/`double` bilan emas, butun tiyin bilan saqlaymiz?
+**Javob:** Kasr xatolari yig'iladi (2-bobdagi 10 × 0.10 misoli). Butun sonlar esa aniq: 1000 tiyin = 10 so'm, hech qanday yaxlitlash xatosi yo'q.
+
+**Savol:** Ikkiga to'ldirish (two's complement) nega qulay?
+**Javob:** Qo'shish va ayirish ishorali ham, ishorasiz ham **bir xil** sxema (bir xil apparat) bilan bajariladi; nolning bitta yozilishi bor. Shuning uchun deyarli barcha protsessorlar shuni ishlatadi (20.3).
+
 ## O'zingizni tekshiring
 
 1. `0xC0` ni ikkilik va o'nlikda yozing.

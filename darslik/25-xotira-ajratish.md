@@ -430,6 +430,17 @@ g'oyaning boshqa qatlamlari: `malloc` (ro'yxatlar), buddy (sahifalar), slab (oby
 4. **Buddy:** bloklar 2ᵏ, juft = `blok ^ (1 << k)`, birlashtirish arzon, lekin ichki fragmentatsiya — fizik **sahifalar** uchun.
 5. **Slab:** bir xil obyektlar uchun kesh; bo'sh obyektlar ro'yxati obyektning o'zida; O(1), LIFO, fragmentatsiya yo'q. Qatlam: slab → buddy → memblock.
 
+## Savol-javob
+
+**Savol:** `free` qilingan xotira nega darhol operatsion tizimga qaytmaydi?
+**Javob:** `malloc/free` ichida allocator xotirani o'z ro'yxatlarida saqlab qo'yadi — keyingi `malloc` tez bo'lsin deb. OS bilan har safar gaplashish (syscall) qimmat. Katta bo'laklar (`mmap`) esa odatda `free` da qaytariladi (25.7, 25.10).
+
+**Savol:** Buddy tizimida bloklar nega faqat 2 ning darajasida?
+**Javob:** Shunda "jufti"ni topish bitta XOR amali: `blok ^ (1 << k)`, birlashtirish esa deyarli bepul. Bunga to'lov — ichki fragmentatsiya (5 sahifa so'ralsa 8 beriladi) (25.8).
+
+**Savol:** Slab nega faqat bir xil o'lchamli obyektlar uchun?
+**Javob:** Hammasi bir xil o'lcham bo'lgani uchun "qidirish" ham, "bo'laklash" ham yo'q: bo'sh obyekt ro'yxatning boshidan olinadi. Bu O(1) va fragmentatsiyasiz — yadroda jarayon, inode kabi obyektlar ko'p yaratilgani uchun aynan kerak (25.9).
+
 ## O'zingizni tekshiring
 
 1. Ichki va tashqi fragmentatsiya farqi, har biriga misol.

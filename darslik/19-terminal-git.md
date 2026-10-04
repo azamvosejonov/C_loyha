@@ -532,6 +532,17 @@ saqlaysiz, tajriba qilasiz, xato bo'lsa qaytasiz, buzilganda qachon buzilganini 
 4. Git: `add` (tayyorla) → `commit` (saqla) → `log`/`diff` (ko'r) → `checkout`/`restore` (qayt); `branch` + `merge` — alohida tajriba; `stash` — vaqtincha chetga.
 5. `git bisect` — ikkilik qidiruv bilan buzgan commitni topadi.
 
+## Savol-javob
+
+**Savol:** Nega `rm` bilan o'chirilgan fayl axlat qutisiga tushmaydi?
+**Javob:** Terminalda "axlat qutisi" yo'q: `rm` nomni bevosita o'chiradi (27-bob). Shuning uchun `rm -rf` dan oldin yo'lni ikki marta tekshiring; xavfli buyruqlarda avval `ls` bilan nimani o'chirishni ko'rib oling.
+
+**Savol:** Nega git'da avval `add`, keyin `commit` kerak?
+**Javob:** `add` — "aynan **shu** o'zgarishlar keyingi commit'ga kirsin" deb tanlash bosqichi. Ko'p o'zgarish qilgan bo'lsangiz ham, ularni mantiqiy, kichik commit'larga bo'lib saqlay olasiz (19.6).
+
+**Savol:** Nega `git pull` ba'zan to'qnashuv (conflict) beradi?
+**Javob:** Siz ham, boshqa kishi ham bitta qatorni boshqacha o'zgartirgan bo'lsa, git qaysi biri to'g'ri ekanini bilmaydi. U ikkala variantni faylga yozadi va sizdan qo'lda tanlashni so'raydi (31-bobdagi `CONFLICT` xabari).
+
 ## O'zingizni tekshiring
 
 1. `cd ..` va `cd -` farqi?
