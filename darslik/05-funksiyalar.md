@@ -1,43 +1,644 @@
 # 5-bob. Funksiyalar
 
-> **Bu bobdan keyin:** funksiya e'loni va ta'rifini, `void` ning barcha ma'nolarini, argumentlar
-> nega **nusxa** sifatida uzatilishini, `static` funksiyalarni, rekursiya va stek nima ekanini bilasiz.
+> **Bu bobda nima o'rganasiz:** funksiya nima va nega kerakligini; uni qanday yozish va chaqirishni; `void` so'zining hamma ma'nolarini;
+> argumentlar nega **nusxa** bo'lib uzatilishini; `static` funksiyalarni; stek va rekursiya nima ekanini.
+> **Oldindan nima kerak:** 1–4-boblar.   **Vaqt:** 5–6 soat.
 > Mashqlar: 03, 06, 07.
 
 > **To'liq ishlaydigan misol:** [misollar/05_funksiyalar.c](misollar/05_funksiyalar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Funksiya — kir yuvish mashinasi (5.1).** Ichiga kir va kukun solasiz (argumentlar), tugmani bosasiz
-(chaqiruv), toza kir olasiz (qaytish qiymati). Mashina ichida nima bo'layotganini bilishingiz shart
-emas. Bitta mashinadan har kuni foydalanasiz — kodni ham bir marta yozib, ko'p marta chaqirasiz.
+Dastur o'sgan sari bir xil kodni ko'p joyda yozasiz: "narxni hisobla", "xatoni chiqar". **Funksiya** — shu kodga **nom berib**, bir marta yozib,
+istalgancha chaqirish usuli.
 
-**`void` — hech narsa bermaydigan yoki olmaydigan mashina (5.2).** Qo'ng'iroq tugmasi hech narsa olmaydi
-va hech narsa qaytarmaydi — faqat jiringlaydi: `void jiringla(void)`.
+**Hayotdan misol: kir yuvish mashinasi.** Ichiga kir va kukun solasiz (**argumentlar**), tugmani bosasiz (**chaqiruv**), toza kir olasiz
+(**qaytish qiymati**). Mashina ichida nima bo'layotganini bilishingiz shart emas. Bitta mashinadan har kuni foydalanasiz — kodni ham bir marta
+yozib, ko'p marta chaqirasiz.
 
-**Nusxa bo'yicha uzatish — hujjat nusxasi (5.4).** Idoraga pasportingizning **ksero nusxasini** berasiz.
-Ular nusxaga nima yozsa ham, sizning pasportingiz o'zgarmaydi. C funksiyaga oddiy o'zgaruvchi berganda
-ham faqat **nusxa** beriladi. Asl nusxani o'zgartirish uchun esa — **manzilni** berasiz (7-bob): "pasport
-mana shu tortmada, borib o'zgartiring".
+| Kir yuvish mashinasi | C funksiyasi |
+|---|---|
+| mashinaning nomi | funksiya nomi (`hisobla`) |
+| solinadigan narsalar (kir, kukun) | **parametrlar** (`narx`, `soni`) |
+| toza kir | **qaytish qiymati** (`return jami;`) |
+| tugmani bosish | **chaqiruv** (`hisobla(12000, 3)`) |
+| mashinaning ichi | funksiya **tanasi** `{ ... }` |
 
-**Qaytish qiymati — kvitansiya (5.5).** Pul o'tkazdingiz — kvitansiya olasiz: "muvaffaqiyatli" yoki
-"xato: hisobda mablag' yo'q". Yadroda funksiyalar shunday: 0 — muvaffaqiyat, manfiy son — xato kodi.
-Kvitansiyani o'qimay tashlab yuborish — eng ko'p uchraydigan xato.
+## 5.1. Funksiyaning tuzilishi
 
-**`static` lokal — turniket hisoblagichi (5.6).** Metro turniketidan har kim o'tganda hisoblagich
-bittaga oshadi va **keyingi odam kelganda ham eslab qoladi**. Oddiy lokal o'zgaruvchi esa har chaqiruvda
-noldan boshlanadi — xuddi har bir yo'lovchi uchun yangi turniket qo'yilgandek.
+```c
+/* kvadrat.c - birinchi funksiyamiz */
+#include <stdio.h>
 
-**Stek — likopchalar ustuni (5.7).** Yangi likopcha doim ustiga qo'yiladi va doim ustidan olinadi.
-`main` → `a()` → `b()` chaqirilsa, `b` ning likopchasi eng ustida. `b` tugashi bilan uning likopchasi
-olinadi va `a` davom etadi. Likopchalar juda ko'payib, shiftga yetsa — **stack overflow**.
+/*  qaytish   nom       parametrlar
+     turi      |         |           */
+long kvadrat(int x)
+{                                   /* tana boshi */
+    return (long)x * x;             /* qaytarish */
+}                                   /* tana oxiri - ; YO'Q */
 
-**Rekursiya — matryoshka (5.8).** Katta qo'g'irchoqni ochsangiz, ichidan kichigi chiqadi, uning ichidan
-yana kichigi... Eng kichigini ochib bo'lmaydi — bu **to'xtash sharti**. To'xtash sharti bo'lmasa,
-matryoshka hech qachon tugamaydi — dastur stack overflow bilan qulaydi.
+int main(void)
+{
+    long r = kvadrat(7);            /* chaqiruv: x = 7 */
+    printf("kvadrat(7) = %ld\n", r);
+    printf("kvadrat(12) = %ld\n", kvadrat(12));
+    return 0;
+}
+```
 
-### To'liq dastur: do'kon kassasi
+```console
+$ gcc -Wall -Wextra kvadrat.c -o kvadrat
+$ ./kvadrat
+kvadrat(7) = 49
+kvadrat(12) = 144
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Nima | Nega |
+|---|---|---|
+| `long` (nomdan oldin) | **qaytish turi**: funksiya `long` turidagi qiymat beradi | Kompilyator natija uchun qancha joy kerakligini bilishi kerak |
+| `kvadrat` | funksiya **nomi** | Chaqirish uchun |
+| `(int x)` | **parametr**: funksiya `int` turidagi bitta qiymat oladi va uni `x` deb ataydi | Har parametrning turi **majburiy** (Python'da yo'q) |
+| `return (long)x * x;` | natijani hisoblab **qaytaradi**, funksiya shu yerda tugaydi | `(long)` — toshmaslik uchun (2-bob) |
+| `kvadrat(7)` | **chaqiruv**: `7` — **argument** (haqiqiy qiymat), `x` ga nusxalanadi | |
+
+**Parametr va argument farqi:** parametr — funksiya ta'rifidagi **nom** (`x`); argument — chaqirishda berilgan **qiymat** (`7`).
+
+**Chaqiruv qanday ishlaydi (vaqt bo'yicha):**
+
+1. `main` `kvadrat(7)` ni chaqiradi → `7` yangi quti `x` ga **nusxalanadi**.
+2. Boshqaruv `kvadrat` ichiga o'tadi: `return (long)x * x` → `49`.
+3. `49` chaqirilgan joyga **qaytadi**, `kvadrat` ning qutilari (`x`) yo'qoladi.
+4. `main` davom etadi: `r = 49`.
+
+Python bilan solishtirish:
+
+```text
+def kvadrat(x):            long kvadrat(int x)
+    return x * x           {
+                               return (long)x * x;
+                           }
+```
+
+C'da qo'shimcha: **qaytish turi**, **har bir parametrning turi**, `{ }`, va `;` — tanadan keyin **yo'q**.
+
+> **Eslab qoling:** funksiya = **qaytish turi + nom + (parametrlar) + { tana }**. Bitta funksiya — bitta aniq ish.
+
+## 5.2. `void` — barcha ma'nolari
+
+`void` — "hech narsa / turi yo'q". Kontekstga qarab ma'nosi o'zgaradi:
+
+| Yozuv | Ma'nosi |
+|---|---|
+| `void f(int x)` | `f` **hech narsa qaytarmaydi** |
+| `int f(void)` | `f` **hech narsa olmaydi** (parametr yo'q) |
+| `void *p` | `p` — **turi noma'lum** xotira manzili (7-bob); `malloc` shuni qaytaradi |
+| `(void)x;` | "bu qiymatni **ataylab** ishlatmayapman" (ogohlantirishni o'chiradi) |
+
+```c
+/* void_misol.c - void ning ikki ma'nosi */
+#include <stdio.h>
+
+void salom(void)                    /* 1-void: hech narsa qaytarmaydi; 2-void: argument olmaydi */
+{
+    printf("salom\n");
+    return;                         /* qiymatsiz return - ixtiyoriy, funksiya oxirida o'zi qaytadi */
+}
+
+static void ishlatilmaydi(int n)
+{
+    (void)n;                        /* "n ni bilaman, hozircha ishlatmayman" */
+}
+
+int main(void)
+{
+    salom();
+    ishlatilmaydi(5);
+    (void)printf("printf ning natijasini ataylab tashladik\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra void_misol.c -o void_misol
+$ ./void_misol
+salom
+printf ning natijasini ataylab tashladik
+```
+
+**Savol: `void` qaytaradigan funksiya natijasini ishlatsam?** Qiymat yo'q — olib bo'lmaydi:
+
+```c
+/* void_xato.c - void natijani ishlatish */
+void salom(void) { }
+
+int main(void)
+{
+    int x = salom();                /* xato! */
+    return x;
+}
+```
+
+```console
+$ gcc -Wall -Wextra void_xato.c -o void_xato # xato kutiladi
+void_xato.c: In function ‘main’:
+void_xato.c:6:13: error: void value not ignored as it ought to be
+    6 |     int x = salom();                /* xato! */
+      |             ^~~~~
+```
+
+**Savol: mashqlardagi `(void)n;` nima uchun?** Bo'sh funksiyada (`TODO`) parametr ishlatilmaydi va `-Wextra` "unused parameter" ogohlantiradi,
+`-Werror` esa uni xatoga aylantiradi. `(void)n;` — "bilaman, hozircha ishlatmayapman" deb kompilyatorga aytish. Yechimni yozganingizda o'chirasiz.
+MyOS'da ham bor: `pipe_read` dagi `(void)off;` — pipe'da fayl pozitsiyasi ma'nosiz, lekin VFS hamma `read` funksiyalariga bir xil parametrlar beradi.
+
+## 5.3. E'lon (prototip) va ta'rif
+
+1-bobda e'lon va ta'rifni o'rgandingiz. Bir faylning ichida ham shu qoida: kompilyator faylni **yuqoridan pastga bir marta** o'qiydi.
+`main` ichida `kvadrat` ni uchratganda u haqida **allaqachon** bilishi kerak. Ikki yo'l bor: ta'rifni yuqoriga yozish yoki **prototip** (tanasiz e'lon) yozish.
+
+```c
+/* prototip.c - prototip va ta'rif */
+#include <stdio.h>
+
+long kvadrat(int x);                /* PROTOTIP: shunday funksiya bor (tanasi keyinroq) */
+
+int main(void)
+{
+    printf("%ld\n", kvadrat(12));   /* kompilyator prototipdan turlarni biladi */
+    return 0;
+}
+
+long kvadrat(int x)                 /* TA'RIF */
+{
+    return (long)x * x;
+}
+```
+
+```console
+$ gcc -Wall -Wextra prototip.c -o prototip
+$ ./prototip
+144
+```
+
+Prototip bermaydigan narsa yo'q: argumentlar soni va turi **tekshiriladi**; kerak bo'lsa avtomatik aylantiriladi (`kvadrat(3.7)` → `double` `int` ga, ogohlantirish bilan).
+Boshqa fayldagi funksiyalar uchun prototiplar `.h` faylda turadi (1-bob).
+
+Prototipsiz xato ko'rinishi (ta'rif `main` dan **pastda** va prototip yo'q):
+
+```c
+/* prototipsiz.c - e'lon yo'q */
+#include <stdio.h>
+
+int main(void)
+{
+    printf("%ld\n", kvadrat(12));
+    return 0;
+}
+
+long kvadrat(int x)
+{
+    return (long)x * x;
+}
+```
+
+```console
+$ gcc -Wall -Wextra prototipsiz.c -o prototipsiz # xato kutiladi
+prototipsiz.c: In function ‘main’:
+prototipsiz.c:6:21: warning: implicit declaration of function ‘kvadrat’ [-Wimplicit-function-declaration]
+    6 |     printf("%ld\n", kvadrat(12));
+      |                     ^~~~~~~
+prototipsiz.c:6:15: warning: format ‘%ld’ expects argument of type ‘long int’, but argument 2 has type ‘int’ [-Wformat=]
+    6 |     printf("%ld\n", kvadrat(12));
+      |             ~~^     ~~~~~~~~~~~
+      |               |     |
+      |               |     int
+      |               long int
+      |             %d
+prototipsiz.c: At top level:
+prototipsiz.c:10:6: error: conflicting types for ‘kvadrat’; have ‘long int(int)’
+   10 | long kvadrat(int x)
+      |      ^~~~~~~
+prototipsiz.c:6:21: note: previous implicit declaration of ‘kvadrat’ with type ‘int()’
+    6 |     printf("%ld\n", kvadrat(12));
+      |                     ^~~~~~~
+```
+
+Kompilyator `main` ichida `kvadrat` ni ko'rganda uni hali bilmasdi (`implicit declaration`); keyin ta'rifni ko'rib, "bu avval taxmin qilganimdan farq qiladi" deb xato berdi (`conflicting types`).
+
+> **Eslab qoling:** funksiyani **ishlatishdan oldin** u e'lon qilingan bo'lishi kerak: yo ta'rif yuqorida, yo prototip.
+
+## 5.4. Argumentlar NUSXA sifatida uzatiladi
+
+**Hayotdan misol: hujjat nusxasi.** Idoraga pasportingizning **ksero nusxasini** berasiz. Ular nusxaga nima yozsa ham, sizning pasportingiz o'zgarmaydi.
+C funksiyaga oddiy o'zgaruvchi berganda ham faqat **nusxa** beriladi.
+
+```c
+/* nusxa.c - funksiya nusxani o'zgartiradi, asl qiymat emas */
+#include <stdio.h>
+
+static void oshir_nusxa(int x)
+{
+    x = x + 1;                      /* faqat NUSXA o'zgaradi */
+    printf("  funksiya ichida x = %d\n", x);
+}
+
+static void oshir_asl(int *x)       /* x - int ning MANZILI */
+{
+    *x = *x + 1;                    /* shu manzildagi qiymatni o'zgartirish */
+}
+
+int main(void)
+{
+    int a = 5;
+    oshir_nusxa(a);
+    printf("nusxa bilan: a = %d (o'zgarmadi!)\n", a);
+
+    oshir_asl(&a);                  /* a ning manzilini berish */
+    printf("manzil bilan: a = %d (o'zgardi)\n", a);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra nusxa.c -o nusxa
+$ ./nusxa
+  funksiya ichida x = 6
+nusxa bilan: a = 5 (o'zgarmadi!)
+manzil bilan: a = 6 (o'zgardi)
+```
+
+**Qadam-baqadam (xotira rasmi):**
+
+```text
+oshir_nusxa(a) chaqirilganda:
+    main:   a [ 5 ]                    <- asl quti (o'zgarmaydi)
+    funksiya: x [ 5 ]  -> x = x+1 -> x [ 6 ]     <- ALOHIDA quti (nusxa); funksiya tugasa yo'qoladi
+
+oshir_asl(&a) chaqirilganda:
+    main:   a [ 5 ]  <---------+
+    funksiya: x [ manzil_a ] --+      x - a ning manzilini saqlaydi; *x = a ning o'zi
+              *x = *x + 1   ->   a [ 6 ]       <- asl quti o'zgardi
+```
+
+- `&a` — "`a` ning **manzili**" (7-bob). `int *x` — "`x` — `int` manzili saqlaydigan quti". `*x` — "shu manzilga **borib**, ichidagi qiymat".
+- Funksiya chaqirilganda har bir argument **yangi o'zgaruvchiga nusxalanadi**. Chaqiruvchining o'zgaruvchisiga funksiya tega olmaydi,
+  agar unga manzil bermasangiz. (Python'da ham `int` uchun shunday, lekin `list` uzatilsa — o'sha obyektning o'zi uzatiladi.)
+
+Bu 7-bobning asosiy mavzusi va 06-mashqda amalda. Yadroda deyarli hamma funksiya shunday ishlaydi.
+
+**Struktura ham nusxalanadi:** `void f(struct katta s)` — butun struktura (masalan 4 KB) stekka nusxalanadi. Shuning uchun katta strukturalar doim
+ko'rsatkich bilan uzatiladi: `void f(const struct katta *s)`.
+
+**Massiv esa nusxalanMAYdi:** `void f(int a[])` aslida `void f(int *a)` — birinchi elementning manzili uzatiladi (6-bob). Shuning uchun funksiya massivni
+o'zgartira oladi va uning uzunligini **bilmaydi**.
+
+> **Eslab qoling:** oddiy argument — **nusxa** (asl qiymat o'zgarmaydi). O'zgartirmoqchi bo'lsangiz — **manzil** bering (`&a`).
+
+## 5.5. Qaytish qiymati va xato kodlari
+
+**Hayotdan misol: kvitansiya.** Pul o'tkazdingiz — kvitansiya olasiz: "muvaffaqiyatli" yoki "xato: hisobda mablag' yo'q". Yadroda funksiyalar shunday:
+**0 — muvaffaqiyat, manfiy son — xato kodi**. Kvitansiyani o'qimay tashlab yuborish — eng ko'p uchraydigan xato.
+
+C'da exception yo'q. Xato haqida xabar berishning ikki asosiy usuli:
+
+```text
+/* 1) Manfiy son = xato (yadro va POSIX uslubi) */
+int fayl_och(const char *yol);     /* >= 0: fd, < 0: -ENOENT, -EACCES ... */
+
+/* 2) Natija chiqish parametrida, qaytish qiymati - holat */
+int satr_songa(const char *s, long *natija);   /* 0 - OK, -1 - noto'g'ri, -2 - toshish */
+```
+
+Ikkinchi usulni kichik dasturda ko'ramiz — nolga bo'lishni **xavfsiz** qilamiz:
+
+```c
+/* bolish.c - xato kodi va chiqish parametri */
+#include <stdio.h>
+
+/* a / b ni natija ga yozadi. Qaytaradi: 0 - OK, -1 - nolga bo'lish */
+static int bol(int a, int b, int *natija)
+{
+    if (b == 0)
+        return -1;                  /* xato: natija ga tegmaymiz */
+    *natija = a / b;
+    return 0;
+}
+
+int main(void)
+{
+    int r = 0;
+
+    if (bol(20, 4, &r) == 0)
+        printf("20 / 4 = %d\n", r);
+
+    if (bol(20, 0, &r) != 0)
+        printf("20 / 0 -> xato: nolga bo'lib bo'lmaydi\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra bolish.c -o bolish
+$ ./bolish
+20 / 4 = 5
+20 / 0 -> xato: nolga bo'lib bo'lmaydi
+```
+
+**Kodda nimalar bor:**
+
+| Qator | Nima qiladi | Nega |
+|---|---|---|
+| `int bol(int a, int b, int *natija)` | uchta narsa oladi; **holat** (`int`) qaytaradi, natijani esa `natija` manzili orqali beradi | Bitta `return` da ham natija, ham xato kodini berib bo'lmaydi |
+| `if (b == 0) return -1;` | nolga bo'lishdan **oldin** to'xtaydi | Aks holda dastur qulaydi (3.1) |
+| `*natija = a / b;` | `natija` ko'rsatgan qutiga yozadi | Chaqiruvchi (`main`) o'z `r` ini beradi |
+| `bol(20, 4, &r) == 0` | holatni **tekshirish** | Chaqiruvchi **doim** tekshirishi kerak |
+
+Birinchi chaqiruvda `r = 5`; ikkinchisida funksiya `-1` qaytardi va `r` ga tegmadi.
+
+MyOS yadrosida qoida: **manfiy = xato kodi** (`-ENOMEM`, `-EINVAL`, `-EFAULT`). Syscall natijasi user'ga shunday qaytadi, libc esa uni `errno` ga yozib
+`-1` qaytaradi (`user/libc/syscall.h`: `__sysret`). 07 va 12-mashqlar shu uslubda.
+
+**Nega Python'dagi kabi bir nechta qiymat qaytarib bo'lmaydi?** Qaytish qiymati bitta registrda (`rax`) qaytadi. Bir nechta natija uchun: chiqish parametrlari
+(07-mashq) yoki struct qaytarish (`struct natija f(void)` — kichik struct ham registrlarda qaytadi).
+
+> **Eslab qoling:** funksiya bitta qiymat qaytaradi. Ko'p natija kerak bo'lsa — **chiqish parametrlari** (`int *natija`). Xatoni **qaytish qiymatida** bering va **doim tekshiring**.
+
+## 5.6. `static` — ikki xil ma'no
+
+### `static` funksiya — faqat shu fayl uchun
+
+```c
+static int yordamchi(int x)     /* boshqa .c fayllar buni ko'rmaydi */
+{
+    return x * 2;
+}
+```
+
+- Nomlar to'qnashuvining oldi olinadi: ikki faylda ikkita `static int yordamchi` — muammo emas.
+- "Ichki" va "tashqi" funksiyalar aniq ajraladi: `.h` da e'lon qilinganlari — tashqi interfeys, `static` lar — ichki tafsilot.
+- Kompilyator `static` funksiyani bemalol **inline** qila oladi (chaqirilgan joyga ko'chiradi).
+
+MyOS'da: `kernel/fs/pipe.c` dagi `pipe_read`, `pipe_write` — `static`. Tashqariga faqat `pipe_create` va `pipe_fops` jadvali orqali chiqadi.
+Linux yadrosida ham qoida: tashqariga kerak bo'lmagan hamma narsa `static`.
+
+### `static` lokal o'zgaruvchi — eslab qoluvchi quti
+
+**Hayotdan misol: metro turniketi.** Har kim o'tganda hisoblagich bittaga oshadi va **keyingi odam kelganda ham eslab qoladi**. Oddiy lokal o'zgaruvchi esa har
+chaqiruvda **noldan** boshlanadi — xuddi har yo'lovchi uchun yangi turniket qo'yilgandek.
+
+```c
+/* turniket.c - oddiy va static lokal o'zgaruvchi */
+#include <stdio.h>
+
+static int oddiy(void)
+{
+    int soni = 0;                   /* har chaqiruvda yangidan yaratiladi */
+    return ++soni;
+}
+
+static int eslab_qoladi(void)
+{
+    static int soni = 0;            /* BIR MARTA yaratiladi, chaqiruvlar orasida saqlanadi */
+    return ++soni;
+}
+
+int main(void)
+{
+    for (int i = 0; i < 3; i++)
+        printf("oddiy: %d   static: %d\n", oddiy(), eslab_qoladi());
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra turniket.c -o turniket
+$ ./turniket
+oddiy: 1   static: 1
+oddiy: 1   static: 2
+oddiy: 1   static: 3
+```
+
+| Chaqiruv | `oddiy()` ichida `soni` | `eslab_qoladi()` ichida `soni` |
+|---|---|---|
+| 1 | 0 → 1 (**yangidan** 0) | 0 → 1 |
+| 2 | 0 → 1 (yana 0 dan) | **1** → 2 (oldingisini eslab qoldi) |
+| 3 | 0 → 1 | 2 → 3 |
+
+`static int soni = 0;` dagi `= 0` — **faqat bir marta**, dastur boshida bajariladi (har chaqiruvda emas). (`static` o'zgaruvchilarning xotiradagi o'rni — 8-bob.)
+
+## 5.7. Stek: funksiya chaqirilganda nima bo'ladi
+
+**Hayotdan misol: likopchalar ustuni.** Yangi likopcha doim **ustiga** qo'yiladi va doim **ustidan** olinadi. `main` → `a()` → `b()` chaqirilsa, `b` ning
+likopchasi eng ustida. `b` tugashi bilan uning likopchasi olinadi va `a` davom etadi. Likopchalar juda ko'payib, shiftga yetsa — **stack overflow** (stek to'lishi).
+
+Har bir chaqiruv **stekda** "kadr" (frame) ochadi: qaytish manzili, lokal o'zgaruvchilar, saqlangan registrlar. Funksiya qaytganda kadr yo'qoladi.
+
+```text
+            yuqori manzillar
+   ┌──────────────────────┐
+   │ main ning kadri      │  a = 5
+   ├──────────────────────┤
+   │ qaytish manzili      │  (main ichidagi keyingi instruksiya)
+   │ oshir ning kadri     │  x (nusxa)
+   └──────────────────────┘  <- rsp (stek ko'rsatkichi), stek PASTGA o'sadi
+            quyi manzillar
+```
+
+Bundan muhim natija: **lokal o'zgaruvchining manzilini qaytarib bo'lmaydi**.
+
+```c
+/* yomon.c - o'lik xotiraga manzil */
+int *yomon(void)
+{
+    int x = 42;
+    return &x;              /* XATO: x ning kadri funksiya qaytishi bilan yo'qoladi */
+}
+```
+
+```console
+$ gcc -Wall -Wextra -c yomon.c -o yomon.o # xato kutiladi
+yomon.c: In function ‘yomon’:
+yomon.c:5:12: warning: function returns address of local variable [-Wreturn-local-addr]
+    5 |     return &x;              /* XATO: x ning kadri funksiya qaytishi bilan yo'qoladi */
+      |            ^~
+```
+
+GCC ogohlantiradi (`function returns address of local variable`). Qaytarilgan manzil "o'lik" xotiraga ko'rsatadi: kadr yo'qolgan, o'sha joyni keyingi chaqiruvlar egallaydi.
+Uzoq yashashi kerak bo'lgan ma'lumot — `malloc` bilan **heap**'da (8-bob).
+
+**Stek cheklangan:** user dasturda odatda 8 MB, **yadroda esa har bir oqimga atigi 8–16 KB**. Yadro funksiyasida `char buf[8192];` yozish — stekni to'ldirishning
+oson yo'li. MyOS'da buning namoyishi bor: `make run-nographic APPEND=demo=stack` (double fault).
+
+## 5.8. Rekursiya
+
+**Hayotdan misol: matryoshka.** Katta qo'g'irchoqni ochsangiz, ichidan kichigi chiqadi, uning ichidan yana kichigi... Eng kichigini ochib bo'lmaydi — bu **to'xtash sharti**.
+To'xtash sharti bo'lmasa, matryoshka hech qachon tugamaydi — dastur stack overflow bilan qulaydi.
+
+**Rekursiya** — funksiya **o'zini o'zi chaqirishi**. Faktorial: `5! = 5 × 4 × 3 × 2 × 1`; ya'ni `n! = n × (n-1)!`, `1! = 1`.
+
+```c
+/* rekursiya.c - faktorial va chaqiruvlar chuqurligi */
+#include <stdio.h>
+
+static unsigned long faktorial(unsigned n, int chuqurlik)
+{
+    printf("%*s faktorial(%u) boshlandi\n", chuqurlik * 2, "", n);
+    if (n <= 1) {
+        printf("%*s -> 1 (to'xtash sharti)\n", chuqurlik * 2, "");
+        return 1;                               /* to'xtash sharti - BO'LISHI SHART */
+    }
+    unsigned long r = n * faktorial(n - 1, chuqurlik + 1);
+    printf("%*s -> %lu\n", chuqurlik * 2, "", r);
+    return r;
+}
+
+int main(void)
+{
+    printf("natija: %lu\n", faktorial(4, 0));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra rekursiya.c -o rekursiya
+$ ./rekursiya
+ faktorial(4) boshlandi
+   faktorial(3) boshlandi
+     faktorial(2) boshlandi
+       faktorial(1) boshlandi
+       -> 1 (to'xtash sharti)
+     -> 2
+   -> 6
+ -> 24
+natija: 24
+```
+
+**Kodda nimalar bor:** `faktorial(n, chuqurlik)` — `chuqurlik` faqat chiroyli chop etish uchun (chekinish). `%*s` — "kengligi argumentdan olinadigan matn": `chuqurlik * 2` ta bo'shliq chiqaradi.
+Asosiy mantiq: `n <= 1` bo'lsa `1` qaytar (**to'xtash sharti**); aks holda `n * faktorial(n - 1)`.
+
+**Qadam-baqadam (`faktorial(4)`):**
+
+| Qadam | Chaqiruv | Nima bo'ladi |
+|---|---|---|
+| 1 | `faktorial(4)` | `4 * faktorial(3)` — javob kutadi |
+| 2 | `faktorial(3)` | `3 * faktorial(2)` — kutadi |
+| 3 | `faktorial(2)` | `2 * faktorial(1)` — kutadi |
+| 4 | `faktorial(1)` | **to'xtash**: `1` qaytaradi |
+| 5 | qaytish | `2 * 1 = 2` → `3 * 2 = 6` → `4 * 6 = 24` |
+
+Har chaqiruv — stekda **yangi kadr** (5.7). Chuqur rekursiya stekni to'ldiradi. To'xtash sharti **yo'q** bo'lsa nima bo'ladi — ko'ramiz:
+
+```c
+/* cheksiz.c - to'xtash sharti yo'q */
+#include <stdio.h>
+
+static int ichiga(int n)
+{
+    return ichiga(n + 1) + 1;           /* to'xtamaydi! */
+}
+
+int main(void)
+{
+    printf("boshladik\n");
+    fflush(stdout);
+    return ichiga(0);
+}
+```
+
+```console
+$ gcc -Wall -Wextra cheksiz.c -o cheksiz # xato kutiladi
+cheksiz.c: In function ‘ichiga’:
+cheksiz.c:4:12: warning: infinite recursion detected [-Winfinite-recursion]
+    4 | static int ichiga(int n)
+      |            ^~~~~~
+cheksiz.c:6:12: note: recursive call
+    6 |     return ichiga(n + 1) + 1;           /* to'xtamaydi! */
+      |            ^~~~~~~~~~~~~
+$ bash -c './cheksiz; echo "chiqish kodi: $?"' 2>&1 | sed 's/[0-9][0-9]* Segm/Segm/'
+boshladik
+bash: line 1:  Segmentation fault      ./cheksiz
+chiqish kodi: 139
+```
+
+Stek to'ldi → operatsion tizim dasturni **`Segmentation fault`** bilan o'ldirdi (chiqish kodi 139 = 128 + 11, signal 11). Kompilyator ham ogohlantirgan (`infinite recursion`).
+
+**Yadroda rekursiyadan qochiladi** — stek juda kichik (8–16 KB). Daraxtlar ham ko'pincha sikl + qo'lda boshqariladigan stek bilan aylanadi.
+
+> **Eslab qoling:** rekursiya = **to'xtash sharti** + o'zini **kichikroq** masala bilan chaqirish. To'xtash sharti bo'lmasa — stek to'ladi.
+
+## 5.9. `inline` va makro-funksiyalar
+
+```c
+static inline int max(int a, int b) { return a > b ? a : b; }
+```
+
+`inline` — "bu funksiyani chaqirmasdan, chaqirilgan joyga ko'chirishing mumkin" degan maslahat. Kichik, tez-tez chaqiriladigan funksiyalar uchun `.h` faylda
+`static inline` yoziladi. MyOS'da: `kernel/arch/io.h` (`inb`, `outb`), `kernel/arch/cpu.h`. Makrolardan (`#define MAX(a,b) ...`) afzal — turlar tekshiriladi va
+argumentlar ikki marta hisoblanmaydi (10-bob).
+
+## 5.10. Funksiya ko'rsatkichlari — qisqacha
+
+Funksiya ham xotirada turadi — uning **manzilini** o'zgaruvchida saqlash mumkin:
+
+```c
+/* funksiya_korsatkich.c - funksiyaning manzili */
+#include <stdio.h>
+
+static int qoshish(int a, int b) { return a + b; }
+static int ayirish(int a, int b) { return a - b; }
+
+int main(void)
+{
+    int (*amal)(int, int) = qoshish;    /* amal - funksiyaga ko'rsatkich */
+    printf("qoshish: %d\n", amal(2, 3));
+
+    amal = ayirish;                     /* endi boshqa funksiyani ko'rsatadi */
+    printf("ayirish: %d\n", amal(2, 3));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra funksiya_korsatkich.c -o funksiya_korsatkich
+$ ./funksiya_korsatkich
+qoshish: 5
+ayirish: -1
+```
+
+`int (*amal)(int, int)` o'qilishi: "`amal` — `(int, int)` oladigan va `int` qaytaradigan funksiyaga **ko'rsatkich**". Xuddi qutiga "qaysi tugma bosilsa" degan yozuv yopishtirgandek:
+`amal` boshqa funksiyani ko'rsata oladi. `qsort` taqqoslash funksiyasini shunday oladi; VFS har bir fayl tizimining `read`/`write` ini shunday chaqiradi. 7-bob va 20-mashqda batafsil.
+
+## 5.11. `main` ning argumentlari
+
+```c
+/* argumentlar.c - buyruq qatori argumentlari */
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+    for (int i = 0; i < argc; i++)
+        printf("argv[%d] = %s\n", i, argv[i]);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra argumentlar.c -o argumentlar
+$ ./argumentlar salom 42
+argv[0] = ./argumentlar
+argv[1] = salom
+argv[2] = 42
+```
+
+- `argc` — argumentlar **soni** (dastur nomi bilan birga); `argv` — ularning **matnlari** ro'yxati.
+- `./dastur salom 42` → `argc = 3`, `argv = {"./dastur", "salom", "42", NULL}`. Sonlar ham **satr** bo'lib keladi — ularni o'zingiz aylantirasiz (12-mashq).
+- MyOS'da `argv` ni kim yasaydi: yadro `exec` paytida yangi dasturning stekiga yozadi (`kernel/proc/exec.c`), `user/libc/crt0.asm` esa uni `main` ga uzatadi.
+
+## Hayotdan misol va to'liq dastur
+
+**Do'kon kassasi.** Bitta dasturda funksiyalarning hamma turi: qiymat qaytarish, chiqish parametrlari, `static` hisoblagich, rekursiya.
 
 ```c
 /* kassa.c - funksiyalar: qiymat qaytarish, chiqish parametrlari, static, rekursiya */
@@ -100,259 +701,32 @@ Chek #103: jami 66500 so'm
 10 000 so'mlik narx 3 kundan keyin: 13310 so'm
 ```
 
-**Sinab ko'ring:** `yangi_chek` dagi `static` ni o'chiring — chek raqamlari qanday bo'ladi?
-`narx_n_kundan_keyin` dagi `if (n == 0)` ni o'chiring va dasturni ishga tushiring — nima bo'ladi (5.7)?
+**Kodda nimalar bor:**
 
-## 5.1. Funksiyaning tuzilishi
+| Funksiya | Nima oladi | Nima qaytaradi | Nima uchun |
+|---|---|---|---|
+| `hisobla(narx, soni, chegirma_foiz)` | uchta son | `long` — jami | narxni hisoblash; **natija `return` bilan** |
+| `qaytim_ber(qaytim, &on, &bir)` | qaytim summasi va ikki **manzil** | hech narsa (`void`) | ikkita natija kerak edi, shuning uchun `*on_minglik`, `*minglik` orqali **chiqish parametrlari** |
+| `yangi_chek()` | hech narsa (`void`) | `int` — chek raqami | `static int raqam = 100;` — chaqiruvlar orasida **eslab qoladi**: 101, 102, 103 |
+| `narx_n_kundan_keyin(narx, n)` | narx, kunlar | `long` | **rekursiya**: `n == 0` — to'xtash; aks holda 1 kun o'tdi, `n - 1` kun qoldi |
 
-```c
-/*  qaytish   nom       parametrlar
-     turi      |         |           */
-    long   kvadrat(int x)
-{                                   /* tana boshi */
-    return (long)x * x;             /* qaytarish */
-}                                   /* tana oxiri - ; YO'Q */
-```
+**Hisoblash (qo'lda tekshirish):**
 
-Python bilan solishtirish:
+- `hisobla(12000, 3, 10)`: `jami = 36000`; chegirma `36000 * 10 / 100 = 3600`; `36000 - 3600 = 32400` ✓.
+- Qaytim: `50000 - 32400 = 17600` → `17600 / 10000 = 1` ta o'n minglik; `17600 % 10000 = 7600`, `7600 / 1000 = 7` ta minglik ✓.
+- Rekursiya: `10000 → 11000 → 12100 → 13310` (har kuni +10%) ✓.
 
-```python
-def kvadrat(x):
-    return x * x
-```
+**Sinab ko'ring:** `yangi_chek` dagi `static` ni o'chiring — chek raqamlari qanday bo'ladi? `narx_n_kundan_keyin` dagi `if (n == 0)` ni o'chiring va dasturni ishga tushiring — nima bo'ladi (5.8)?
 
-C'da qo'shimcha: **qaytish turi**, **har bir parametrning turi**, `{ }`.
+## Bob xulosasi (yodlash uchun)
 
-## 5.2. `void` — barcha ma'nolari (to'liq)
+1. Funksiya = **qaytish turi + nom + (parametrlar) + { tana }**; bir marta yozib, ko'p marta chaqiriladi.
+2. `void` = "hech narsa": `void f()` — qaytarmaydi; `f(void)` — olmaydi; `(void)x;` — ataylab ishlatmayapman.
+3. Argument **nusxa** bo'lib uzatiladi; asl qiymatni o'zgartirish uchun **manzil** (`&a`) bering.
+4. Xato = qaytish qiymati (manfiy son / nolga teng emas); **doim tekshiring**. `static` funksiya — faqat shu fayl uchun; `static` lokal — eslab qoladi.
+5. Har chaqiruv stekda kadr ochadi; rekursiya = to'xtash sharti + kichikroq masala; lokal o'zgaruvchi manzilini **qaytarmang**.
 
-`void` — "hech narsa / turi yo'q". Kontekstga qarab:
-
-```c
-void salom(void)            /* 1-void: hech narsa qaytarmaydi; 2-void: argument olmaydi */
-{
-    printf("salom\n");
-    return;                 /* qiymatsiz return - ixtiyoriy, funksiya oxirida o'zi qaytadi */
-}
-
-void *p = malloc(100);      /* void * - "turi noma'lum xotira manzili" (7-bob) */
-
-(void)natija;               /* "bu qiymatni ataylab ishlatmayapman" */
-(void)printf("x\n");        /* "qaytish qiymatini ataylab tashlab yuboryapman" */
-```
-
-**Savol: `void` qaytaradigan funksiya natijasini ishlatsam?**
-`int x = salom();` → xato: `void value not ignored as it ought to be`. Qiymat yo'q — olib bo'lmaydi.
-
-**Savol: mashqlardagi `(void)n;` nima uchun?**
-Bo'sh funksiyada (`TODO`) parametr ishlatilmaydi va `-Wextra` "unused parameter" ogohlantiradi,
-`-Werror` esa uni xatoga aylantiradi. `(void)n;` — "bilaman, hozircha ishlatmayapman" deb kompilyatorga
-aytish. Yechimni yozganingizda o'chirasiz. MyOS'da ham bor: `pipe_read` dagi `(void)off;` — pipe'da
-fayl pozitsiyasi ma'nosiz, lekin VFS hamma `read` funksiyalariga bir xil parametrlar beradi.
-
-## 5.3. E'lon (prototip) va ta'rif
-
-```c
-#include <stdio.h>
-
-long kvadrat(int x);            /* PROTOTIP: shunday funksiya bor (tanasi keyinroq) */
-
-int main(void)
-{
-    printf("%ld\n", kvadrat(12));   /* kompilyator prototipdan turlarni biladi */
-    return 0;
-}
-
-long kvadrat(int x)             /* TA'RIF */
-{
-    return (long)x * x;
-}
-```
-
-Kompilyator faylni **yuqoridan pastga bir marta** o'qiydi. `main` ichida `kvadrat` ni uchratganda u
-haqida allaqachon bilishi kerak — yoki ta'rif yuqorida bo'lishi, yoki prototip. Boshqa fayldagi
-funksiyalar uchun prototiplar `.h` faylda turadi (1-bob).
-
-Prototip nima beradi: argumentlar soni va turi **tekshiriladi**, kerak bo'lsa avtomatik aylantiriladi
-(`kvadrat(3.7)` → `double` `int` ga, ogohlantirish bilan).
-
-## 5.4. Argumentlar NUSXA sifatida uzatiladi
-
-```c
-void oshir(int x)
-{
-    x = x + 1;              /* faqat NUSXA o'zgaradi */
-}
-
-int main(void)
-{
-    int a = 5;
-    oshir(a);
-    printf("%d\n", a);      /* 5 - o'zgarmadi! */
-}
-```
-
-Funksiya chaqirilganda har bir argument **yangi o'zgaruvchiga nusxalanadi**. Chaqiruvchining
-o'zgaruvchisiga funksiya tega olmaydi. (Python'da ham `int` uchun xuddi shunday, lekin `list`
-uzatilsa — o'sha obyektning o'zi uzatiladi va funksiya uni o'zgartira oladi.)
-
-Funksiya chaqiruvchining o'zgaruvchisini o'zgartirishi kerak bo'lsa — **manzilini** berasiz:
-
-```c
-void oshir(int *x)          /* x - int ning MANZILI */
-{
-    *x = *x + 1;            /* shu manzildagi qiymatni o'zgartirish */
-}
-
-oshir(&a);                  /* a ning manzilini berish; endi a = 6 */
-```
-
-Bu 7-bobning asosiy mavzusi va 06-mashqda amalda. Yadroda deyarli hamma funksiya shunday ishlaydi.
-
-**Struktura ham nusxalanadi:** `void f(struct katta s)` — butun struktura (masalan 4 KB) stekka
-nusxalanadi. Shuning uchun katta strukturalar doim ko'rsatkich bilan uzatiladi: `void f(const struct katta *s)`.
-
-**Massiv esa nusxalanMAYdi:** `void f(int a[])` aslida `void f(int *a)` — birinchi elementning
-manzili uzatiladi (6-bob). Shuning uchun funksiya massivni o'zgartira oladi va uning uzunligini **bilmaydi**.
-
-## 5.5. Qaytish qiymati va xato kodlari
-
-C'da exception yo'q. Xato haqida xabar berishning ikki asosiy usuli:
-
-```c
-/* 1) Manfiy son = xato (yadro va POSIX uslubi) */
-int fayl_och(const char *yol);     /* >= 0: fd, < 0: -ENOENT, -EACCES ... */
-
-/* 2) Natija chiqish parametrida, qaytish qiymati - holat */
-int satr_songa(const char *s, long *natija);   /* 0 - OK, -1 - noto'g'ri, -2 - toshish */
-```
-
-Chaqiruvchi **doim** tekshirishi kerak:
-
-```c
-long x;
-if (satr_songa(argv[1], &x) != 0) {
-    fprintf(stderr, "noto'g'ri son: %s\n", argv[1]);
-    return 1;
-}
-```
-
-MyOS yadrosida qoida: **manfiy = xato kodi** (`-ENOMEM`, `-EINVAL`, `-EFAULT`). Syscall natijasi
-user'ga shunday qaytadi, libc esa uni `errno` ga yozib `-1` qaytaradi (`user/libc/syscall.h`: `__sysret`).
-07 va 12-mashqlar shu uslubda.
-
-## 5.6. `static` funksiya — faqat shu fayl uchun
-
-```c
-static int yordamchi(int x)     /* boshqa .c fayllar buni ko'rmaydi */
-{
-    return x * 2;
-}
-```
-
-- Nomlar to'qnashuvining oldi olinadi: ikki faylda ikkita `static int yordamchi` — muammo emas.
-- "Ichki" va "tashqi" funksiyalar aniq ajraladi: `.h` da e'lon qilinganlari — tashqi interfeys,
-  `static` lar — ichki tafsilot.
-- Kompilyator `static` funksiyani bemalol **inline** qila oladi (chaqirilgan joyga ko'chiradi).
-
-MyOS'da: `kernel/fs/pipe.c` dagi `pipe_read`, `pipe_write` — `static`. Tashqariga faqat `pipe_create`
-va `pipe_fops` jadvali orqali chiqadi. Linux yadrosida ham qoida: tashqariga kerak bo'lmagan hamma
-narsa `static`.
-
-(`static` o'zgaruvchilarda boshqa ma'noga ega — 8-bob.)
-
-## 5.7. Stek: funksiya chaqirilganda nima bo'ladi
-
-Har bir chaqiruv **stekda** "kadr" (frame) ochadi: qaytish manzili, lokal o'zgaruvchilar, saqlangan
-registrlar. Funksiya qaytganda kadr yo'qoladi.
-
-```text
-            yuqori manzillar
-   ┌──────────────────────┐
-   │ main ning kadri      │  a = 5
-   ├──────────────────────┤
-   │ qaytish manzili      │  (main ichidagi keyingi instruksiya)
-   │ oshir ning kadri     │  x (nusxa)
-   └──────────────────────┘  <- rsp (stek ko'rsatkichi), stek PASTGA o'sadi
-            quyi manzillar
-```
-
-Bundan muhim natija:
-
-```c
-int *yomon(void)
-{
-    int x = 42;
-    return &x;              /* XATO: x ning kadri funksiya qaytishi bilan yo'qoladi */
-}
-```
-
-Qaytarilgan manzil "o'lik" xotiraga ko'rsatadi. GCC ogohlantiradi (`function returns address of local variable`).
-Uzoq yashashi kerak bo'lgan ma'lumot — `malloc` bilan heap'da (8-bob).
-
-**Stek cheklangan:** user dasturda odatda 8 MB, **yadroda esa har bir oqimga atigi 8–16 KB**.
-Yadro funksiyasida `char buf[8192];` yozish — stekni to'ldirishning oson yo'li. MyOS'da buning
-namoyishi bor: `make run-nographic APPEND=demo=stack` (double fault).
-
-## 5.8. Rekursiya
-
-```c
-unsigned long faktorial(unsigned n)
-{
-    if (n <= 1)
-        return 1;                       /* to'xtash sharti - BO'LISHI SHART */
-    return n * faktorial(n - 1);
-}
-```
-
-Har bir chaqiruv yangi kadr — chuqur rekursiya stekni to'ldiradi (user'da `Segmentation fault`).
-**Yadroda rekursiyadan qochiladi** — stek juda kichik. Daraxtlar ham ko'pincha sikl + qo'lda boshqariladigan
-stek bilan aylanadi.
-
-## 5.9. `inline` va makro-funksiyalar
-
-```c
-static inline int max(int a, int b) { return a > b ? a : b; }
-```
-
-`inline` — "bu funksiyani chaqirmasdan, chaqirilgan joyga ko'chirishing mumkin" degan maslahat.
-Kichik, tez-tez chaqiriladigan funksiyalar uchun `.h` faylda `static inline` yoziladi. MyOS'da:
-`kernel/arch/io.h` (`inb`, `outb`), `kernel/arch/cpu.h`. Makrolardan (`#define MAX(a,b) ...`) afzal —
-turlar tekshiriladi va argumentlar ikki marta hisoblanmaydi (10-bob).
-
-## 5.10. Funksiya ko'rsatkichlari — qisqacha
-
-Funksiya ham xotirada turadi — uning manzilini o'zgaruvchida saqlash mumkin:
-
-```c
-int qoshish(int a, int b) { return a + b; }
-
-int (*amal)(int, int) = qoshish;    /* amal - funksiyaga ko'rsatkich */
-int r = amal(2, 3);                 /* 5 */
-```
-
-`qsort` taqqoslash funksiyasini shunday oladi; VFS har bir fayl tizimining `read`/`write` ini shunday
-chaqiradi. 7-bob va 20-mashqda batafsil.
-
-## 5.11. `main` ning argumentlari
-
-```c
-int main(int argc, char **argv)
-{
-    for (int i = 0; i < argc; i++)
-        printf("argv[%d] = %s\n", i, argv[i]);
-    return 0;
-}
-```
-
-`./dastur salom 42` → `argc = 3`, `argv = {"./dastur", "salom", "42", NULL}`. Sonlar ham **satr**
-bo'lib keladi — ularni o'zingiz aylantirasiz (12-mashq). MyOS'da `argv` ni kim yasaydi: yadro exec
-paytida yangi dasturning stekiga yozadi (`kernel/proc/exec.c`), `user/libc/crt0.asm` esa uni `main` ga uzatadi.
-
-## 5.12. Savol-javob
-
-**Nega Python'dagi kabi bir nechta qiymat qaytarib bo'lmaydi?**
-Qaytish qiymati bitta registrda (`rax`) qaytadi. Bir nechta natija uchun: chiqish parametrlari
-(07-mashq) yoki struct qaytarish (`struct natija f(void)` — kichik struct ham registrlarda qaytadi).
+## Savol-javob
 
 **Default argument, nomli argument bormi?**
 Yo'q. Funksiya aynan e'lon qilingan parametrlar bilan chaqiriladi.
@@ -360,13 +734,20 @@ Yo'q. Funksiya aynan e'lon qilingan parametrlar bilan chaqiriladi.
 **Funksiya ichida funksiya yozsa bo'ladimi?**
 Standart C'da yo'q (GCC kengaytmasi bor, lekin ishlatmang). Yordamchi funksiyani `static` qilib yuqorida yozing.
 
-## 5.13. O'zingizni tekshiring
+**Nega `main` ga `static` yozmaymiz?**
+`main` ni operatsion tizim **tashqaridan** chaqiradi — u boshqa fayllarga ko'rinishi shart.
+
+**Nega funksiyani chaqirish "bepul" emas?**
+Har chaqiruv kadr ochadi, argumentlarni nusxalaydi. Juda kichik funksiyalar uchun `static inline` (5.9) bu xarajatni yo'qotadi.
+
+## O'zingizni tekshiring
 
 1. `void f(void)` dagi ikkala `void` nimani bildiradi?
 2. `void f(int x) { x = 10; }` — chaqiruvchining o'zgaruvchisi o'zgaradimi? Qanday qilib o'zgartirish mumkin?
 3. Funksiyani `main` dan pastda yozsam va prototip bo'lmasa nima bo'ladi?
 4. `static` funksiya nima uchun kerak?
 5. Nega lokal o'zgaruvchining manzilini qaytarish xato?
+6. `static int n = 0; return ++n;` ichki funksiya uch marta chaqirilsa nima qaytaradi?
 
 <details><summary>Javoblar</summary>
 
@@ -375,9 +756,10 @@ Standart C'da yo'q (GCC kengaytmasi bor, lekin ishlatmang). Yordamchi funksiyani
 3. `implicit declaration` xatosi (zamonaviy GCC).
 4. Faqat shu faylda ko'rinishi uchun: nomlar to'qnashmaydi, interfeys aniq bo'ladi, inline qilish oson.
 5. Funksiya qaytgach uning stek kadri yo'qoladi va o'sha joyni keyingi chaqiruvlar egallaydi.
+6. 1, 2, 3 — `static` o'zgaruvchi chaqiruvlar orasida eslab qoladi.
 </details>
 
-## 5.14. Mashqlar
+## Mashq
 
 - **03** — xato kodini qaytarish va chiqish parametri.
 - **06** — manzil orqali o'zgartirish (bu bobning asosiy mashqi).

@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Darslikdagi to'liq dasturlarni yig'ib tekshiradi (make lab-check).
 
-Tekshiriladigan bo'limlar (har bobda):
-  1) "## Hayotdan misollar" - bob boshidagi dasturlar;
-  2) "<!-- loyiha:boshi -->" ... "<!-- loyiha:oxiri -->" - bob oxiridagi loyiha (faqat ko'rsatilgan tizim; mashq yechimi yo'q).
-
-Har bo'limdagi ```c / ```make / ```sh bloklari (birinchi qatorda fayl nomi izohi bilan) vaqtinchalik papkaga yoziladi,
-keyin ```console blokidagi gcc/make buyruqlari bajariladi. Ogohlantirish ham xato hisoblanadi.
+Har bob bo'yicha: matn bloklari TARTIB BILAN o'qiladi. ```c / ```make / ```sh bloki birinchi qatorida fayl nomi izohi bo'lsa
+(masalan `/* salom.c - ... */`) vaqtinchalik papkaga yoziladi; ```console blokidagi `$ gcc ...` va `$ make ...` buyruqlari
+shu papkada bajariladi. Ogohlantirish ham xato hisoblanadi. Loyiha bloki (<!-- loyiha:... -->) alohida papkada tekshiriladi.
+Bir xil nomli fayl keyin yozilsa - oldingisining ustiga yoziladi (bobda ketma-ket ishlaydi).
 """
 import glob
 import os
@@ -17,15 +15,7 @@ import tempfile
 
 ildiz = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'darslik')
 xatolar = soni = 0
-
-
-def bolimlar(matn):
-    m = re.search(r'^## Hayotdan misollar.*?(?=^## )', matn, re.S | re.M)
-    if m:
-        yield 'Hayotdan misollar', m.group(0)
-    m = re.search(r'<!-- loyiha:boshi -->(.*?)<!-- loyiha:oxiri -->', matn, re.S)
-    if m:
-        yield 'Loyiha', m.group(1)
+B, E = '<!-- loyiha:boshi -->', '<!-- loyiha:oxiri -->'
 
 
 def tekshir(bob, nom, bolim):
@@ -34,11 +24,11 @@ def tekshir(bob, nom, bolim):
         for til, tana in re.findall(r'```(\w+)\n(.*?)```', bolim, re.S):
             if til in ('c', 'make', 'sh'):
                 f = re.match(r'\s*(?:/\*|#)\s*([\w.]+)', tana)
-                if f and ('.' in f.group(1) or f.group(1) == 'Makefile'):
+                if f and ('.' in f.group(1) or f.group(1) == 'Makefile') and not re.fullmatch(r'[\d.]+', f.group(1)):
                     open(os.path.join(wd, f.group(1)), 'w').write(tana)
             elif til == 'console':
                 for q in tana.splitlines():
-                    if not re.match(r'\$ (gcc|make)\b', q):
+                    if not re.match(r'\$ (gcc|make)\b', q) or '# xato kutiladi' in q:
                         continue
                     buyruq = q[2:].split(' && ')[0]        # faqat yig'ish qismi
                     r = subprocess.run(['bash', '-c', buyruq], cwd=wd, capture_output=True, text=True)
@@ -51,8 +41,11 @@ def tekshir(bob, nom, bolim):
 
 for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
     matn = open(bob).read()
-    for nom, bolim in bolimlar(matn):
-        tekshir(bob, nom, bolim)
+    m = re.search(re.escape(B) + '(.*?)' + re.escape(E), matn, re.S)
+    asosiy = matn.replace(m.group(0), '') if m else matn
+    tekshir(bob, 'bob', asosiy)
+    if m:
+        tekshir(bob, 'Loyiha', m.group(1))
 
 # Mustaqil loyihalar: har papkada kutilgan.txt bo'lishi kerak
 for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
@@ -60,7 +53,7 @@ for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
     papkalar = glob.glob(os.path.join(ildiz, 'loyihalar', nn + '_*'))
     if len(papkalar) != 1 or not os.path.exists(os.path.join(papkalar[0], 'kutilgan.txt')):
         xatolar += 1
-        print(f'XATO: {os.path.basename(bob)}: loyihalar/{nn}_*/kutilgan.txt yo\'q')
+        print(f"XATO: {os.path.basename(bob)}: loyihalar/{nn}_*/kutilgan.txt yo'q")
 
 print(f"darslik kodi: {soni} ta yig'ish buyrug'i, " + ('hammasi OK' if not xatolar else f'{xatolar} ta XATO'))
 sys.exit(1 if xatolar else 0)

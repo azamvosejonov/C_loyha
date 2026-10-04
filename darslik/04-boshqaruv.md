@@ -1,46 +1,601 @@
 # 4-bob. Boshqaruv oqimi: `if`, sikllar, `switch`, `goto`
 
-> **Bu bobdan keyin:** C'dagi barcha shart va sikl ko'rinishlarini, `{ }` qo'yilmasa nima bo'lishini,
-> `switch` dagi "tushib ketish"ni va yadroda nega `goto` ishlatilishini bilasiz. Mashqlar: 01, 02, 05.
+> **Bu bobda nima o'rganasiz:** dasturni **qaror qabul qilishga** (`if`, `switch`) va **takrorlashga** (`while`, `for`)
+> o'rgatishni. `{ }` qo'yilmasa nima bo'lishini, `switch` dagi "tushib ketish"ni va yadroda nega `goto` ishlatilishini bilib olasiz.
+> **Oldindan nima kerak:** 2–3-boblar (turlar, taqqoslash).   **Vaqt:** 4–5 soat.
+> Mashqlar: 01, 02, 05.
 
 > **To'liq ishlaydigan misol:** [misollar/04_boshqaruv.c](misollar/04_boshqaruv.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**`if` / `else` — eshikdagi qo'riqchi (4.1).** "Chiptangiz bormi? Bo'lsa — kiring, bo'lmasa — kassaga
-boring." Bitta shart, ikki yo'l. `else if` zanjiri — ko'p eshikli yo'lak: birinchi mos kelgan eshikdan
-kirasiz, qolganlariga qaramaysiz.
+Hozirgacha dasturlarimiz **tepadan pastga** bitta yo'ldan bordi. Haqiqiy dasturlar esa **tanlaydi** ("pin to'g'rimi?") va **takrorlaydi**
+("1000 ta faylni o'qi"). Buning uchun ikki guruh buyruq bor:
 
-**`while` — choynak qaynashini kutish (4.2).** "Suv qaynamaguncha — kut." Avval tekshirasiz, keyin
-kutasiz. Agar suv allaqachon qaynagan bo'lsa, umuman kutmaysiz — `while` tanasi bir marta ham
-bajarilmasligi mumkin.
+| Maqsad | Buyruqlar | Hayotdan misol |
+|---|---|---|
+| **Tanlash** | `if`, `else`, `switch` | yo'l chorrahasi: "chiptangiz bormi?" |
+| **Takrorlash** | `while`, `do-while`, `for` | "suv qaynamaguncha kut" |
+| **Yo'lni o'zgartirish** | `break`, `continue`, `goto` | "topdim — to'xta", "buni tashla — keyingisi" |
 
-**`do ... while` — ovqatni tatib ko'rish (4.3).** Tuz yetarlimi — bilish uchun **avval tatib ko'rasiz**,
-keyin qaror qilasiz: "yetmasa — tuz qo'shib, yana tatib ko'r". Tana kamida bir marta bajariladi.
-PIN kod so'rash ham shunday: kamida bir marta so'raladi.
+Python bilasiz, shuning uchun farqlarni boshidan ko'rib oling:
 
-**`for` — zinapoyadan chiqish (4.4).** "1-qavatdan boshla; 9-qavatgacha; har safar bitta yuqoriga."
-Qayerdan boshlash, qachon to'xtash va qanday qadam — hammasi bitta qatorda.
+| Python | C |
+|---|---|
+| `if x > 0:` (qavs yo'q, `:` bor) | `if (x > 0)` (qavs **shart**, `:` yo'q) |
+| blok — **chekinish** bilan | blok — **`{ }`** bilan |
+| `elif` | `else if` |
+| `for i in range(10):` | `for (int i = 0; i < 10; i++)` |
+| `while True:` | `while (1)` yoki `for (;;)` |
+| `match` / `if-elif` | `switch` (faqat butun sonlar) |
 
-**`break` — kalitni topdingiz (4.5).** Kalitni cho'ntaklardan qidiryapsiz. Ikkinchi cho'ntakda topdingiz —
-qolganlarini tekshirmaysiz: `break`.
+## 4.1. `if` / `else`
 
-**`continue` — chirigan olmani o'tkazib yuborish (4.5).** Savatdagi olmalarni saralaysiz. Chirigani
-chiqsa — uni tashlab, **keyingisiga** o'tasiz. Sikl to'xtamaydi, faqat shu qadam qolganini tashlab ketadi.
+**Hayotdan misol: eshikdagi qo'riqchi.** "Chiptangiz bormi? Bo'lsa — kiring, bo'lmasa — kassaga boring." Bitta shart, ikki yo'l.
+`else if` zanjiri — ko'p eshikli yo'lak: **birinchi mos kelgan** eshikdan kirasiz, qolganlariga qaramaysiz.
 
-**`switch` — liftning tugmalari (4.6).** Qaysi tugma bosilsa, lift o'sha qavatga boradi. `case` —
-tugmalar, `default` — "bunday qavat yo'q". `break` ni unutish — lift kerakli qavatda to'xtamay, keyingisiga
-ham chiqib ketgani kabi.
+```c
+/* baho.c - if / else if / else zanjiri */
+#include <stdio.h>
 
-**`goto` yadroda — uydan chiqishdagi tartib (4.7).** Uydan chiqishda: avval gazni o'chirasiz, keyin
-chiroqni, oxirida eshikni qulflaysiz. Agar gazni o'chirayotganda muammo chiqsa ham, chiroq va eshikni
-baribir yopish kerak. Yadrodagi `goto xato_chiqish;` aynan shu: qayerda xato bo'lmasin, olingan
-resurslar teskari tartibda qaytariladi.
+int main(void)
+{
+    int ball = 78;
 
-### To'liq dastur: bankomat
+    if (ball >= 86) {
+        printf("a'lo\n");
+    } else if (ball >= 71) {
+        printf("yaxshi\n");
+    } else {
+        printf("qoniqarli emas\n");
+    }
+    return 0;
+}
+```
 
-Foydalanuvchi o'rniga buyruqlar oldindan massivda yozilgan — dastur har safar bir xil ishlaydi.
+```console
+$ gcc -Wall -Wextra baho.c -o baho
+$ ./baho
+yaxshi
+```
+
+**Kodda nimalar bor:**
+
+| Qator | Nima qiladi |
+|---|---|
+| `int ball = 78;` | `ball` — butun son qutisi (32 bit), boshlang'ich qiymati **78** |
+| `if (ball >= 86)` | 78 >= 86? **Yolg'on (0)** → `{ }` ichini **o'tkazib yuboradi** |
+| `else if (ball >= 71)` | 78 >= 71? **Rost (1)** → `"yaxshi"` chiqadi |
+| `else { ... }` | **qolgan hamma holat** (hech biri rost bo'lmasa). Bu yerga **kelmadi** |
+
+Tartib muhim: C shartlarni **tepadan pastga** tekshiradi va **birinchi rost** bo'lganda to'xtaydi (qolganlarini umuman ko'rmaydi).
+`ball = 90` qilib ko'ring — `"a'lo"` chiqadi (`>= 71` tekshirilmaydi ham).
+
+- Shart **qavs ichida** bo'lishi shart: `if (x > 0)`. Python'dagi `if x > 0:` C'da xato.
+- Shart — istalgan son: 0 — yolg'on, qolgani — rost (3-bob).
+- `elif` yo'q — `else if` yoziladi. (Aslida bu `else` + ichida yangi `if`: `else` dan keyin istalgan **bitta buyruq** kelishi mumkin, `if` ham buyruq.)
+
+### `{ }` qo'yilmasa — eng xavfli tuzoq
+
+`if` dan keyin `{ }` bo'lmasa, **faqat bitta keyingi buyruq** shartga tegishli:
+
+```c
+/* skobka.c - { } siz if: faqat BITTA buyruq tegishli */
+#include <stdio.h>
+
+int main(void)
+{
+    int xato = 0;                       /* xato yo'q */
+
+    if (xato)
+        printf("xato topildi\n");
+        printf("bu qator if ga TEGISHLI EMAS\n");   /* chekinish aldaydi! */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra skobka.c -o skobka # xato kutiladi
+skobka.c: In function ‘main’:
+skobka.c:8:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+    8 |     if (xato)
+      |     ^~
+skobka.c:10:9: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+   10 |         printf("bu qator if ga TEGISHLI EMAS\n");   /* chekinish aldaydi! */
+      |         ^~~~~~
+$ ./skobka
+bu qator if ga TEGISHLI EMAS
+```
+
+`xato = 0` (yolg'on) bo'lsa ham, ikkinchi qator chiqdi! Chekinish (bo'sh joy) faqat odam uchun; kompilyator uchun u **yo'q**. U buni quyidagicha o'qidi:
+
+```text
+if (xato)
+    printf("xato topildi\n");          <- faqat shu if ga tegishli
+printf("bu qator ...\n");               <- bu alohida, doim bajariladi
+```
+
+2014-yilda Apple'ning SSL kodidagi mashhur "goto fail" xatosi aynan shunday bo'lgan: bitta ortiqcha qator butun sertifikat tekshiruvini
+o'chirib qo'ygan. GCC `-Wall` (`-Wmisleading-indentation`) buni ogohlantiradi — yuqorida ko'rdingiz.
+
+> **Eslab qoling:** ko'p qatorli blokda **doim `{ }`**. Linux uslubida bitta qatorli `if` uchun `{ }` qo'yilmaydi — lekin ikkinchi qator
+> qo'shganda albatta qo'ying.
+
+### `;` tuzog'i
+
+```c
+/* nuqtali_vergul.c - if dan keyin ; */
+#include <stdio.h>
+
+int main(void)
+{
+    int x = -5;
+    if (x > 0);                         /* ; - BO'SH BUYRUQ. if shu bilan tugadi */
+    {
+        printf("musbat\n");             /* bu blok if ga tegishli emas */
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra nuqtali_vergul.c -o nuqtali_vergul # xato kutiladi
+nuqtali_vergul.c: In function ‘main’:
+nuqtali_vergul.c:7:15: warning: suggest braces around empty body in an ‘if’ statement [-Wempty-body]
+    7 |     if (x > 0);                         /* ; - BO'SH BUYRUQ. if shu bilan tugadi */
+      |               ^
+nuqtali_vergul.c:7:5: warning: this ‘if’ clause does not guard... [-Wmisleading-indentation]
+    7 |     if (x > 0);                         /* ; - BO'SH BUYRUQ. if shu bilan tugadi */
+      |     ^~
+nuqtali_vergul.c:8:5: note: ...this statement, but the latter is misleadingly indented as if it were guarded by the ‘if’
+    8 |     {
+      |     ^
+$ ./nuqtali_vergul
+musbat
+```
+
+`x` manfiy, lekin `"musbat"` chiqdi: `;` bo'sh buyruq bo'lib, `if` shu bilan tugagan; `{ }` esa alohida blok sifatida doim bajarildi.
+Kompilyator `-Wextra` bilan ogohlantiradi (`suggest braces around empty body`).
+
+## 4.2. `while`
+
+**Hayotdan misol: choynak qaynashini kutish.** "Suv qaynamaguncha — kut." Avval **tekshirasiz**, keyin kutasiz. Suv allaqachon qaynagan bo'lsa,
+umuman kutmaysiz — tana **bir marta ham bajarilmasligi mumkin**.
+
+```c
+/* while_misol.c - teskari sanash */
+#include <stdio.h>
+
+int main(void)
+{
+    int n = 3;
+    while (n > 0) {
+        printf("n = %d\n", n);
+        n--;                            /* n = n - 1 */
+    }
+    printf("tugadi, n = %d\n", n);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra while_misol.c -o while_misol
+$ ./while_misol
+n = 3
+n = 2
+n = 1
+tugadi, n = 0
+```
+
+**Qiymatlar qanday o'zgaradi:**
+
+| Aylanish | Shart `n > 0` | Tana | `n` keyin |
+|---|---|---|---|
+| 1 | `3 > 0` rost | `n = 3` chiqdi; `n--` | 2 |
+| 2 | `2 > 0` rost | `n = 2` chiqdi | 1 |
+| 3 | `1 > 0` rost | `n = 1` chiqdi | 0 |
+| — | `0 > 0` yolg'on | sikl tugadi | 0 |
+
+Shart **avval** tekshiriladi. `n` boshidan 0 bo'lsa — tana bir marta ham bajarilmaydi.
+
+**Tez-tez xato:** `n--` ni unutish — shart hech qachon yolg'on bo'lmaydi, **cheksiz sikl** (to'xtatish: `Ctrl+C`).
+
+## 4.3. `do ... while`
+
+**Hayotdan misol: ovqatni tatib ko'rish.** Tuz yetarlimi bilish uchun **avval tatib ko'rasiz**, keyin qaror qilasiz: "yetmasa — tuz qo'shib, yana tatib ko'r".
+Tana **kamida bir marta** bajariladi. PIN kod so'rash ham shunday: kamida bir marta so'raladi.
+
+```c
+/* dowhile_misol.c - kamida bir marta bajariladi */
+#include <stdio.h>
+
+int main(void)
+{
+    int n = 0;                          /* shart boshidanoq yolg'on */
+
+    while (n > 0)
+        printf("while: bajarilmaydi\n");
+
+    do {
+        printf("do-while: bir marta bajarildi (n = %d)\n", n);
+    } while (n > 0);                    /* ; SHART - do-while oxirida */
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra dowhile_misol.c -o dowhile_misol
+$ ./dowhile_misol
+do-while: bir marta bajarildi (n = 0)
+```
+
+Farq: `while` — **avval tekshiradi**, keyin bajaradi; `do-while` — **avval bajaradi**, keyin tekshiradi. Oxiridagi `;` — ko'p unutiladi.
+
+## 4.4. `for`
+
+**Hayotdan misol: zinapoyadan chiqish.** "1-qavatdan boshla; 9-qavatgacha; har safar bitta yuqoriga." Qayerdan boshlash, qachon to'xtash va
+qanday qadam — hammasi **bitta qatorda**.
+
+```text
+for ( BOSHLASH ; SHART ; QADAM )  TANA
+      bir marta   har aylanishdan   har aylanishdan
+                  OLDIN             KEYIN
+```
+
+```c
+/* for_misol.c - for va unga teng while */
+#include <stdio.h>
+
+int main(void)
+{
+    for (int i = 0; i < 3; i++)
+        printf("for: i = %d\n", i);
+
+    {
+        int i = 0;                      /* BOSHLASH */
+        while (i < 3) {                 /* SHART */
+            printf("while: i = %d\n", i);
+            i++;                        /* QADAM */
+        }
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra for_misol.c -o for_misol
+$ ./for_misol
+for: i = 0
+for: i = 1
+for: i = 2
+while: i = 0
+while: i = 1
+while: i = 2
+```
+
+Ikkala sikl **bir xil** natija berdi: `for` — shunchaki `while` ning qisqa yozuvi. `for` tartibi:
+
+1. `int i = 0` — **bir marta**, sikl boshida.
+2. `i < 3` tekshiriladi. Rost bo'lsa — tana bajariladi; yolg'on bo'lsa — sikl tugaydi.
+3. Tana tugagach — `i++` (qadam).
+4. 2-qadamga qaytish.
+
+**Python bilan taqqos:**
+
+| Python | C |
+|---|---|
+| `for i in range(10):` | `for (int i = 0; i < 10; i++)` |
+| `for i in range(a, b, qadam):` | `for (int i = a; i < b; i += qadam)` |
+| `for i in range(n-1, -1, -1):` | `for (int i = n - 1; i >= 0; i--)` |
+
+**Teskari sikl va `size_t` tuzog'i (2-bob).** `size_t` ishorasiz: `i >= 0` doim rost — **cheksiz sikl**!
+
+```c
+/* teskari.c - ishorasiz teskari sikl */
+#include <stdio.h>
+
+int main(void)
+{
+    size_t n = 3;
+
+    /* XATO versiya (ishga tushirmaymiz!): for (size_t i = n - 1; i >= 0; i--)
+       i ishorasiz -> 0 dan keyin 18446744073709551615 ga aylanadi -> cheksiz */
+
+    /* TO'G'RI versiya: shart tekshirilganda i kamayadi */
+    for (size_t i = n; i-- > 0; )
+        printf("i = %zu\n", i);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra teskari.c -o teskari
+$ ./teskari
+i = 2
+i = 1
+i = 0
+```
+
+**Nega `i-- > 0` ishlaydi?** Har tekshirishda **avval** `i > 0` solishtiriladi, **keyin** `i` kamayadi (post-decrement, 3.6). `i = 3`: `3 > 0` rost, `i` 2 bo'ldi, tana `i = 2` ni ko'radi;
+… `i = 1`: rost, `i` 0 bo'ldi, tana `i = 0` ni ko'radi; `i = 0`: `0 > 0` yolg'on — tugadi. Tana `n-1 … 0` ni ko'radi.
+
+Istalgan qismini tashlab ketish mumkin: `for (;;)` — **cheksiz sikl** (yadrodagi scheduler va `init` jarayoni shunday: `kernel/proc/process.c`
+dagi `scheduler_loop`, `user/bin/init.c`). `while (1)` va `for (;;)` bir xil; Linux uslubi — `for (;;)`.
+
+## 4.5. `break` va `continue`
+
+**Hayotdan misol: kalitni topdingiz.** Kalitni cho'ntaklardan qidiryapsiz. Ikkinchi cho'ntakda topdingiz — qolganlarini tekshirmaysiz: **`break`**.
+Savatdagi olmalarni saralayapsiz: chirigani chiqsa — uni tashlab, **keyingisiga** o'tasiz: **`continue`**.
+
+```c
+/* break_continue.c - qidirish va tashlab ketish */
+#include <stdio.h>
+
+int main(void)
+{
+    int a[] = { 4, -1, 7, 9, -3, 7 };
+    int n = 6, x = 9;
+
+    for (int i = 0; i < n; i++) {
+        if (a[i] < 0)
+            continue;                   /* manfiyni o'tkazib, keyingisiga */
+        if (a[i] == x) {
+            printf("%d topildi, indeks %d\n", x, i);
+            break;                      /* sikldan butunlay chiqish */
+        }
+        printf("a[%d] = %d - bu emas\n", i, a[i]);
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra break_continue.c -o break_continue
+$ ./break_continue
+a[0] = 4 - bu emas
+a[2] = 7 - bu emas
+9 topildi, indeks 3
+```
+
+**Kodda nimalar bor:** `int a[] = {...}` — 6 ta `int` qutisi qatori (massivlar — 8-bob, hozircha: `a[0]`, `a[1]`, … — raqamlash 0 dan). `x` — izlanayotgan qiymat.
+
+| `i` | `a[i]` | nima bo'ladi |
+|---|---|---|
+| 0 | 4 | manfiy emas, `x` emas → `"a[0] = 4 - bu emas"` |
+| 1 | -1 | manfiy → **`continue`**: chiqarmasdan keyingi `i` ga |
+| 2 | 7 | `"a[2] = 7 - bu emas"` |
+| 3 | 9 | `== x` → topildi, **`break`**: sikl tugadi (`a[4]`, `a[5]` ko'rilmadi) |
+
+`break` faqat **eng ichki** sikldan (yoki `switch` dan) chiqaradi. Ichma-ich sikllardan birdaniga chiqish uchun: flag o'zgaruvchi, funksiyaga ajratib `return`, yoki `goto`.
+
+> **Eslab qoling:** `break` — **sikldan chiq**. `continue` — **shu aylanishni tashla, keyingisiga o't**.
+
+## 4.6. `switch`
+
+**Hayotdan misol: liftning tugmalari.** Qaysi tugma bosilsa, lift o'sha qavatga boradi. `case` — tugmalar, `default` — "bunday qavat yo'q".
+
+```c
+/* kalkulyator.c - switch bilan amal tanlash */
+#include <stdio.h>
+
+int main(void)
+{
+    int a = 12, b = 4;
+    char amal = '/';
+    int r = 0;
+
+    switch (amal) {
+    case '+':
+        r = a + b;
+        break;
+    case '-':
+        r = a - b;
+        break;
+    case '/':
+        r = a / b;
+        break;
+    case 'q':
+    case 'Q':                           /* ikki case bitta kodga - ataylab "tushib ketish" */
+        printf("chiqish\n");
+        return 0;
+    default:                            /* hech biri mos kelmasa */
+        printf("noma'lum amal: %c\n", amal);
+        return 1;
+    }
+    printf("%d %c %d = %d\n", a, amal, b, r);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra kalkulyator.c -o kalkulyator
+$ ./kalkulyator
+12 / 4 = 3
+```
+
+**Qanday ishlaydi:** `switch (amal)` — `amal` qiymatini oladi (`'/'`) va mos `case` ga **sakraydi** (bu yerda `case '/':`), shu yerdan boshlab kodni bajaradi.
+`break` — "`switch` dan chiq". `default` — hech biri mos kelmasa.
+
+- Faqat **butun son** qiymatlar (`int`, `char`, `enum`) bo'yicha ishlaydi — satrlar bo'yicha emas.
+- `case` qiymatlari — **o'zgarmas** (literal yoki `#define`/`enum`).
+- Kompilyator ko'p `case` li `switch` ni **sakrash jadvaliga** aylantirishi mumkin — `if` zanjiridan tezroq.
+
+### `break` ni unutish — "tushib ketish" (fallthrough)
+
+**`break` bo'lmasa — keyingi `case` ga ham "tushib ketadi"!** Lift kerakli qavatda to'xtamay, keyingisiga ham chiqib ketgandek.
+
+```c
+/* tushish.c - break unutildi */
+#include <stdio.h>
+
+int main(void)
+{
+    int tugma = 2;
+
+    switch (tugma) {
+    case 1:
+        printf("1-qavat\n");
+        break;
+    case 2:
+        printf("2-qavat\n");            /* break YO'Q! */
+    case 3:
+        printf("3-qavat\n");
+        break;
+    }
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra tushish.c -o tushish # xato kutiladi
+tushish.c: In function ‘main’:
+tushish.c:13:9: warning: this statement may fall through [-Wimplicit-fallthrough=]
+   13 |         printf("2-qavat\n");            /* break YO'Q! */
+      |         ^~~~~~~~~~~~~~~~~~~
+tushish.c:14:5: note: here
+   14 |     case 3:
+      |     ^~~~
+$ ./tushish
+2-qavat
+3-qavat
+```
+
+`tugma = 2` edi, lekin `"3-qavat"` ham chiqdi. Ba'zan bu **ataylab** (yuqoridagi `'q'`/`'Q'`), ko'pincha — **xato**. Ataylab qilinganda izoh yozing:
+`/* fallthrough */` (GCC `-Wimplicit-fallthrough` ogohlantirishini ham o'chiradi).
+
+Yadroda qayerda: syscall raqami bo'yicha tarqatish (`kernel/sys/syscall.c`: `switch (nr)`), klaviatura skankodlari, terminal escape-ketma-ketliklari (`kernel/drivers/vt.c`).
+
+## 4.7. `goto` — yadroda nega ishlatiladi
+
+**Hayotdan misol: uydan chiqishdagi tartib.** Avval gazni o'chirasiz, keyin chiroqni, oxirida eshikni qulflaysiz. Gazni o'chirayotganda muammo chiqsa ham,
+chiroq va eshikni baribir yopish kerak. `goto` aynan shu: qayerda xato bo'lmasin, olingan resurslar **teskari tartibda** qaytariladi.
+
+"`goto` yomon" degan gapni eshitgan bo'lsangiz — umuman olganda to'g'ri: tartibsiz sakrashlar kodni tushunib bo'lmas qiladi. Lekin C'da bitta joyda
+u eng toza yechim — **xatodan keyin tozalash**. Quyida resurslarni **o'ynab** ko'rsatamiz (haqiqiy fayl o'rniga matn chiqaramiz):
+
+```c
+/* goto_tozalash.c - xato bo'lsa, olinganlarni teskari tartibda qaytarish */
+#include <stdio.h>
+
+/* qadam: nechanchi bosqichda xato bo'ladi (0 = xato yo'q) */
+static int ish(int qadam)
+{
+    int rc = -1;                        /* natija: -1 = xato, 0 = muvaffaqiyat */
+
+    if (qadam == 1) {
+        printf("1) birinchi resurs OLINMADI (xato)\n");
+        goto chiq;
+    }
+    printf("1) birinchi resurs olindi\n");
+
+    if (qadam == 2) {
+        printf("2) ikkinchi resurs OLINMADI (xato)\n");
+        goto yop_1;
+    }
+    printf("2) ikkinchi resurs olindi\n");
+
+    if (qadam == 3) {
+        printf("3) uchinchi resurs OLINMADI (xato)\n");
+        goto yop_2;
+    }
+    printf("3) uchinchi resurs olindi\n");
+
+    printf("   asosiy ish bajarildi\n");
+    rc = 0;
+
+    printf("   3-resurs qaytarildi\n");
+yop_2:
+    printf("   2-resurs qaytarildi\n");
+yop_1:
+    printf("   1-resurs qaytarildi\n");
+chiq:
+    return rc;
+}
+
+int main(void)
+{
+    printf("--- xato yo'q ---\n");
+    printf("natija: %d\n\n", ish(0));
+    printf("--- 3-resursda xato ---\n");
+    printf("natija: %d\n", ish(3));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra goto_tozalash.c -o goto_tozalash
+$ ./goto_tozalash
+--- xato yo'q ---
+1) birinchi resurs olindi
+2) ikkinchi resurs olindi
+3) uchinchi resurs olindi
+   asosiy ish bajarildi
+   3-resurs qaytarildi
+   2-resurs qaytarildi
+   1-resurs qaytarildi
+natija: 0
+
+--- 3-resursda xato ---
+1) birinchi resurs olindi
+2) ikkinchi resurs olindi
+3) uchinchi resurs OLINMADI (xato)
+   2-resurs qaytarildi
+   1-resurs qaytarildi
+natija: -1
+```
+
+**Nima ko'rdik:** xato yo'q bo'lsa — hamma resurs olinadi va hammasi **teskari tartibda** qaytariladi. 3-resursni olishda xato bo'lsa — faqat **olingan** (1 va 2) resurslar
+qaytariladi; 3-resurs olinmagan edi, uni qaytarish kerak emas. Har bir xato o'z "yorlig'iga" sakraydi va o'shandan pastdagi hamma tozalash bajariladi.
+
+Haqiqiy kodda shunday ko'rinadi (fragment — `open`, `malloc` 14- va 8-boblarda):
+
+```text
+int nusxala(const char *a, const char *b)
+{
+    int rc = -1;
+    int in = open(a, O_RDONLY);
+    if (in < 0)
+        goto chiq;
+    int out = open(b, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (out < 0)
+        goto yop_in;
+    char *buf = malloc(4096);
+    if (!buf)
+        goto yop_out;
+
+    /* ... asosiy ish ... */
+    rc = 0;
+
+    free(buf);
+yop_out:
+    close(out);
+yop_in:
+    close(in);
+chiq:
+    return rc;
+}
+```
+
+`goto` siz buni qilish uchun ichma-ich `if` lar yoki takrorlangan `close` lar kerak bo'lardi — ular xatoga ko'proq joy beradi. Linux yadrosida bu uslub minglab joyda
+uchraydi. (C++ va Rust'da buning o'rniga destruktorlar bor; C'da — `goto`.)
+
+> **Eslab qoling:** `goto` faqat **pastga** va faqat **tozalash** uchun.
+
+## 4.8. Bloklar va ko'rinish sohasi
+
+```c
+for (int i = 0; i < 3; i++) {
+    int kvadrat = i * i;    /* har aylanishda yangi */
+}
+/* i va kvadrat bu yerda YO'Q */
+```
+
+`for (int i = ...)` dagi `i` faqat sikl ichida yashaydi (C99'dan). Bu yaxshi: sikldan keyin tasodifan eski `i` ni ishlatib qo'ymaysiz.
+
+## Hayotdan misol va to'liq dastur
+
+**Bankomat.** Foydalanuvchi o'rniga buyruqlar oldindan massivda yozilgan — dastur har safar bir xil ishlaydi. Bu dasturda **hamma** bob buyruqlari ishlatilgan.
 
 ```c
 /* bankomat.c - if, while, do-while, for, switch, break, continue */
@@ -111,219 +666,53 @@ Balans: 300000 so'm
 Kartangizni oling. Xayr!
 ```
 
-**Sinab ko'ring:** `urinishlar` massivini `{ 1, 2, 3 }` qiling — karta bloklanadimi? `case 'b':` dagi
-`break;` ni o'chiring — balansni so'raganda nima bo'ladi va nega?
+**Kodda nimalar bor:**
 
-## 4.1. `if` / `else`
+| Nom | Tur | Boshlang'ich | Nima uchun |
+|---|---|---|---|
+| `togri_pin` | `const int` | 1234 | to'g'ri PIN (`const` — o'zgarmaydi) |
+| `urinishlar[]` | 3 ta `int` | `{1111, 4321, 1234}` | foydalanuvchi "kiritgan" PIN'lar |
+| `urinish` | `int` | 0 | nechanchi urinish (massiv indeksi ham) |
+| `pin` | `int` | (qiymatsiz, `do` ichida to'ldiriladi) | hozirgi urinishdagi PIN |
+| `balans` | `long` | 1 000 000 | hisobdagi pul |
+| `buyruqlar[]` | 6 ta `char` | `b y y x b q` | tugmalar ketma-ketligi |
 
-```c
-if (ball >= 86) {
-    printf("a'lo\n");
-} else if (ball >= 71) {
-    printf("yaxshi\n");
-} else {
-    printf("qoniqarli emas\n");
-}
-```
+**PIN so'rash (do-while) qadamlari:**
 
-- Shart **qavs ichida** bo'lishi shart: `if (x > 0)`. Python'dagi `if x > 0:` C'da xato.
-- Shart — istalgan son: 0 — yolg'on, qolgani — rost (3-bob).
-- `elif` yo'q — `else if` yoziladi (aslida bu `else` + ichida yangi `if`).
+| Aylanish | `pin = urinishlar[urinish++]` | `pin != togri_pin`? | `urinish` keyin | Davom? |
+|---|---|---|---|---|
+| 1 | 1111 (`urinish` 0 → 1) | ha → `"noto'g'ri"` | 1 | `pin != 1234 && 1 < 3` rost |
+| 2 | 4321 (1 → 2) | ha → `"noto'g'ri"` | 2 | rost |
+| 3 | 1234 (2 → 3) | yo'q | 3 | `pin != 1234` yolg'on → chiqish |
 
-### `{ }` qo'yilmasa
+**Buyruqlar (for + switch):** `b` — balans; `y` — yechish (700 000 yetarli bo'lsa); ikkinchi `y` — endi 300 000 qoldi, **yetmaydi**; `x` — `continue` bilan o'tkazib yuboriladi;
+`b` — yangi balans 300 000; `q` — xayr va `break` bilan sikldan chiqish.
 
-`if` dan keyin `{ }` bo'lmasa, **faqat bitta keyingi buyruq** shartga tegishli bo'ladi:
+**Sinab ko'ring:** `urinishlar` massivini `{ 1, 2, 3 }` qiling — karta bloklanadimi? `case 'b':` dagi `break;` ni o'chiring — balansni so'raganda nima bo'ladi va nega?
 
-```c
-if (xato)
-    printf("xato!\n");
-    return -1;              /* DIQQAT: bu if ga TEGISHLI EMAS - doim bajariladi */
-```
+## Bob xulosasi (yodlash uchun)
 
-Chekinish sizni aldaydi — kompilyator uchun u yo'q. 2014-yilda Apple'ning SSL kodidagi mashhur
-"goto fail" xatosi aynan shunday bo'lgan: bitta ortiqcha qator butun sertifikat tekshiruvini o'chirib
-qo'ygan. GCC `-Wall` (`-Wmisleading-indentation`) buni ogohlantiradi.
+1. `if (shart)` — qavs **shart**; `elif` yo'q, `else if` bor; shartlar **tepadan pastga**, birinchi rost to'xtaydi.
+2. Ko'p qatorli blokda doim **`{ }`**; `if (x);` — bo'sh buyruq tuzog'i.
+3. `while` — avval tekshir; `do-while` — avval bajar (kamida 1 marta); `for (boshlash; shart; qadam)`.
+4. `break` — sikl/`switch` dan chiq; `continue` — keyingi aylanishga. `switch` da `break` unutilsa — **tushib ketadi**.
+5. `goto` — faqat pastga, faqat xato bo'lganda **teskari tozalash** uchun.
 
-**Qoida:** ko'p qatorli blokda doim `{ }`. Linux uslubida bitta qatorli `if` uchun `{ }` qo'yilmaydi —
-lekin ikkinchi qator qo'shganda albatta qo'ying.
-
-### `;` tuzog'i
-
-```c
-if (x > 0);                 /* ; - BO'SH BUYRUQ. if shu bilan tugadi */
-{
-    printf("musbat\n");     /* bu blok if ga tegishli emas - doim bajariladi */
-}
-```
-
-## 4.2. `while`
-
-```c
-int n = 10;
-while (n > 0) {
-    printf("%d\n", n);
-    n--;
-}
-```
-
-Shart **avval** tekshiriladi: boshida yolg'on bo'lsa, tana bir marta ham bajarilmaydi.
-
-## 4.3. `do ... while`
-
-```c
-do {
-    c = oqi();
-} while (c == ' ');         /* ; SHART - do-while oxirida */
-```
-
-Tana **kamida bir marta** bajariladi, shart oxirida tekshiriladi. Oxiridagi `;` — ko'p unutiladi.
-
-## 4.4. `for`
-
-```c
-for (int i = 0; i < 10; i++) {
-    printf("%d\n", i);
-}
-```
-
-Uch qism, `;` bilan ajratilgan:
-
-```text
-for ( BOSHLASH ; SHART ; QADAM )  TANA
-      bir marta   har aylanishdan   har aylanishdan
-                  OLDIN             KEYIN
-```
-
-Bu aynan shu `while` ga teng:
-
-```c
-{
-    int i = 0;
-    while (i < 10) {
-        printf("%d\n", i);
-        i++;
-    }
-}
-```
-
-Python'dagi `for i in range(10)` → `for (int i = 0; i < 10; i++)`.
-`range(a, b, qadam)` → `for (int i = a; i < b; i += qadam)`.
-Teskari: `for (int i = n - 1; i >= 0; i--)` — lekin `i` `size_t` bo'lsa, `i >= 0` doim rost (2-bob)!
-Ishorasiz tur uchun to'g'ri teskari sikl: `for (size_t i = n; i-- > 0; )`.
-
-Istalgan qismini tashlab ketish mumkin: `for (;;)` — **cheksiz sikl** (yadrodagi scheduler va `init`
-jarayoni shunday: `kernel/proc/process.c` dagi `scheduler_loop`, `user/bin/init.c`).
-
-## 4.5. `break` va `continue`
-
-```c
-for (int i = 0; i < n; i++) {
-    if (a[i] < 0)
-        continue;           /* bu elementni o'tkazib, keyingisiga */
-    if (a[i] == x)
-        break;              /* sikldan butunlay chiqish */
-    ...
-}
-```
-
-`break` faqat **eng ichki** sikldan (yoki `switch` dan) chiqaradi. Ichma-ich sikllardan birdaniga
-chiqish uchun: flag o'zgaruvchi, funksiyaga ajratib `return`, yoki `goto`.
-
-## 4.6. `switch`
-
-```c
-switch (belgi) {
-case '+':
-    r = a + b;
-    break;
-case '-':
-    r = a - b;
-    break;
-case 'q':
-case 'Q':                   /* ikki case bitta kodga - ataylab "tushib ketish" */
-    chiqish = 1;
-    break;
-default:                    /* hech biri mos kelmasa */
-    printf("noma'lum: %c\n", belgi);
-    break;
-}
-```
-
-- Faqat **butun son** qiymatlar (`int`, `char`, `enum`) bo'yicha ishlaydi — satrlar bo'yicha emas.
-- `case` qiymatlari — **o'zgarmas** (literal yoki `#define`/`enum`).
-- **`break` bo'lmasa — keyingi `case` ga "tushib ketadi" (fallthrough)**. Ba'zan ataylab (yuqoridagi
-  `'q'`/`'Q'`), ko'pincha — xato. Ataylab qilinganda izoh yozing: `/* fallthrough */` (GCC
-  `-Wimplicit-fallthrough` ogohlantirishini ham o'chiradi).
-- Kompilyator ko'p `case` li `switch` ni **sakrash jadvaliga** aylantirishi mumkin — `if` zanjiridan tezroq.
-
-Yadroda qayerda: syscall raqami bo'yicha tarqatish (`kernel/sys/syscall.c`: `switch (nr)`),
-klaviatura skankodlari, terminal escape-ketma-ketliklari (`kernel/drivers/vt.c`).
-
-## 4.7. `goto` — yadroda nega ishlatiladi
-
-"`goto` yomon" degan gapni eshitgan bo'lsangiz — umuman olganda to'g'ri: tartibsiz sakrashlar
-kodni tushunib bo'lmas qiladi. Lekin C'da bitta joyda u eng toza yechim — **xatodan keyin tozalash**:
-
-```c
-int nusxala(const char *a, const char *b)
-{
-    int rc = -1;
-    int in = open(a, O_RDONLY);
-    if (in < 0)
-        goto chiq;
-    int out = open(b, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (out < 0)
-        goto yop_in;
-    char *buf = malloc(4096);
-    if (!buf)
-        goto yop_out;
-
-    /* ... asosiy ish ... */
-    rc = 0;
-
-    free(buf);
-yop_out:
-    close(out);
-yop_in:
-    close(in);
-chiq:
-    return rc;
-}
-```
-
-Har bir xato o'z "yorlig'iga" sakraydi va o'shandan pastdagi hamma tozalash bajariladi — resurslar
-**teskari tartibda** bo'shatiladi. `goto` siz buni qilish uchun ichma-ich `if` lar yoki takrorlangan
-`close` lar kerak bo'lardi — ular xato qilishga ko'proq joy beradi. Linux yadrosida bu uslub
-minglab joyda uchraydi. (C++ va Rust'da buning o'rniga destruktorlar bor; C'da — `goto`.)
-
-**Qoida:** `goto` faqat **pastga** va faqat **tozalash** uchun.
-
-## 4.8. Bloklar va ko'rinish sohasi
-
-```c
-for (int i = 0; i < 3; i++) {
-    int kvadrat = i * i;    /* har aylanishda yangi */
-}
-/* i va kvadrat bu yerda YO'Q */
-```
-
-`for (int i = ...)` dagi `i` faqat sikl ichida yashaydi (C99'dan). Bu yaxshi: sikldan keyin tasodifan
-eski `i` ni ishlatib qo'ymaysiz.
-
-## 4.9. Savol-javob
+## Savol-javob
 
 **`while (1)` va `for (;;)` farqi bormi?**
 Yo'q, ikkalasi ham cheksiz sikl. Linux uslubi — `for (;;)`.
 
 **Nega `else if` alohida kalit so'z emas?**
-`else` dan keyin istalgan **bitta** buyruq kelishi mumkin — `if` ham buyruq. Shuning uchun
-`else if (...)` aslida `else { if (...) ... }`.
+`else` dan keyin istalgan **bitta** buyruq kelishi mumkin — `if` ham buyruq. Shuning uchun `else if (...)` aslida `else { if (...) ... }`.
 
 **Qaysi biri tezroq: `switch` yoki `if/else`?**
-Ko'p `case` bo'lsa — odatda `switch` (sakrash jadvali). Lekin avval to'g'ri va tushunarli yozing;
-tezlikni o'lchab ko'rmasdan optimallashtirmang.
+Ko'p `case` bo'lsa — odatda `switch` (sakrash jadvali). Lekin avval to'g'ri va tushunarli yozing; tezlikni o'lchab ko'rmasdan optimallashtirmang.
 
-## 4.10. O'zingizni tekshiring
+**Nega cheksiz sikl kerak?**
+Yadro hech qachon "tugamaydi": u uzilishlarni kutadi va jarayonlarni almashtiradi. `for (;;)` — shunday ishning odatiy shakli.
+
+## O'zingizni tekshiring
 
 1. `for (int i = 0; i < 3; i++);` `printf("%d", i);` — nima bo'ladi?
 2. `switch` da `break` unutilsa nima bo'ladi?
@@ -340,12 +729,11 @@ tezlikni o'lchab ko'rmasdan optimallashtirmang.
 5. Xatodan keyin resurslarni teskari tartibda tozalash uchun.
 </details>
 
-## 4.11. Mashqlar
+## Mashq
 
 - **01**, **02** — sikllar.
 - **05** (massivlar) — teskari sikl va `size_t` tuzog'i.
-- Qo'shimcha: 1 dan 100 gacha FizzBuzz; ko'paytirish jadvali (ichma-ich `for`); kiritilgan sonning
-  raqamlari yig'indisi (`while` + `% 10` va `/ 10`).
+- Qo'shimcha: 1 dan 100 gacha FizzBuzz; ko'paytirish jadvali (ichma-ich `for`); kiritilgan sonning raqamlari yig'indisi (`while` + `% 10` va `/ 10`).
 
 <!-- loyiha:boshi -->
 ## Loyiha: taxmin o'yini (ikkilik qidiruv)

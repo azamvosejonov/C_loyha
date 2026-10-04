@@ -1,44 +1,508 @@
 # 1-bob. Kompilyatsiya: koddan dasturgacha
 
-> **Bu bobdan keyin:** `gcc` ichida nima bo'layotganini, `.c`, `.h`, `.o` fayllar farqini,
-> "undefined reference" va "implicit declaration" xatolari nimadan kelib chiqishini bilasiz.
+> **Bu bobda nima o'rganasiz:** `gcc salom.c -o salom` deganingizda **ichkarida nima bo'lishini**; `.c`, `.h`, `.o`
+> fayllar nima ekanini; nega dastur bir nechta faylga bo'linishini; va `implicit declaration`, `undefined reference`
+> kabi xatolar **nimadan** chiqishini.
+> **Oldindan nima kerak:** 0-bob (birinchi dastur).   **Vaqt:** 3–4 soat.
 > Yadro yozishda bu bilim **majburiy**: yadro Makefile'i va linker skripti aynan shu bosqichlarni boshqaradi.
 
 > **To'liq ishlaydigan misol:** [misollar/01_kompilyatsiya.sh](misollar/01_kompilyatsiya.sh) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**To'rt bosqich — kitob nashriyoti (1.1).** Muallif qo'lyozma yozdi (`salom.c`). Endi u kitob bo'lishi kerak:
-1. **Muharrir** (preprotsessor, `gcc -E`) — qo'lyozmadagi "bu yerga 3-ilovani qo'ying" degan joylarga
-   ilovalarni ko'chirib qo'yadi (`#include`), qisqartmalarni to'liq yozadi (`#define`). Natija — hali ham
-   oddiy matn (`.i`).
-2. **Tarjimon** (kompilyator, `gcc -S`) — matnni protsessor tushunadigan tilga tarjima qiladi. Natija —
-   assembly, bu ham matn, lekin boshqa tilda (`.s`).
-3. **Matbaa** (assembler, `gcc -c`) — tarjimani mashina kodiga "bosib chiqaradi". Natija — alohida bosilgan
-   varaqlar (`.o`). Ularni o'qib bo'lmaydi — ular endi matn emas.
-4. **Muqovachi** (linker) — barcha varaqlarni (sizning `.o` laringiz va tayyor kutubxonalarni) bitta kitobga
-   tikadi. Faqat shundan keyin kitob tayyor: `./dastur`.
+0-bobda siz `gcc salom.c -o salom` deb yozdingiz va dastur tayyor bo'ldi. Go'yo bitta sehrli tugma bosildi.
+Aslida bu tugma ostida **to'rtta alohida dastur** ketma-ket ishlaydi. Bu bobda shu sehrni **qismlarga ajratamiz**.
+
+**Nega bu kerak?** Katta dasturlarda (Linux yadrosida 30 000 dan ortiq `.c` fayl bor) xatolar turli bosqichlarda chiqadi.
+Qaysi bosqichda ekanini bilmasangiz, xato xabarini tushunmaysiz. Bilsangiz — xatoning yarmi o'zi hal bo'ladi.
+
+**Hayotdan misol: kitob nashriyoti.** Muallif qo'lyozma yozdi (`salom.c`). Endi u kitob bo'lishi kerak:
+
+| Bosqich | Hayotda | Kompyuterda | Natija fayl |
+|---|---|---|---|
+| 1 | **Muharrir**: "bu yerga 3-ilovani qo'ying" degan joylarga ilovalarni ko'chirib qo'yadi, qisqartmalarni to'liq yozadi | **Preprotsessor** (`#include`, `#define`) | `salom.i` — hali ham oddiy matn |
+| 2 | **Tarjimon**: matnni boshqa tilga tarjima qiladi | **Kompilyator**: C → assembly | `salom.s` — matn, lekin boshqa tilda |
+| 3 | **Matbaa**: tarjimani "bosib chiqaradi" — alohida varaqlar | **Assembler**: assembly → mashina kodi | `salom.o` — endi matn emas, baytlar |
+| 4 | **Muqovachi**: hamma varaqlarni bitta kitobga tikadi | **Linker** (bog'lovchi) | `salom` — tayyor dastur |
 
 Shuning uchun `./salom.i` ishlamaydi: bu hali muharrir qo'lidagi qo'lyozma, kitob emas.
 
-**E'lon va ta'rif — telefon daftari va odamning o'zi (1.2).** Telefon daftarida "Ali — +998 90 ..." deb
-yozilgan (e'lon). Qo'ng'iroq qilish uchun shu yetarli — Alining uyiga borish shart emas. Lekin Ali
-haqiqatan mavjud bo'lishi kerak (ta'rif). Daftarda yozilgan-u, bunday odam yo'q bo'lsa — `undefined
-reference`. Ikkita har xil Ali bir raqamda bo'lsa — `multiple definition`.
+## 1.1. To'rt bosqichni o'z ko'zingiz bilan ko'ring
 
-**`.h`, `.c`, `.o` — restoran (1.3).** Batafsil — pastdagi 1.3-bo'limda: menyu, oshxona va mijoz misoli.
+```text
+salom.c ──[1. preprotsessor]──> salom.i ──[2. kompilyator]──> salom.s
+        ──[3. assembler]──> salom.o ──[4. linker]──> salom (bajariladigan fayl)
+```
 
-**`-Wall -Wextra` — imlo tekshiruvchi (1.5).** Word'dagi qizil to'lqinli chiziq kabi: matn baribir
-chop etiladi, lekin "bu yerda xato bo'lishi mumkin" deb ogohlantiradi. Uni o'chirib qo'yish — imloni
-tekshirmasdan kitob chiqarish bilan barobar.
+Avval tajriba uchun dastur yozamiz (0-bobdagi o'sha `salom.c`):
 
-**`-g` va `gdb` — futboldagi VAR (1.6).** Hakam o'yinni to'xtatib, lahzani sekinlashtirib, kadrma-kadr
-ko'radi. `gdb` ham dasturni istalgan qatorda to'xtatadi (`break`), bir qadam yuradi (`next`) va shu
-paytdagi har bir o'zgaruvchining qiymatini ko'rsatadi (`print`). `-g` — kameralarni o'rnatish: usiz
-VAR'da ko'rish uchun yozuv bo'lmaydi.
+```c
+/* salom.c - to'rt bosqichni kuzatish uchun */
+#include <stdio.h>
 
-### To'liq dastur: gdb bilan kadrma-kadr
+int main(void)
+{
+    printf("Salom, dunyo!\n");
+    return 0;
+}
+```
+
+Har bir bosqichni **alohida** ishga tushirish mumkin. `gcc` ga "qayerda to'xta" deb bayroq beramiz:
+
+| Buyruq | Nima qiladi | Qayerda to'xtaydi |
+|---|---|---|
+| `gcc -E salom.c -o salom.i` | faqat preprotsessor | 1-bosqichdan keyin |
+| `gcc -S salom.c -o salom.s` | + kompilyator | 2-bosqichdan keyin |
+| `gcc -c salom.c -o salom.o` | + assembler | 3-bosqichdan keyin |
+| `gcc salom.o -o salom` | linker (bog'lash) | 4-bosqich — tayyor |
+
+(`-E`, `-S`, `-c` — "Expand", "Source (assembly)", "Compile only" so'zlaridan. Yodlash shart emas, jadval doim shu yerda.)
+
+### 1-bosqich: preprotsessor — matn almashtirgich
+
+U C'ni **tushunmaydi**, faqat `#` bilan boshlangan qatorlarni bajaradi:
+
+- `#include <stdio.h>` → shu faylning **butun mazmunini** shu joyga ko'chiradi;
+- `#define N 10` → keyingi hamma `N` so'zini `10` bilan almashtiradi;
+- izohlarni (`/* */`, `//`) olib tashlaydi.
+
+```console
+$ gcc -E salom.c -o salom.i
+$ wc -l salom.i
+821 salom.i
+$ tail -6 salom.i
+# 4 "salom.c"
+int main(void)
+{
+    printf("Salom, dunyo!\n");
+    return 0;
+}
+```
+
+**Nima ko'rdik:** `salom.i` yuzlab qator bo'lib ketdi (ko'chirilgan `stdio.h` hisobiga), lekin eng oxirida
+sizning 6 qatoringiz turibdi: izoh yo'q, `#include` yo'q. `#include` o'rnida **butun fayl** turibdi.
+
+### 2-bosqich: kompilyator — C dan assembly'ga
+
+Bu **eng muhim** tarjimon: C kodini **assembly**ga aylantiradi. Assembly — CPU buyruqlarining **odam o'qiy oladigan**
+yozuvi (har qator — bitta CPU buyrug'i). Sintaksis xatolari (`expected ';'`), tur xatolari, ogohlantirishlar —
+hammasi shu yerda chiqadi. Optimallashtirish ham (`-O1`, `-O2` — "kodni tezroq qil") shu yerda ishlaydi.
+
+```console
+$ gcc -S -O1 salom.c -o salom.s
+$ sed -n '/^main:/,/ret/p' salom.s
+main:
+.LFB23:
+	.cfi_startproc
+	endbr64
+	subq	$8, %rsp
+	.cfi_def_cfa_offset 16
+	leaq	.LC0(%rip), %rdi
+	call	puts@PLT
+	movl	$0, %eax
+	addq	$8, %rsp
+	.cfi_def_cfa_offset 8
+	ret
+```
+
+Har qatorning ma'nosi (hozircha tushunmasangiz ham bo'ladi, 17-bobda to'liq o'rganamiz):
+
+| Assembly qatori | Ma'nosi |
+|---|---|
+| `endbr64` | xavfsizlik belgisi — hozircha e'tibor bermang |
+| `subq $8, %rsp` | stekni ajratish (17-bob) |
+| `leaq .LC0(%rip), %rdi` | matn `"Salom, dunyo!"` ning **manzilini** 1-argument sifatida tayyorlash |
+| `call puts@PLT` | `puts` funksiyasini **chaqirish** |
+| `movl $0, %eax` | `return 0` — natija `eax` registriga |
+| `ret` | `main` dan qaytish |
+
+**Qiziq tomoni:** biz `printf` yozdik, lekin kompilyator `puts` ni chaqirdi! Sabab: matnda `%` belgisi yo'q va
+oxirida `\n` bor — shunday matn uchun `puts` tezroq. Kompilyator siz yozgan **so'zlarni** emas, **ma'noni** bajaradi.
+Buni 13-bobda (kutilmagan xatti-harakatlar) eslaysiz.
+
+### 3-bosqich: assembler — matndan baytlarga
+
+Assembly matnini **mashina kodi** (sonlar) ga aylantiradi. Natija — **obyekt fayl** (`.o`). Uni matn sifatida o'qib bo'lmaydi.
+
+Muhim narsa: `.o` fayl **hali tayyor emas**. `puts` funksiyasining kodi bu faylda **yo'q**; faylda faqat
+"bu yerga `puts` ning manzili kerak" degan **belgi (bo'sh joy)** turadi.
+
+```console
+$ gcc -c salom.c -o salom.o
+$ nm salom.o
+0000000000000000 T main
+                 U puts
+```
+
+`nm` — fayldagi **nomlar ro'yxati**. Har qatorda harf bor:
+
+| Harf | Ma'nosi | Hayotdan misol |
+|---|---|---|
+| `T` | "bu nom **shu yerda** aniqlangan" (Text — kod bo'limida) | "taom shu oshxonada pishiriladi" |
+| `U` | "bu nom **kerak, lekin bu yerda yo'q**" (Undefined) | "bu taom kerak, boshqa joydan olinadi" |
+
+`T main` — `main` shu faylda bor. `U puts` — `puts` kerak, lekin boshqa joyda.
+
+### 4-bosqich: linker — hamma bo'shliqlarni to'ldiradi
+
+Linker **bir nechta** `.o` fayl va kutubxonalarni **bitta** bajariladigan faylga birlashtiradi va har bir `U` nomni
+qayerdandir topib ulaydi. `puts` — standart C kutubxonasida (libc), linker uni o'zi topadi.
+
+```console
+$ gcc salom.o -o salom
+$ ./salom
+Salom, dunyo!
+```
+
+> **Eslab qoling:** **4 bosqich:** preprotsessor (matn) → kompilyator (assembly) → assembler (`.o`) → linker (tayyor dastur).
+> Birinchi uchtasi **har bir `.c` faylni alohida** qayta ishlaydi, faqat oxirgisi **hammasini birlashtiradi**.
+
+**Tez-tez xato:** `./salom.i` yoki `./salom.o` ni ishga tushirishga urinish. Bular oraliq natijalar, dastur emas.
+
+## 1.2. E'lon va ta'rif — eng muhim farq
+
+Bu bo'lim butun bobning **kaliti**. Ikkita so'zni ajrating:
+
+- **E'lon (declaration)** — "shunday funksiya **bor**" deyish: nomi, nima olishi, nima qaytarishi. Kod **yo'q**.
+- **Ta'rif (definition)** — funksiyaning **o'zi**: kodi bilan.
+
+**Hayotdan misol: telefon daftari.** Daftarda "Ali — +998 90 123 45 67" deb yozilgan (**e'lon**). Qo'ng'iroq qilish
+uchun shu yetarli: Alining uyiga borish shart emas. Lekin Ali **haqiqatan yashashi kerak** (**ta'rif**). Daftarda yozilgan,
+lekin bunday odam yo'q bo'lsa — qo'ng'iroq o'tmaydi. Ikkita har xil Ali bir raqamda bo'lsa — chalkashlik.
+
+```c
+/* elon_tarif.c - e'lon va ta'rif yonma-yon */
+#include <stdio.h>
+
+int kvadrat(int x);            /* E'LON: "kvadrat degan funksiya bor, int oladi, int qaytaradi" */
+
+int main(void)
+{
+    printf("%d\n", kvadrat(7));    /* bu yerda kvadrat ni CHAQIRYAPMIZ */
+    return 0;
+}
+
+int kvadrat(int x)             /* TA'RIF: funksiyaning o'zi */
+{
+    return x * x;
+}
+```
+
+```console
+$ gcc -Wall -Wextra elon_tarif.c -o elon_tarif
+$ ./elon_tarif
+49
+```
+
+**Qatorma-qator:**
+
+| Qator | Nima qiladi | Nega kerak |
+|---|---|---|
+| `int kvadrat(int x);` | **e'lon**: oxirida `;` — tana yo'q | `main` ichida `kvadrat(7)` yozilganda kompilyator **allaqachon** `kvadrat` nimaligini bilishi kerak |
+| `printf("%d\n", kvadrat(7));` | `kvadrat(7)` ni chaqiradi, natijani `%d` ga qo'yadi | `7` — argument; `kvadrat` `49` qaytaradi |
+| `int kvadrat(int x) { ... }` | **ta'rif**: tana `{ }` bor | funksiya **aslida** nima qilishini yozadi |
+| `return x * x;` | `x` ni `x` ga ko'paytirib, natijani qaytaradi | chaqirgan joyga javob berish |
+
+**Nega e'lon kerak?** Kompilyator kodni **tepadan pastga** o'qiydi. `main` da `kvadrat(7)` ni uchratganda u
+`kvadrat` ni hali ko'rmagan. E'lon bo'lmasa, "bu nima? nechta narsa oladi? nima qaytaradi?" deb ushlanib qoladi.
+Agar `kvadrat` ta'rifini `main` dan **tepaga** yozsangiz, alohida e'lon kerak bo'lmaydi (ta'rifning o'zi ham e'lon).
+
+Endi muhim fikr: **ikki xil tekshiruvchi** bor, ularga turli narsa kerak:
+
+- **Kompilyator** bir vaqtda faqat **bitta** `.c` faylni ko'radi. Unga funksiyani chaqirish uchun **e'lon** yetarli.
+- **Linker** **hamma** `.o` fayllarni ko'radi. Unga **ta'rif** kerak: kodning o'zi, **aynan bitta** joyda.
+
+Shuning uchun uch xil xato bor:
+
+| Xato | Kim chiqaradi | Ma'nosi | Yechim |
+|---|---|---|---|
+| `implicit declaration of function 'f'` | kompilyator | **E'lon yo'q**: "`f` haqida hech narsa bilmayman" | Kerakli `.h` ni `#include` qiling yoki e'lon yozing |
+| `undefined reference to 'f'` | linker | E'lon bor, lekin **ta'rif hech qayerda yo'q** | `f` yozilgan `.c` ni kompilyatsiyaga qo'shing yoki kutubxonani ulang (`-lm`, `-pthread`) |
+| `multiple definition of 'f'` | linker | Ta'rif **ikki joyda** bor | Ta'rifni `.h` ga yozmang — faqat e'lonni |
+
+> **Eslab qoling:** **e'lon** = "bor" (kompilyator uchun, bir necha marta yozsa bo'ladi). **Ta'rif** = "mana kodi"
+> (linker uchun, **aynan bir marta**).
+
+## 1.3. Sarlavha (`.h`) fayllari: nega kerak va qanday ishlaydi
+
+Katta dasturda funksiya **bitta** faylda yoziladi, **o'nlab** fayllarda chaqiriladi. Har bir faylga e'lonni qo'lda
+yozish — xatolarga yo'l (bittasini noto'g'ri yozdingiz — dastur jim buziladi). Yechim: e'lonlar **bitta `.h` faylda**,
+hamma uni `#include` qiladi.
+
+### Bu `class` emasmi?
+
+Yo'q. C'da `class` umuman yo'q. Bu fayllar Python'dagi **modulga** o'xshaydi:
+
+```python
+# --- matematika.py ---
+def kvadrat(x):
+    return x * x
+
+# --- main.py ---
+from matematika import kvadrat
+print(kvadrat(7))
+```
+
+Python'da bitta `matematika.py` yetadi. C'da esa u **ikkiga** bo'linadi:
+
+| Python | C | Ichida nima bor |
+|---|---|---|
+| `def kvadrat(x):` qatori | `matematika.h` | Faqat **e'lon**: "shunday funksiya bor" |
+| funksiya tanasi | `matematika.c` | **Ta'rif**: funksiya aslida nima qiladi |
+| `from matematika import kvadrat` | `#include "matematika.h"` | Boshqa fayldagi funksiyadan foydalanishga ruxsat |
+| `python main.py` (hammasi o'zi) | 3 ta `gcc` buyrug'i | Tarjima va birlashtirishni o'zingiz buyurasiz |
+
+### Uch fayl: har biri nima uchun
+
+```c
+/* matematika.h */
+#pragma once                   /* bu fayl bir kompilyatsiyada ikki marta qo'shilmasin */
+int kvadrat(int x);
+```
+
+```c
+/* matematika.c */
+#include "matematika.h"        /* o'z e'loni bilan mos kelishini kompilyator tekshiradi */
+
+int kvadrat(int x)
+{
+    return x * x;
+}
+```
+
+```c
+/* main.c */
+#include <stdio.h>
+#include "matematika.h"
+
+int main(void)
+{
+    printf("%d\n", kvadrat(7));
+    return 0;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Fayl | Qator | Nima qiladi | Nega kerak |
+|---|---|---|---|
+| `matematika.h` | `#pragma once` | "bu faylni bitta kompilyatsiyada **faqat bir marta** qo'sh" | Katta dasturda bitta `.h` bir necha yo'l bilan qayta-qayta kirib qolishi mumkin; ikki marta kirsa — xato |
+| | `int kvadrat(int x);` | **e'lon** | Boshqa fayllar `kvadrat` ni chaqira olishi uchun |
+| `matematika.c` | `#include "matematika.h"` | o'z menyusini o'qish | E'lon va ta'rif **mos kelmasa**, kompilyator xato beradi (pastda ko'rasiz) |
+| | `int kvadrat(int x) {...}` | **ta'rif** | Linker aynan shu kodni topadi |
+| `main.c` | `#include <stdio.h>` | `printf` e'loni | `< >` — tizim fayli |
+| | `#include "matematika.h"` | `kvadrat` e'loni | `" "` — **o'zingizning** fayl (shu papkadan qidiriladi) |
+| | `kvadrat(7)` | funksiyani chaqirish | `main.c` `kvadrat` ning kodini **ko'rmaydi**, faqat e'lonini |
+
+**Hayotdan misol: restoran.**
+
+- **`matematika.h` — menyu.** "Osh — 30 000 so'm". Oshning qanday pishirilishi menyuda yo'q: faqat **nima bor** va
+  **nima berib, nima olasiz**. `int kvadrat(int x);` ham shunday: "`kvadrat` degan taom bor, unga `int` berasiz, `int` olasiz".
+- **`matematika.c` — oshxona.** Oshpaz oshni qanday pishirishni biladi: `return x * x;`. Oshxona o'z menyusini ham
+  o'qiydi (`#include "matematika.h"`), aks holda menyuda "Osh" yozilgan-u, oshxona "Lag'mon" pishirib qo'yishi mumkin.
+- **`main.c` — mijoz.** Menyuni o'qiydi va buyurtma beradi: `kvadrat(7)`. Osh qanday pishishini bilishi shart emas.
+- **`gcc -c matematika.c`** — oshxona taomni idishga soldi (`matematika.o`), lekin hech kimga bermadi.
+- **`gcc -c main.c`** — ofitsiant buyurtmani yozdi (`main.o`): "kvadrat kerak" — lekin taom qayerdaligi hali noma'lum.
+- **`gcc main.o matematika.o -o dastur`** (linker) — ofitsiant buyurtmani oshxonadagi taomga ulaydi. Restoran ishladi.
+
+`printf` ham aynan shunday: `stdio.h` — menyu, `printf` ning o'zi libc kutubxonasida (oshxona). Linker uni o'zi topadi.
+Qaysi `#include` nima uchun kerakligi — [sarlavhalar.md](sarlavhalar.md) sahifasida.
+
+### Qadamma-qadam o'zingiz bajaring
+
+**1-qadam.** Oshxona tayyorlandi:
+
+```console
+$ gcc -Wall -Wextra -c matematika.c
+$ ls matematika.*
+matematika.c
+matematika.h
+matematika.o
+$ nm matematika.o
+0000000000000000 T kvadrat
+```
+
+`matematika.o` paydo bo'ldi. `T kvadrat` — "`kvadrat` **shu yerda bor**".
+
+**2-qadam.** Buyurtma yozildi:
+
+```console
+$ gcc -Wall -Wextra -c main.c
+$ nm main.o
+                 U kvadrat
+0000000000000000 T main
+                 U printf
+```
+
+`U kvadrat` — "`kvadrat` **kerak, bu yerda yo'q**" (bo'sh joy). `U printf` — `printf` ham kerak, uni libc beradi.
+`.o` fayllar hali dastur emas: `./main.o` ishlamaydi.
+
+**3-qadam.** Linker bo'sh joylarni to'ldiradi: `U kvadrat` ↔ `T kvadrat`.
+
+```console
+$ gcc main.o matematika.o -o dastur
+$ ./dastur
+49
+```
+
+### Ataylab buzib ko'ring — har bir xato nimani anglatadi
+
+Bu xatolarni hozir **bir marta o'z ko'zingiz bilan** ko'rsangiz, katta loyihada darhol taniysiz.
+
+**a) Oshxonani unutish.** Bog'lashda `matematika.o` ni yozmang:
+
+```console
+$ gcc main.o -o dastur_a # xato kutiladi
+/usr/bin/ld: main.o: in function `main':
+main.c:(.text+0xe): undefined reference to `kvadrat'
+collect2: error: ld returned 1 exit status
+```
+
+`ld` — linker. "Buyurtmada `kvadrat` bor, lekin hech bir oshxonada bu taom yo'q" (`undefined reference`).
+
+**b) Menyusiz buyurtma.** `#include "matematika.h"` siz yozilgan `main` (`menyusiz.c`):
+
+```c
+/* menyusiz.c - e'lon yo'q */
+#include <stdio.h>
+
+int main(void)
+{
+    printf("%d\n", kvadrat(7));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -c menyusiz.c # xato kutiladi
+menyusiz.c: In function ‘main’:
+menyusiz.c:6:20: warning: implicit declaration of function ‘kvadrat’ [-Wimplicit-function-declaration]
+    6 |     printf("%d\n", kvadrat(7));
+      |                    ^~~~~~~
+```
+
+Kompilyator: "`kvadrat` haqida hech narsa bilmayman." Eski kompilyatorlar faqat ogohlantirib, **taxmin** qilib davom etadi:
+taxmin noto'g'ri bo'lsa dastur jim turib noto'g'ri ishlaydi. Yangi GCC (14+) buni to'g'ridan-to'g'ri **xato** deydi.
+Doim shunday ogohlantirishni xato deb hisoblang.
+
+**c) Menyu va oshxona mos emas.** `matematika_xato.c` da `int` o'rniga `long`:
+
+```c
+/* matematika_xato.c - e'lon bilan ta'rif mos emas */
+#include "matematika.h"
+
+long kvadrat(int x)
+{
+    return x * x;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -c matematika_xato.c # xato kutiladi
+matematika_xato.c:4:6: error: conflicting types for ‘kvadrat’; have ‘long int(int)’
+    4 | long kvadrat(int x)
+      |      ^~~~~~~
+In file included from matematika_xato.c:2:
+matematika.h:3:5: note: previous declaration of ‘kvadrat’ with type ‘int(int)’
+    3 | int kvadrat(int x);
+      |     ^~~~~~~
+```
+
+Oshxona o'z menyusini o'qigani (`#include "matematika.h"`) aynan shu nomuvofiqlikni ushladi (`conflicting types`).
+Agar `#include` bo'lmaganda, bu xato **sezilmasdi** — shuning uchun `.c` o'z `.h` ini doim qo'shadi.
+
+**d) Ikki oshxonada bir xil taom.** `boshqa.c` da ham `kvadrat` ning ta'rifi bor:
+
+```c
+/* boshqa.c - ikkinchi ta'rif */
+int kvadrat(int x)
+{
+    return x * x * 1;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -c boshqa.c
+$ gcc main.o matematika.o boshqa.o -o dastur_d # xato kutiladi
+/usr/bin/ld: boshqa.o: in function `kvadrat':
+boshqa.c:(.text+0x0): multiple definition of `kvadrat'; matematika.o:matematika.c:(.text+0x0): first defined here
+collect2: error: ld returned 1 exit status
+```
+
+Linker qaysi oshxonadan olishni bilmaydi (`multiple definition`). Ta'rif butun dasturda **aynan bitta** bo'lishi shart.
+Shuning uchun ta'rifni `.h` ga yozmang: `.h` ko'p `.c` ga kirib, ta'rif har birida paydo bo'ladi.
+
+> **Eslab qoling:** `.h` = **e'lonlar** (menyu), `.c` = **ta'riflar** (oshxona). Har `.c` o'z `.h` ini `#include` qiladi.
+> `main.c` kerakli `.h` larni `#include` qiladi. Bog'lashda barcha `.o` larni **birga** beramiz.
+
+**Mashqlardagi tuzilma aynan shunday:** `mashq.h` — e'lonlar, `yechim.c` — siz yozadigan ta'riflar, `test.c` —
+ularni chaqiradigan kod. Tekshiruvchi `gcc yechim.c test.c` qiladi.
+
+**MyOS'da:** har bir `kernel/xxx/yyy.c` ning yonida `yyy.h` bor. Masalan `kernel/fs/pipe.h` pipe'ning "tashqi dunyo"
+uchun funksiyalarini e'lon qiladi, `pipe.c` esa ularni amalga oshiradi. Makefile har bir `.c` ni alohida `.o` ga
+kompilyatsiya qilib, `kernel/linker.ld` bo'yicha bitta `kernel.elf` ga bog'laydi.
+
+To'liqroq namuna (`static`, `extern`, Makefile bilan): [misollar/11_kop_fayl/](misollar/11_kop_fayl/main.c).
+
+## 1.4. Nega har bir `.c` alohida kompilyatsiya qilinadi
+
+**Hayotdan misol:** 1000 betlik kitobda bitta bobni tuzatdingiz. Butun kitobni qayta bosmaysiz — faqat shu bobni.
+
+1. **Tezlik.** Linux yadrosida ~30 000 ta `.c` bor. Bitta faylni o'zgartirsangiz, faqat o'sha `.c` qayta
+   kompilyatsiya qilinadi (`.c` → `.o`), keyin tez bog'lanadi. `make` aynan shuni kuzatadi (11-bob).
+2. **Ajratish.** `static` bilan belgilangan funksiya faqat o'z faylida ko'rinadi — boshqa fayllar unga tasodifan
+   tegib keta olmaydi (5-bob).
+
+## 1.5. Kompilyatsiya bayroqlari: nega har biri kerak
+
+**Bayroq** — `gcc` ga beriladigan qo'shimcha ko'rsatma (`-` bilan boshlanadi).
+
+| Bayroq | Nima qiladi | Nega kerak |
+|---|---|---|
+| `-Wall -Wextra` | Deyarli barcha ogohlantirishlarni yoqadi | Xatolarni dastur ishga tushmasdan topish. **Hech qachon o'chirmang** |
+| `-Werror` | Ogohlantirish = xato | "Keyin tuzataman" deb qoldirmaslik. MyOS va mashqlarda yoqilgan |
+| `-g` | Debug ma'lumoti | `gdb` qator raqamlari va o'zgaruvchi nomlarini ko'rsatadi |
+| `-O0` / `-O2` | Optimallashtirish darajasi | `-O0` — debug uchun (kod siz yozgandek), `-O2` — tez kod |
+| `-std=c11` / `-std=gnu11` | Til standarti | `gnu11` — C11 + GNU kengaytmalari (inline asm). MyOS shuni ishlatadi |
+| `-I papka` | `#include` qidiriladigan papka | `-Ikernel` bilan `#include "fs/vfs.h"` ishlaydi |
+| `-c` | Faqat `.o` gacha | Katta loyihalar uchun |
+| `-fsanitize=address,undefined` | Ish vaqtida xatolarni ushlash | O'rganish va testlar uchun |
+| `-ffreestanding` | "OS yo'q" rejimi | **Yadro uchun**: standart kutubxona yo'q deb hisoblash (18-bob) |
+
+**Hayotdan misol: `-Wall -Wextra` — imlo tekshiruvchi.** Word'dagi qizil to'lqinli chiziq kabi: matn baribir
+chop etiladi, lekin "bu yerda xato bo'lishi mumkin" deydi. Uni o'chirish — imloni tekshirmasdan kitob chiqarish bilan barobar.
+
+## 1.6. `gdb` — dastur ichiga qarash
+
+**Hayotdan misol: futboldagi VAR.** Hakam o'yinni to'xtatib, lahzani sekinlashtirib, kadrma-kadr ko'radi.
+`gdb` ham dasturni istalgan qatorda to'xtatadi, bir qadam yuradi va **har bir o'zgaruvchining qiymatini** ko'rsatadi.
+`-g` — kameralarni o'rnatish: usiz VAR'da ko'rish uchun yozuv bo'lmaydi.
+
+```bash
+gcc -g -O0 dastur.c -o dastur
+gdb ./dastur
+```
+
+| gdb buyrug'i | Nima qiladi |
+|---|---|
+| `break main` | `main` da to'xta (yoki `break 11` — 11-qatorda) |
+| `run` | ishga tushir |
+| `next` | keyingi qator (funksiyaga kirmasdan) |
+| `step` | keyingi qator (funksiyaga **kirib**) |
+| `print x` | o'zgaruvchi qiymati |
+| `print *p` | ko'rsatkich ko'rsatgan qiymat |
+| `bt` | chaqiruvlar zanjiri (backtrace): qayerdan kelib qoldik |
+| `info locals` | hamma lokal o'zgaruvchilar |
+| `continue` | keyingi to'xtash nuqtasigacha |
+| `quit` | chiqish |
+
+Dastur qulaganda (`Segmentation fault`) — `gdb ./dastur`, `run`, keyin `bt`: qaysi qatorda qulagani darhol ko'rinadi.
+**MyOS'ni ham aynan shu gdb bilan debug qilasiz** (`make debug`, docs/08).
+
+## Hayotdan misol va to'liq dastur
+
+**Jamg'arma.** Har oy jamg'armaga pul qo'shamiz va har oy qo'shiladigan summani 100 ming ko'paytiramiz. gdb bilan kadrma-kadr ko'ramiz.
 
 ```c
 /* jamgarma.c - har oy jamg'arma: gdb bilan qadamma-qadam ko'rish uchun */
@@ -69,334 +533,56 @@ $3 = 2
 $4 = 1100000
 ```
 
-Oxirgi buyruq gdb'ni avtomatik boshqaradi: 11-qatorda to'xtaydi va `oy`, `jamgarma` ni ko'rsatadi,
-keyin keyingi aylanishga o'tib yana ko'rsatadi. O'zingiz qo'lda qiling: `gdb ./jamgarma`, keyin
-`break 11`, `run`, `print jamgarma`, `next`, `print oylik_qoshish`, `continue`. Har qadamda qiymatni
-**avval taxmin qiling**, keyin `print` bilan tekshiring.
+**Kodda nimalar bor:**
 
-## 1.1. To'rt bosqich
-
-`gcc salom.c -o salom` aslida to'rtta dasturni ketma-ket ishga tushiradi:
-
-```text
-salom.c ──[1. preprotsessor]──> salom.i ──[2. kompilyator]──> salom.s
-        ──[3. assembler]──> salom.o ──[4. linker]──> salom (bajariladigan fayl)
-```
-
-Har bir bosqichni alohida ko'rish mumkin:
-
-```bash
-gcc -E salom.c -o salom.i     # 1: faqat preprotsessor
-gcc -S salom.c -o salom.s     # 1+2: assembly kodigacha
-gcc -c salom.c -o salom.o     # 1+2+3: obyekt faylgacha
-gcc salom.o -o salom          # 4: bog'lash (link)
-```
-
-### 1-bosqich: preprotsessor
-
-Matn bilan ishlaydi — C'ni **tushunmaydi**:
-- `#include <stdio.h>` → o'sha faylning butun mazmunini qo'yadi (`salom.i` ~800 qator bo'lib qoladi!);
-- `#define N 10` → keyingi hamma `N` so'zlarini `10` ga almashtiradi;
-- izohlarni (`/* */`, `//`) olib tashlaydi.
-
-`gcc -E salom.c | tail -20` qilib ko'ring: oxirida sizning kodingiz, izohlarsiz.
-
-### 2-bosqich: kompilyator
-
-C kodini **assembly**ga aylantiradi. Aynan shu yerda sintaksis xatolari (`expected ';'`), tur
-xatolari va ogohlantirishlar chiqadi. Optimallashtirish (`-O2`) ham shu yerda.
-
-```bash
-gcc -S -O1 salom.c && cat salom.s
-```
-
-```nasm
-main:
-        endbr64                       # xavfsizlik belgisi (CET) - hozircha e'tibor bermang
-        subq    $8, %rsp              # stekni 16 ga tekislash (17-bob)
-        leaq    .LC0(%rip), %rdi      # satr manzili -> 1-argument (rdi)
-        call    puts@PLT              # printf("...\n") -> puts("...")! (optimallashtirish)
-        movl    $0, %eax              # return 0
-        addq    $8, %rsp
-        ret
-```
-
-Qiziq: kompilyator `printf("Salom, dunyo!\n")` ni `puts("Salom, dunyo!")` ga almashtirdi —
-formatsiz satr uchun u tezroq. Kompilyator siz yozganingizni emas, **siz yozgan narsaning
-ma'nosini** bajaradi. Buni 13-bobda (UB) eslaysiz.
-
-### 3-bosqich: assembler
-
-Assembly matnini **mashina kodi** baytlariga aylantiradi → **obyekt fayl** (`.o`). Unda kod bor,
-lekin tashqi nomlar (`puts`) hali **ulanmagan** — "bu yerga puts ning manzili kerak" degan belgi turadi.
-
-```bash
-objdump -d salom.o       # mashina kodi va assembly yonma-yon
-nm salom.o               # nomlar: T main (shu faylda aniqlangan), U puts (Undefined - tashqarida)
-```
-
-### 4-bosqich: linker (bog'lovchi)
-
-Bir nechta `.o` fayl va kutubxonalarni **bitta** bajariladigan faylga birlashtiradi va har bir
-"U" (aniqlanmagan) nomni qayerdandir topib ulaydi. `puts` — standart C kutubxonasidan (libc).
-
-## 1.2. E'lon va ta'rif — eng muhim farq
-
-```c
-int kvadrat(int x);            /* E'LON (declaration): "shunday funksiya bor" - kompilyator uchun */
-
-int kvadrat(int x)             /* TA'RIF (definition): funksiyaning o'zi - linker uchun */
-{
-    return x * x;
-}
-```
-
-- **Kompilyator** faqat bitta `.c` faylni ko'radi. Funksiyani chaqirish uchun unga faqat **e'lon**
-  kerak: nomi, argument turlari, qaytish turi.
-- **Linker** barcha fayllarni ko'radi. Unga **ta'rif** kerak: kodning o'zi. Aynan bitta.
-
-Shuning uchun ikki xil xato bor:
-
-| Xato | Bosqich | Ma'nosi | Yechim |
+| Nom | Turi | Boshlang'ich qiymat | Nima uchun |
 |---|---|---|---|
-| `implicit declaration of function 'f'` | kompilyator | E'lon yo'q — `f` haqida hech narsa bilmayman | Kerakli `.h` ni `#include` qiling yoki e'lon yozing |
-| `undefined reference to 'f'` | linker | E'lon bor, lekin ta'rif hech qayerda yo'q | `f` yozilgan `.c` faylni kompilyatsiyaga qo'shing yoki kutubxonani ulang (`-lm`, `-pthread`) |
-| `multiple definition of 'f'` | linker | Ta'rif ikki joyda bor | Ta'rifni `.h` ga yozmang — faqat e'lonni |
+| `jamgarma` | `int` (32 bit) | `0` | yig'ilgan jami pul |
+| `oylik_qoshish` | `int` | `500000` | shu oy qo'shiladigan summa |
+| `oy` | `int` (faqat sikl ichida yashaydi) | `1` | nechanchi oy |
 
-## 1.3. Sarlavha (`.h`) fayllari nega kerak
+**Qiymatlar qanday o'zgaradi** (`for` ning har aylanishi):
 
-Katta dasturda funksiya bir faylda yoziladi, o'nlab fayllarda chaqiriladi. Har bir faylga e'lonni
-qo'lda yozish — xatolarga yo'l. Yechim: e'lonlar **bitta** `.h` faylda, hamma uni `#include` qiladi.
+| Aylanish | `oy` | 1-qator: `jamgarma = jamgarma + oylik_qoshish` | 2-qator: `oylik_qoshish = oylik_qoshish + 100000` |
+|---|---|---|---|
+| boshlanishi | — | `jamgarma = 0` | `oylik_qoshish = 500000` |
+| 1 | 1 | 0 + 500000 = **500000** | 500000 + 100000 = **600000** |
+| 2 | 2 | 500000 + 600000 = **1100000** | 600000 + 100000 = **700000** |
+| 3 | 3 | 1100000 + 700000 = **1800000** | 700000 + 100000 = 800000 |
 
-```c
-/* matematika.h */
-#pragma once                   /* bu fayl bir kompilyatsiyada ikki marta qo'shilmasin */
-int kvadrat(int x);
-```
+`gdb` buyrug'i 11-qatorda (`oylik_qoshish = ...` qatori) to'xtaydi: 1-marta `oy = 1`, `jamgarma = 500000` (jadvaldagi 1-aylanish);
+`continue` dan keyin `oy = 2`, `jamgarma = 1100000`. Jadval bilan solishtiring — mos keladi.
 
-```c
-/* matematika.c */
-#include "matematika.h"        /* o'z e'loni bilan mos kelishini kompilyator tekshiradi */
-int kvadrat(int x) { return x * x; }
-```
+O'zingiz qo'lda qiling: `gdb ./jamgarma`, keyin `break 11`, `run`, `print jamgarma`, `next`, `print oylik_qoshish`, `continue`.
+Har qadamda qiymatni **avval taxmin qiling**, keyin `print` bilan tekshiring.
 
-```c
-/* main.c */
-#include <stdio.h>
-#include "matematika.h"
-int main(void) { printf("%d\n", kvadrat(7)); return 0; }
-```
+## Bob xulosasi (yodlash uchun)
 
-```bash
-gcc -Wall -c matematika.c         # -> matematika.o
-gcc -Wall -c main.c               # -> main.o
-gcc main.o matematika.o -o dastur # bog'lash
-```
+1. `gcc` — to'rt bosqich: **preprotsessor → kompilyator → assembler → linker**.
+2. `.c` har biri alohida `.o` ga aylanadi; linker hamma `.o` ni bitta dasturga bog'laydi.
+3. **E'lon** = "bor" (`.h` da), **ta'rif** = "mana kodi" (`.c` da, aynan bir marta).
+4. Xatolar: `implicit declaration` (e'lon yo'q), `undefined reference` (ta'rif yo'q), `multiple definition` (ta'rif ikki marta).
+5. `-Wall -Wextra -g` doim yoqilgan bo'lsin; xato qidirish uchun — `gdb`.
 
-### Bu `class` emasmi?
+## Savol-javob
 
-Yo'q. C'da `class` umuman yo'q. Bu uch fayl Python'dagi **modulga** o'xshaydi:
-
-```python
-# matematika.py
-def kvadrat(x):
-    return x * x
-
-# main.py
-from matematika import kvadrat
-print(kvadrat(7))
-```
-
-Python'da bitta `matematika.py` yetadi. C'da esa u **ikkiga** bo'linadi:
-
-| Python | C | Nima bor ichida |
-|---|---|---|
-| `matematika.py` dagi `def kvadrat(x):` qatori | `matematika.h` | Faqat **e'lon**: "shunday funksiya bor, `int` oladi, `int` qaytaradi" |
-| `matematika.py` dagi funksiya tanasi | `matematika.c` | **Ta'rif**: funksiya aslida nima qiladi |
-| `from matematika import kvadrat` | `#include "matematika.h"` | Boshqa fayldagi funksiyani ishlatishga ruxsat |
-| `python main.py` (hammasi o'zi) | 3 ta `gcc` buyrug'i | Tarjima va birlashtirishni o'zingiz buyurasiz |
-
-### Hayotdagi misol: restoran
-
-- **`matematika.h` — menyu.** Unda "Osh — 30 000 so'm" deb yozilgan. Oshning qanday pishirilishi
-  menyuda yo'q. Menyu faqat **nima bor** va **nima berib, nima olishingizni** aytadi.
-  `int kvadrat(int x);` ham shunday: "`kvadrat` degan taom bor, unga `int` berasiz, `int` olasiz".
-- **`matematika.c` — oshxona.** Oshpaz oshni aynan qanday pishirishni biladi: `return x * x;`.
-  Oshxona ham o'zining menyusini o'qiydi (`#include "matematika.h"`). Aks holda menyuda "Osh" deb
-  yozilgan-u, oshxona "Lag'mon" pishirib qo'yishi mumkin. Kompilyator shu nomuvofiqlikni ushlaydi.
-- **`main.c` — mijoz.** U menyuni o'qiydi (`#include "matematika.h"`) va buyurtma beradi:
-  `kvadrat(7)`. Mijoz oshxonaga kirmaydi, osh qanday pishishini bilishi ham shart emas.
-- **`#pragma once`** — bitta stolga menyuni ikki marta qo'ymaslik. Katta dasturda bitta `.h` bir
-  necha yo'l bilan qayta-qayta `#include` bo'lib qolishi mumkin. Bu qator uni faqat bir marta qo'shadi.
-- **`gcc -c matematika.c`** — oshxona taomni tayyorlab, idishga solib qo'ydi (`matematika.o`).
-  Lekin bu hali restoran emas — hech kimga berilmagan.
-- **`gcc -c main.c`** — ofitsiant buyurtmani yozib oldi (`main.o`). Unda "kvadrat kerak" deb yozilgan,
-  lekin taom qayerdaligi hali noma'lum — buyurtma varag'ida bo'sh joy qoldirilgan.
-- **`gcc main.o matematika.o -o dastur`** (bog'lash, linker) — ofitsiant buyurtmani oshxonadagi
-  taomga olib boradi: bo'sh joylarni to'ldiradi. Natija — ishlaydigan restoran, ya'ni `dastur`.
-
-`printf` ham aynan shunday ishlaydi: `stdio.h` — menyu, `printf` ning o'zi (oshxonasi) esa tizimdagi
-tayyor C kutubxonasida (libc) turadi. Linker uni o'zi topib ulaydi, siz sezmaysiz ham.
-
-**Nega bunchalik murakkab?** Kichik dasturda bu ortiqcha tuyuladi. Lekin Linux yadrosida ~30 000 ta
-`.c` fayl bor va minglab odam ular ustida ishlaydi. Bitta oshpaz retseptni o'zgartirsa, faqat
-o'sha oshxona qaytadan ishlaydi (`matematika.c` → `matematika.o`), qolgan 29 999 tasi tegilmaydi.
-Mijozlar esa menyu o'zgarmaguncha hech narsani sezmaydi.
-
-### Qadamma-qadam o'zingiz bajaring
-
-```bash
-mkdir ~/matematika && cd ~/matematika
-nano matematika.h      # yuqoridagi 3 qatorni yozing, Ctrl+O, Enter, Ctrl+X
-nano matematika.c      # 3 qator
-nano main.c            # 4 qator
-ls                     # main.c  matematika.c  matematika.h
-```
-
-**1-qadam.** Oshxona ishlaydi:
-
-```text
-$ gcc -Wall -c matematika.c
-$ ls
-main.c  matematika.c  matematika.h  matematika.o      <- yangi fayl paydo bo'ldi
-$ nm matematika.o
-0000000000000000 T kvadrat          <- T: "kvadrat SHU YERDA bor (tayyor taom)"
-```
-
-**2-qadam.** Buyurtma yoziladi:
-
-```text
-$ gcc -Wall -c main.c
-$ nm main.o
-                 U kvadrat          <- U: "kvadrat KERAK, lekin bu yerda yo'q (bo'sh joy)"
-0000000000000000 T main
-                 U printf           <- printf ham kerak - uni libc beradi
-```
-
-`.o` fayllar hali dastur emas: `./matematika.o` qilsangiz ishlamaydi. Ular — yarim tayyor qismlar.
-
-**3-qadam.** Bog'lash: `U kvadrat` bo'sh joyi `T kvadrat` bilan to'ldiriladi:
-
-```text
-$ gcc main.o matematika.o -o dastur
-$ ./dastur
-49
-```
-
-### Ataylab buzib ko'ring — har bir xato nimani anglatadi
-
-Bu xatolarni hozir bir marta o'z ko'zingiz bilan ko'rsangiz, keyin katta loyihada darhol taniysiz.
-
-**a) Oshxonani unutish** — bog'lashda `matematika.o` ni yozmang:
-
-```text
-$ gcc main.o -o dastur
-main.c:(.text+0xe): undefined reference to `kvadrat'
-collect2: error: ld returned 1 exit status
-```
-
-`ld` — linker. "Buyurtmada `kvadrat` bor, lekin hech bir oshxonada bu taom yo'q."
-
-**b) Menyusiz buyurtma** — `main.c` dan `#include "matematika.h"` ni o'chiring:
-
-```text
-$ gcc -Wall -c main.c
-main.c:2:33: warning: implicit declaration of function 'kvadrat'
-```
-
-Kompilyator: "`kvadrat` haqida hech narsa bilmayman — nima berib, nima olishini taxmin qilaman."
-Taxmin noto'g'ri bo'lsa, dastur jim turib noto'g'ri ishlaydi. Shuning uchun bu ogohlantirishni
-doim xato deb hisoblang (yangi GCC 14 uni allaqachon xato deb chiqaradi).
-
-**c) Menyu va oshxona mos emas** — `matematika.c` da `int kvadrat` ni `long kvadrat` qiling:
-
-```text
-$ gcc -Wall -c matematika.c
-matematika.c:2:6: error: conflicting types for 'kvadrat'; have 'long int(int)'
-```
-
-Oshxona o'z menyusini o'qigani (`#include "matematika.h"`) aynan shu xatoni ushladi.
-
-**d) Ikki oshxonada bir xil taom** — yana bir `boshqa.c` fayl yozib, unda ham `int kvadrat(int x)`
-ta'rifini qoldiring va uchala `.o` ni bog'lang:
-
-```text
-$ gcc main.o matematika.o boshqa.o -o dastur
-multiple definition of `kvadrat'; matematika.o:matematika.c:(.text+0x0): first defined here
-```
-
-Linker qaysi oshxonadan olishni bilmaydi. Ta'rif butun dasturda **aynan bitta** bo'lishi shart.
-
-To'liqroq namuna (`static`, `extern`, Makefile bilan): [misollar/11_kop_fayl/](misollar/11_kop_fayl/main.c).
-
-**Mashqlardagi tuzilma aynan shunday:** `mashq.h` — e'lonlar, `yechim.c` — siz yozadigan ta'riflar,
-`test.c` — ularni chaqiradigan kod. Tekshiruvchi `gcc yechim.c test.c` qiladi.
-
-**MyOS'da:** har bir `kernel/xxx/yyy.c` ning yonida `yyy.h` bor. Masalan `kernel/fs/pipe.h` pipe'ning
-"tashqi dunyo" uchun funksiyalarini e'lon qiladi, `pipe.c` esa ularni amalga oshiradi. Makefile har
-bir `.c` ni alohida `.o` ga kompilyatsiya qilib, `kernel/linker.ld` bo'yicha bitta `kernel.elf` ga bog'laydi.
-
-## 1.4. Nega har bir `.c` alohida kompilyatsiya qilinadi
-
-1. **Tezlik.** Linux yadrosida ~30 000 ta `.c` fayl bor. Bitta faylni o'zgartirsangiz, faqat o'sha
-   qayta kompilyatsiya qilinadi, keyin tez bog'lanadi. `make` aynan shuni kuzatadi (11-bob).
-2. **Ajratish.** `static` bilan belgilangan funksiya faqat o'z faylida ko'rinadi — boshqa fayllar
-   unga tasodifan tegib keta olmaydi (5-bob).
-
-## 1.5. Kompilyatsiya bayroqlari — nega har biri kerak
-
-| Bayroq | Nima qiladi | Nega |
-|---|---|---|
-| `-Wall -Wextra` | Deyarli barcha ogohlantirishlar | Xatolarni dastur ishga tushmasdan topish |
-| `-Werror` | Ogohlantirish = xato | Ogohlantirishlarni "keyin tuzataman" deb qoldirmaslik. MyOS va mashqlarda yoqilgan |
-| `-g` | Debug ma'lumoti | `gdb` qatorlar va o'zgaruvchi nomlarini ko'rsatadi |
-| `-O0` / `-O2` | Optimallashtirish darajasi | `-O0` — debug uchun (kod siz yozgandek), `-O2` — tez kod |
-| `-std=c11` / `-std=gnu11` | Til standarti | `gnu11` — C11 + GNU kengaytmalari (inline asm). MyOS shuni ishlatadi |
-| `-I papka` | `#include` qidiriladigan papka | `-Ikernel` bilan `#include "fs/vfs.h"` ishlaydi |
-| `-c` | Faqat `.o` gacha | Katta loyihalar uchun |
-| `-fsanitize=address,undefined` | Ish vaqtida xatolarni ushlash | O'rganish va testlar uchun |
-| `-ffreestanding` | "OS yo'q" rejimi | **Yadro uchun**: standart kutubxona yo'q deb hisoblash (18-bob) |
-
-## 1.6. `gdb` — dastur ichiga qarash
-
-```bash
-gcc -g -O0 dastur.c -o dastur
-gdb ./dastur
-```
-
-```text
-(gdb) break main          # main da to'xta
-(gdb) run                 # ishga tushir
-(gdb) next                # keyingi qator (funksiyaga kirmasdan)
-(gdb) step                # keyingi qator (funksiyaga kirib)
-(gdb) print x             # o'zgaruvchi qiymati
-(gdb) print *p            # ko'rsatkich ko'rsatgan qiymat
-(gdb) bt                  # chaqiruvlar zanjiri (backtrace): qayerdan kelib qoldik
-(gdb) info locals         # hamma lokal o'zgaruvchilar
-(gdb) continue            # keyingi to'xtash nuqtasigacha
-(gdb) quit
-```
-
-Dastur qulaganda (`Segmentation fault`) — `gdb ./dastur`, `run`, keyin `bt`: qaysi qatorda qulagani
-darhol ko'rinadi. **MyOS'ni ham aynan shu gdb bilan debug qilasiz** (`make debug`, docs/08).
-
-## 1.7. Savol-javob
-
-**`.o` va bajariladigan fayl farqi?**
-`.o` — "yarim tayyor": kodda tashqi manzillar hali to'ldirilmagan va `main` dan boshlash haqida
-ma'lumot yo'q. Bajariladigan fayl (ELF formati, Linux'da) — to'liq bog'langan, OS uni yuklab
-ishga tushira oladi. MyOS'ning `kernel/sys/elf.c` fayli aynan shu formatni o'qib, dasturni yuklaydi.
+**`.o` va bajariladigan fayl farqi nima?**
+`.o` — "yarim tayyor": tashqi manzillar hali to'ldirilmagan va `main` dan boshlash haqida ma'lumot yo'q. Bajariladigan
+fayl (Linux'da **ELF** formati) — to'liq bog'langan, OS uni yuklab ishga tushira oladi. MyOS'ning `kernel/sys/elf.c`
+fayli aynan shu formatni o'qib, dasturni yuklaydi.
 
 **`-lm` nima?**
-`-l` — kutubxonani ulash: `-lm` → `libm.so` (matematika: `sqrt`, `sin`). Kutubxona — `.o` fayllar
-to'plami. MyOS'ning `libc.a` si ham shunday (`Makefile` → `ar rcs`).
+`-l` — kutubxonani ulash: `-lm` → `libm.so` (matematika: `sqrt`, `sin`). Kutubxona — `.o` fayllar to'plami.
+MyOS'ning `libc.a` si ham shunday (`Makefile` → `ar rcs`).
 
 **`#pragma once` nima uchun?**
-`a.h` va `b.h` ikkalasi ham `c.h` ni qo'shsa, `main.c` ikkalasini qo'shganda `c.h` ikki marta
-kiradi → `struct` ikki marta ta'riflanadi → xato. `#pragma once` "bu faylni bitta kompilyatsiyada
-faqat bir marta qo'sh" deydi. Eski usul — "include guard" (10-bob).
+`a.h` va `b.h` ikkalasi ham `c.h` ni qo'shsa, `main.c` ikkalasini qo'shganda `c.h` ikki marta kiradi → `struct` ikki marta
+ta'riflanadi → xato. `#pragma once` "bu faylni faqat bir marta qo'sh" deydi. Eski usul — "include guard" (10-bob).
 
-## 1.8. O'zingizni tekshiring
+**Nega `main.o` ni `./main.o` deb ishga tushirib bo'lmaydi?**
+Chunki unda `kvadrat` uchun bo'sh joy bor — kod to'liq emas. Faqat linker hammasini to'ldirgandan keyin dastur bo'ladi.
+
+## O'zingizni tekshiring
 
 1. `undefined reference to 'kvadrat'` — kompilyator xatosimi yoki linker xatosimi? Qanday tuzatiladi?
 2. Nega funksiya ta'rifini `.h` faylga yozish xato?
@@ -411,14 +597,12 @@ faqat bir marta qo'sh" deydi. Eski usul — "include guard" (10-bob).
 4. `gcc -S` (assembly matni) yoki `gcc -c` + `objdump -d x.o`.
 </details>
 
-## 1.9. Mashq
+## Mashq
 
-- 1.3-bo'limdagi uch faylli dasturni yarating. Keyin `matematika.o` ni bog'lash buyrug'idan
-  olib tashlab, linker xatosini o'qing. `#include "matematika.h"` ni olib tashlab, kompilyator
-  xatosini o'qing.
+- 1.3-bo'limdagi uch faylli dasturni yarating. Keyin `matematika.o` ni bog'lash buyrug'idan olib tashlab, linker xatosini
+  o'qing. `#include "matematika.h"` ni olib tashlab, kompilyator xatosini o'qing.
 - `gcc -S -O0` va `gcc -S -O2` bilan kichik funksiyaning assembly'sini solishtiring.
-- `mashqlar/01_kvadratlar` ni oching: `mashq.h`, `yechim.c`, `test.c` qanday bog'langanini tushuning.
-  Hozircha yechmasangiz ham bo'ladi.
+- `mashqlar/01_kvadratlar` ni oching: `mashq.h`, `yechim.c`, `test.c` qanday bog'langanini tushuning. Hozircha yechmasangiz ham bo'ladi.
 
 <!-- loyiha:boshi -->
 ## Loyiha: geometriya moduli

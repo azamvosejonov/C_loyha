@@ -21,6 +21,11 @@
 4. Bob oxiridagi **"O'zingizni tekshiring"** savollariga avval o'zingiz javob bering, keyin javobni oching.
 5. Bobga tegishli **mashqlarni** bajaring: `tools/mashq.py vazifa`, `tools/mashq.py tekshir`.
 6. Tushunmagan joyni **qayta o'qing**, keyin kichik dastur yozib sinang. Tushunmasdan keyingi bobga o'tmang.
+7. **Notanish belgi** (`|`, `&`, `->`, `%`, `<<` ...) uchrasa — [belgilar.md](belgilar.md). **`#include <...>`** nima ekani va qaysi ish uchun
+   qaysi sarlavha kerakligi — [sarlavhalar.md](sarlavhalar.md) (masalan, `<stdint.h>` nima qilishi).
+
+**Boblar qanday yozilgan:** har bo'lim "Oddiy qilib aytganda → Hayotdan misol → Qadam-baqadam → Kod (har qatori tushuntirilgan, qiymatlar
+jadvali bilan) → Nega shunday? → **Eslab qoling**" tartibida. Har bir kod blokining natijasi **haqiqatan ishga tushirib** olingan.
 
 ## Mundarija
 
