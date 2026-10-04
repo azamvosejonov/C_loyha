@@ -1,52 +1,675 @@
 # 29-bob. Debug va profiling vositalari
 
-> **Bu bobdan keyin:** xatoni tizimli ravishda topish usulini, gdb'ning chuqur imkoniyatlarini
-> (watchpoint, shartli to'xtash, core dump), sanitizer'lar, valgrind, strace, ltrace, perf, objdump,
-> addr2line va QEMU monitor'ini bilasiz. Dasturchi vaqtining yarmi — debug; bu bob o'sha yarmini tezlashtiradi.
+> **Bu bobda nima o'rganasiz:** xatoni **tizimli** topish usulini (taxmin qilib emas); `printf` izlari; **gdb** (to'xtash nuqtasi, watchpoint, chaqiruvlar zanjiri, core dump); **sanitizer**'lar; **valgrind**; **strace** (dastur OS bilan
+> nima gaplashyapti); binar fayllarni ko'rish (`nm`, `objdump`, `addr2line`); `perf` va QEMU vositalari. Dasturchi vaqtining yarmi — debug; bu bob o'sha yarmini tezlashtiradi.
+> **Oldindan nima kerak:** 8-, 13-, 14-boblar (xotira xatolari, UB, syscall).   **Vaqt:** 6–8 soat.
 
 > **To'liq ishlaydigan misol:** [misollar/29_xatoli.c](misollar/29_xatoli.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
 
-## Hayotdan misollar
+## Bu bob nima haqida?
 
-**Debug — detektiv ishi (29.1).** Detektiv tasodifiy odamlarni hibsga olmaydi. U **dalillarni** yig'adi,
-**gipoteza** quradi ("qotil bog' eshigidan kirgan"), uni **tekshiradi** va noto'g'ri bo'lsa — yangisini
-quradi. Xatoni qidirish ham shunday: kodni tasodifan o'zgartirish emas, balki "xato shu funksiyada,
-chunki..." deb taxmin qilib, uni tajriba bilan tasdiqlash yoki rad etish.
+Hech kim xatosiz dastur yozmaydi. Farq shundaki, tajribali dasturchi xatoni **soatlar emas, daqiqalarda** topadi. Buning siri — to'g'ri vosita va to'g'ri usul. Bu bobda:
 
-**`printf` — non ushoqlari (29.2).** Ertakdagi bolalar o'rmonda adashmaslik uchun yo'lga non ushoqlari
-tashlab ketgan. Dasturda "shu yerga keldim, x = 5" degan izlar qoldirasiz va dastur qaysi yo'ldan
-o'tganini ko'rasiz. Oddiy, lekin hali ham eng ko'p ishlatiladigan usul.
+1. **Usul** (29.1): xato qidirish — detektiv ishi; asbobdan oldin fikr.
+2. **Oddiy vositalar** (29.2–29.4): `printf` izlari, gdb, sanitizer'lar — eng ko'p ishlatiladigan uchlik.
+3. **Chuqurroq vositalar** (29.5–29.9): valgrind, strace, binar fayllarni ko'rish, perf, QEMU.
+4. **Retsept** (29.10): "belgi → birinchi qadam" jadvali.
 
-**gdb — vaqtni to'xtatish (29.3).** Dunyoni "pauza" qilib, har bir odamning cho'ntagini tekshirish
-mumkin bo'lsa-chi? `break` — "shu joyga kelganda to'xtat", `print` — cho'ntakni tekshirish, `next` —
-bitta qadam oldinga, `bt` — "bu yerga qanday kelding?" (chaqiruvlar zanjiri).
+**Hayotdan misol: detektiv.** Detektiv tasodifiy odamlarni hibsga olmaydi. U **dalillarni** yig'adi, **gipoteza** quradi ("qotil bog' eshigidan kirgan"), uni **tekshiradi** va noto'g'ri bo'lsa — yangisini quradi.
 
-**Watchpoint — xonadagi signalizatsiya (29.3).** "Kim bu seyfga tegsa — darhol xabar ber". `watch x` —
-`x` qayerda o'zgarsa, gdb dasturni aynan o'sha qatorda to'xtatadi. "Bu o'zgaruvchini kim buzyapti?"
-degan savolga eng tez javob.
+| Detektivda | Debug'da |
+|---|---|
+| jinoyat belgisi | dastur noto'g'ri natija beradi / qulaydi |
+| dalillarni yig'ish | takrorlash, `printf`, log |
+| non ushoqlari (iz qoldirish) | `printf` / `kprintf` izlari |
+| vaqtni to'xtatib, hamma cho'ntakni tekshirish | gdb: `break`, `print`, `bt` |
+| seyfga teggan odamni ushlovchi signalizatsiya | watchpoint (`watch x`) |
+| aeroport rentgeni | sanitizer (ASan, UBSan, TSan) |
+| telefon suhbatlari yozuvi | `strace` (dastur ↔ yadro suhbati) |
+| fitnes-soat (qadam, yurak urishi) | `perf` (vaqt qayerga ketyapti) |
 
-**Sanitizer — aeroport rentgeni (29.4).** Har bir yukni tekshiradi va taqiqlangan narsani darhol, aniq
-joyi bilan ko'rsatadi. Biroz sekinlashtiradi, lekin xatoni sodir bo'lgan zahoti ushlaydi — ancha keyin
-boshqa joyda emas.
+## 29.1. Debug usuli — asbobdan oldin fikr
 
-**Valgrind — sinchkov inspektor (29.5).** Dasturni qayta kompilyatsiya qilmasdan tekshiradi, lekin juda
-sekin (20–50 barobar).
+**Oddiy qilib aytganda:** xatoni topish — tajriba o'tkazish: taxmin qilasiz, tekshirasiz, natijaga qarab taxminni tasdiqlaysiz yoki rad etasiz. **Kodni tasodifan o'zgartirib ko'rish** — usul emas, omad o'yini.
 
-**strace — telefon suhbatlari yozuvi (29.6).** Dastur yadro bilan nima gaplashyapti: qaysi faylni ochdi,
-nima o'qidi, qayerda xato oldi. Dastur "fayl topilmadi" deb qulasa, strace **qaysi** faylni izlaganini ko'rsatadi.
+| # | Qoida | Nima uchun |
+|---|---|---|
+| 1 | **Takrorlang** — xatoni har safar chiqadigan qiling (kirish, buyruq, qadamlar) | takrorlanmaydigan xato tuzatilmaydi, faqat yashiriladi |
+| 2 | **Kichraytiring** — xatoni ko'rsatadigan eng kichik kirish/kodni toping (yarmini olib tashlang — xato qoldimi?) | kam kodda sabab ko'rinadi (ikkilik qidiruv g'oyasi, 28-bob) |
+| 3 | **Faraz qiling va tekshiring** — "menimcha x bu yerda NULL" → `print` yoki `assert` bilan tasdiqlang | farazsiz o'zgartirishlar — vaqt yo'qotish |
+| 4 | **Birinchi noto'g'ri narsani toping**, oxirgisini emas | qulash — oqibat; sabab ancha oldinda (bufer to'lishi 1000 qator oldin bo'lgan) |
+| 5 | **Tuzatgach — test qo'shing** | xato qaytib kelmasin |
+| 6 | **Rezina o'rdak** — muammoni kimgadir (yoki o'yinchoqqa) ovoz chiqarib tushuntiring | tushuntirish paytida o'zingiz topasiz |
 
-**perf — fitnes-soat (29.8).** Kun davomida qadamlar, yurak urishi. perf ham dastur vaqti qaysi
-funksiyalarga ketayotganini o'lchaydi. Taxmin qilmang — o'lchang.
+> **Eslab qoling:** takrorla → kichraytir → faraz qil → tekshir → tuzat → test qo'sh. Eng muhimi: **birinchi** noto'g'ri holatni toping, qulash joyini emas.
 
-**Ikkiga bo'lib qidirish — kitobdagi xatoni topish (29.10).** 1000 sahifali qo'lyozmada qayerdadir
-xato bor. 500-sahifani tekshirasiz — xato undan oldinmi yoki keyinmi? 10 qadamda topasiz. `git bisect`
-xuddi shunday: 1000 ta commit ichidan xatoni kiritganini 10 qadamda topadi.
+## 29.2. `printf` izlari — hali ham eng ko'p ishlatiladigan vosita
 
-### To'liq dastur: iz qoldiruvchi ikkilik qidiruv
+**Oddiy qilib aytganda:** dasturga "shu yerga keldim, x = 5" deb yozuvchi qatorlar qo'shasiz va dastur qaysi yo'ldan o'tganini ko'rasiz. **Hayotdan misol:** ertakdagi bolalar o'rmonda adashmaslik uchun non ushoqlari tashlab ketgan.
 
-`-DDEBUG` bilan yig'ilsa — non ushoqlarini qoldiradi, usiz — jim ishlaydi. `assert` esa kutilmagan
-holatni darhol to'xtatadi.
+```c
+fprintf(stderr, "[debug] %s:%d n=%zu p=%p\n", __FILE__, __LINE__, n, (void *)p);
+```
+
+| Qism | Ma'nosi |
+|---|---|
+| `stderr` | **buferlanmaydi** — dastur qulashidan oldin ham chiqadi (`stdout` esa qulashda yo'qolishi mumkin, 12-bob) |
+| `__FILE__`, `__LINE__` | kompilyator joylagan fayl nomi va qator raqami (10-bob) |
+| `%zu`, `%p` | `size_t` va ko'rsatkich uchun |
+
+Yadroda — `kprintf` (serial port + `dmesg`). Muhim o'zgaruvchilarni **funksiya kirish/chiqishida** chiqarish ko'pincha gdb'dan tezroq natija beradi.
+
+**Muammo:** izlarni keyin qo'lda o'chirish noqulay, unutib qoldirsangiz — "chiqarish" qoladi. **Yechim:** izlarni makro bilan yozing — `-DDEBUG` bilan yig'ilsa chiqaradi, usiz — jim. Shu bobning to'liq dasturida (oxirida) buni ko'rasiz.
+
+## 29.3. Bitta xato — to'rt vosita
+
+Eng yaxshi o'rganish usuli — **bitta xatoni bir necha vosita bilan ushlash**. Quyidagi dasturda ataylab xato bor: kutilgan natija 15, lekin chiqadigan — boshqa.
+
+**Bu dastur nima qiladi (umumiy):** talabaning 3 ta bahosini kiritadi (hammasi 5) va yig'indini hisoblaydi. Yig'indi (`jami`) 0 dan boshlanadi va 3 ta baho qo'shiladi → 15 chiqishi kerak.
+
+```c
+/* talaba.c - jami baho "o'z-o'zidan" o'zgarib qoladi (xato bor!) */
+#include <stdio.h>
+
+struct talaba {
+    int baho[3];
+    int jami;
+};
+
+static void baholar_kirit(struct talaba *t)
+{
+    for (int i = 0; i <= 3; i++)                /* XATO: i <= 3 emas, i < 3 bo'lishi kerak */
+        t->baho[i] = 5;
+}
+
+int main(void)
+{
+    struct talaba t;
+    t.jami = 0;                                 /* hisob 0 dan boshlanadi */
+    baholar_kirit(&t);
+    for (int i = 0; i < 3; i++)
+        t.jami += t.baho[i];
+    printf("jami = %d (kutilgan: 15)\n", t.jami);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g talaba.c -o talaba
+$ ./talaba
+jami = 20 (kutilgan: 15)
+```
+
+Kompilyator hech narsa demadi (`-Wall -Wextra` bilan ham), dastur **ishladi** — lekin natija noto'g'ri: 15 o'rniga 20.
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `struct talaba { int baho[3]; int jami; }` | 3 ta baho va yig'indi — xotirada ketma-ket: `baho[0]`, `baho[1]`, `baho[2]`, so'ng `jami` |
+| `t.jami = 0` | yig'indini nollaymiz |
+| `baholar_kirit` | hamma bahoni 5 qiladi. **Xato:** sikl `i <= 3`, ya'ni `baho[3]` ga ham yozadi — bunday element yo'q! |
+| ikkinchi sikl | 3 ta bahoni `jami` ga qo'shadi |
+
+Nega 20? `baho[3]` — massivdan **keyingi** katak, xotirada bu aynan `jami`! Shuning uchun `baholar_kirit` `jami` ni 5 qilib qo'ydi (nolni yo'qotdi), keyin 3 × 5 = 15 qo'shildi → 20.
+
+**Qaysi vosita buni topadi?** Quyida ketma-ket sinaymiz:
+
+### 1) Faqat ASan
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address talaba.c -o talaba_asan
+$ ./talaba_asan
+jami = 20 (kutilgan: 15)
+```
+
+**Hech narsa demadi!** AddressSanitizer **butun obyektdan** (struktura ichidagi `baho` + `jami`) chiqishni kuzatadi; `baho[3]` hali struktura ichida bo'lgani uchun u buni "yaxshi xotira" deb hisoblaydi. **Dars:** hech bir vosita hammasini topmaydi.
+
+### 2) UBSan
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=undefined talaba.c -o talaba_ub
+$ ./talaba_ub 2>&1
+talaba.c:12:16: runtime error: index 3 out of bounds for type 'int [3]'
+jami = 20 (kutilgan: 15)
+```
+
+UBSan **massiv chegarasini** biladi: `int baho[3]` ga `3`-indeks bilan murojaat qilinganini aniq **qator va ustun** bilan aytdi (`talaba.c:12`).
+
+### 3) gdb watchpoint — "kim buzdi?"
+
+**Watchpoint** — "bu o'zgaruvchi **o'zgarganda** dasturni to'xtat". **Hayotdan misol:** seyfga kim tegsa — darhol xabar beruvchi signalizatsiya.
+
+```console
+$ gdb -q -batch -ex 'break 19' -ex run -ex 'watch t.jami' -ex continue -ex bt -ex 'print i' ./talaba 2>&1 | grep -vE 'libthread_db|^\[Thread' | sed 's/0x[0-9a-f]\{6,\}/0xADRES/g'
+Breakpoint 1 at 0x11bf: file talaba.c, line 19.
+
+Breakpoint 1, main () at talaba.c:19
+19	    baholar_kirit(&t);
+Hardware watchpoint 2: t.jami
+
+Hardware watchpoint 2: t.jami
+
+Old value = 0
+New value = 5
+baholar_kirit (t=0xADRES) at talaba.c:11
+11	    for (int i = 0; i <= 3; i++)                /* XATO: i <= 3 emas, i < 3 bo'lishi kerak */
+#0  baholar_kirit (t=0xADRES) at talaba.c:11
+#1  0xADRES in main () at talaba.c:19
+$1 = 3
+```
+
+**gdb buyruqlari tahlili:**
+
+| Buyruq | Nima qildi |
+|---|---|
+| `break 19` | 19-qatordan (`baholar_kirit(&t)` chaqiruvi) oldin to'xtash nuqtasi |
+| `run` | dasturni ishga tushirdi — 19-qatorda to'xtadi |
+| `watch t.jami` | `t.jami` ga **kuzatuvchi** qo'ydi (protsessor apparati — hardware watchpoint) |
+| `continue` | davom etdi; `t.jami` o'zgargan zahoti to'xtadi |
+| `bt` | chaqiruvlar zanjiri: `baholar_kirit` ichidamiz, uni `main` 19-qatordan chaqirgan |
+| `print i` | sikl o'zgaruvchisi |
+
+**Nima ko'rdik:** `t.jami` `0` dan `5` ga o'zgardi — hech kim buni kutmagan edi — va aynan **`baholar_kirit` ichida**, `i = 3` bo'lganda. (gdb yozuv **bajarilgandan keyin** to'xtaydi, shuning uchun ko'rsatilgan qator — yozuvdan keyingi qator.) Aybdor topildi: `i <= 3`.
+
+### 4) Kompilyator ogohlantirishlari
+
+`-Wall -Wextra` bu holatda jim edi. Shuning uchun **sanitizer + gdb** — yagona himoya emas, lekin birgalikda ishonchli.
+
+> **Eslab qoling:** qiymat "o'z-o'zidan" o'zgarsa — **watchpoint**; massiv chegarasi — **UBSan/ASan**; hech biri hammasini ko'rmaydi, ularni birga ishlating.
+
+## 29.4. gdb chuqur
+
+**Oddiy qilib aytganda:** gdb — dasturni **to'xtatib**, ichiga qarash vositasi. Dunyoni "pauza" qilib, har bir o'zgaruvchi (cho'ntak) ni tekshirasiz.
+
+Tayyorgarlik: dasturni **`-g -O0`** bilan yig'ing (`-g` — nom va qator ma'lumoti; `-O0` — optimallashtirmasdan, aks holda gdb "optimized out" ko'rsatadi):
+
+```bash
+gcc -g -O0 dastur.c -o dastur
+gdb --args ./dastur arg1 arg2
+```
+
+| Buyruq | Nima qiladi |
+|---|---|
+| `break fayl.c:42` / `b funksiya` | to'xtash nuqtasi |
+| `break 42 if i == 1000` | **shartli** to'xtash — sikl ichidagi 1000-aylanishda |
+| `watch x` / `watch -l p->qiymat` | **watchpoint**: qiymat o'zgarganda to'xtash |
+| `rwatch`, `awatch` | o'qilganda / har qanday murojaatda |
+| `run`, `continue` (`c`), `next` (`n`), `step` (`s`), `finish` | boshqarish: `next` — qatordan o'tish, `step` — funksiya ichiga kirish, `finish` — funksiyadan chiqish |
+| `until 50` | 50-qatorgacha (siklni tugatish) |
+| `bt` / `bt full` | chaqiruvlar zanjiri (+ lokal o'zgaruvchilar) |
+| `frame 3`, `up`, `down` | zanjir bo'ylab yurish |
+| `print *p`, `print a[0]@10` | qiymat; massivning 10 ta elementi |
+| `print/x val`, `x/16xb p` | o'n oltilikda; xotirani baytlab ko'rish |
+| `info registers`, `x/10i $rip` | registrlar; keyingi 10 buyruq |
+| `display i` | har qadamda avtomatik ko'rsatish |
+| `set var x = 5` | ish vaqtida o'zgaruvchini o'zgartirish |
+| `layout src` / `layout asm` / `tui enable` | matnli interfeys: kod va assembly yonma-yon |
+| `thread apply all bt` | hamma oqimlarning zanjiri (deadlock'da!) |
+
+### Qulagan dasturni tekshirish (Segmentation fault)
+
+**Bu dastur nima qiladi (umumiy):** mijozlar ro'yxatidan ism bo'yicha mijozni topadi va yoshini chiqaradi. Ro'yxatda bor mijoz ("Ali") uchun ishlaydi, yo'q mijoz ("Gulnora") uchun `topish` `NULL` qaytaradi va `yosh_ol` `NULL` ga murojaat qilib **qulaydi**.
+
+```c
+/* qulash.c - Segmentation fault: ichma-ich chaqiruvdagi NULL */
+#include <stdio.h>
+
+struct mijoz {
+    const char *ism;
+    int yosh;
+};
+
+static int yosh_ol(const struct mijoz *m)
+{
+    return m->yosh;                             /* m == NULL bo'lsa - qulaydi */
+}
+
+static const struct mijoz *topish(const struct mijoz *royxat, int n, const char *ism)
+{
+    for (int i = 0; i < n; i++)
+        if (royxat[i].ism[0] == ism[0])         /* birinchi harf mos kelsa */
+            return &royxat[i];
+    return NULL;                                /* topilmadi */
+}
+
+int main(void)
+{
+    struct mijoz royxat[] = { { "Ali", 30 }, { "Vali", 25 } };
+    printf("Ali: %d yosh\n", yosh_ol(topish(royxat, 2, "Ali")));
+    printf("Gulnora: %d yosh\n", yosh_ol(topish(royxat, 2, "Gulnora")));
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g qulash.c -o qulash
+$ bash -c 'stdbuf -oL ./qulash 2>&1 | head -5; echo "chiqish kodi: ${PIPESTATUS[0]}"'
+Ali: 30 yosh
+chiqish kodi: 139
+```
+
+`stdbuf -oL` — chiqishni qatorma-qator buferlaydi (aks holda `stdout` fayl/quvurga yo'naltirilganda qulashdan oldingi qator yo'qolishi mumkin). **Chiqish kodi 139 = 128 + 11**: jarayon 11-signal (`SIGSEGV`) bilan o'ldirildi.
+
+Endi gdb bilan **qayerda va nega** qulaganini topamiz:
+
+```console
+$ gdb -q -batch -ex run -ex bt -ex 'frame 1' -ex 'print royxat' ./qulash 2>&1 | grep -vE 'libthread_db|^\[Thread' | sed 's/0x[0-9a-f]\{6,\}/0xADRES/g'
+
+Program received signal SIGSEGV, Segmentation fault.
+0xADRES in yosh_ol (m=0x0) at qulash.c:11
+11	    return m->yosh;                             /* m == NULL bo'lsa - qulaydi */
+#0  0xADRES in yosh_ol (m=0x0) at qulash.c:11
+#1  0xADRES in main () at qulash.c:26
+#1  0xADRES in main () at qulash.c:26
+26	    printf("Gulnora: %d yosh\n", yosh_ol(topish(royxat, 2, "Gulnora")));
+$1 = {{ism = 0xADRES "Ali", yosh = 30}, {ism = 0xADRES "Vali", yosh = 25}}
+```
+
+**Nima ko'rdik:**
+
+| gdb chiqishi | Ma'nosi |
+|---|---|
+| `Program received signal SIGSEGV` | dastur qulagan joyda gdb to'xtadi |
+| `yosh_ol (m=0x0) at qulash.c:11` | qulash `yosh_ol` ichida, 11-qatorda; argument `m = 0x0` (**NULL**) |
+| `#1 ... main () at qulash.c:26` | `yosh_ol` ni `main` 26-qatordan chaqirgan — "Gulnora" qatori |
+| `frame 1` + `print royxat` | `main` kadriga o'tib, uning lokal o'zgaruvchisini ko'rdik |
+
+Sabab: `topish("Gulnora")` hech narsa topmadi va `NULL` qaytardi; chaqiruvchi tekshirmadi. **Tuzatish** — `NULL` ni tekshirish. Qulash joyi (`yosh_ol`) — oqibat; **sabab** — `main` dagi tekshirilmagan natija (4-qoida!).
+
+### Core dump — qulagan dasturning "surati"
+
+**Oddiy qilib aytganda:** dastur qulaganda OS uning butun xotirasini faylga yozishi mumkin (**core**). Keyin dasturni qayta ishga tushirmasdan, qulash paytidagi holatni gdb bilan ko'rish mumkin. Ayniqsa kamdan-kam uchraydigan, takrorlab bo'lmaydigan qulashlar uchun foydali.
+
+```bash
+ulimit -c unlimited              # core fayllarga ruxsat (joriy terminal uchun)
+./dastur                          # Segmentation fault (core dumped)
+gdb ./dastur core                 # qulagan paytdagi holat: bt, print...
+```
+
+(Zamonaviy Linux'da core'lar `systemd-coredump` ga tushishi mumkin: `coredumpctl gdb`.)
+
+**Osilib qolgan dasturga ulanish:** `gdb -p PID`, keyin `thread apply all bt` — hamma oqim qayerda kutyapti.
+
+**Yadroni debug qilish** (MyOS): `make debug` — QEMU gdb'ni kutadi; boshqa terminalda `gdb -x tools/gdbinit`. Xuddi shu buyruqlar yadroda ham ishlaydi: `break kmain`, `break mm_handle_fault` (page fault), `break handle_exception`, `bt`, `info registers`. `docs/08-test-debug.md` — batafsil.
+
+> **Eslab qoling:** qulasa — `gdb` → `run` → `bt` (kim chaqirdi?) → `frame N` + `print` (o'zgaruvchilar). Qiymat buzilsa — `watch`. Tanlangan oqim/jarayon osilsa — `gdb -p`.
+
+## 29.5. Sanitizer'lar — aeroport rentgeni
+
+**Oddiy qilib aytganda:** sanitizer — kompilyator dasturga qo'shimcha tekshiruv kodini joylaydigan vosita. Har xotira murojaati tekshiriladi va xato **sodir bo'lgan zahoti**, aniq joyi bilan ko'rsatiladi (ancha keyin, boshqa joyda emas). Biroz sekinlashtiradi.
+
+| Bayroq | Nima topadi | Sekinlashish |
+|---|---|---|
+| `-fsanitize=address` (ASan) | chegaradan chiqish, use-after-free, double free, leak | ~2x |
+| `-fsanitize=undefined` (UBSan) | toshish, noto'g'ri surish, NULL, tekislanmagan, massiv chegarasi | kam |
+| `-fsanitize=thread` (TSan) | poyga holatlari | 5–15x (ASan bilan birga emas) |
+| `-fsanitize=memory` (MSan, faqat clang) | boshlanmagan xotirani o'qish | 3x |
+
+Linux yadrosida analoglari: KASAN, UBSAN, KCSAN.
+
+### ASan: heap'dan chiqish va bo'shatilgan xotira
+
+**Bu dastur nima qiladi (umumiy):** 4 elementli massiv ajratadi. Argumentsiz ishga tushirilsa — **5-elementga yozadi** (heap overflow); argument bilan — massivni `free` qilib, keyin uning elementini **o'qiydi** (use-after-free).
+
+```c
+/* tosh.c - xotirada chegaradan chiqish va bo'shatilgan xotiradan foydalanish */
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char **argv)
+{
+    (void)argv;
+    int *a = malloc(4 * sizeof(int));
+    for (int i = 0; i < 4; i++)
+        a[i] = i;
+    if (argc == 1) {
+        a[4] = 99;                              /* XATO 1: 4 ta element, a[4] yo'q (heap overflow) */
+    } else {
+        free(a);
+        printf("%d\n", a[0]);                   /* XATO 2: bo'shatilgan xotirani o'qish (use-after-free) */
+        return 0;
+    }
+    printf("%d\n", a[3]);
+    free(a);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address tosh.c -o tosh   # xato kutiladi
+tosh.c: In function ‘main’:
+tosh.c:15:9: warning: pointer ‘a’ used after ‘free’ [-Wuse-after-free]
+   15 |         printf("%d\n", a[0]);                   /* XATO 2: bo'shatilgan xotirani o'qish (use-after-free) */
+      |         ^~~~~~~~~~~~~~~~~~~~
+tosh.c:14:9: note: call to ‘free’ here
+   14 |         free(a);
+      |         ^~~~~~~
+$ ./tosh 2>&1 | grep -E "ERROR|WRITE of|#0 .*tosh.c|SUMMARY" | sed 's/0x[0-9a-f]*/0xADRES/g; s/==[0-9]*==/==PID==/; s#/[^ :]*/##g'
+==PID==ERROR: AddressSanitizer: heap-buffer-overflow on address 0xADRES at pc 0xADRES bp 0xADRES sp 0xADRES
+WRITE of size 4 at 0xADRES thread T0
+    #0 0xADRES in main tosh.c:12
+SUMMARY: AddressSanitizer: heap-buffer-overflow tosh.c:12 in main
+$ ./tosh x 2>&1 | grep -E "ERROR|READ of|#0 .*tosh.c|SUMMARY" | sed 's/0x[0-9a-f]*/0xADRES/g; s/==[0-9]*==/==PID==/; s#/[^ :]*/##g'
+==PID==ERROR: AddressSanitizer: heap-use-after-free on address 0xADRES at pc 0xADRES bp 0xADRES sp 0xADRES
+READ of size 4 at 0xADRES thread T0
+    #0 0xADRES in main tosh.c:15
+SUMMARY: AddressSanitizer: heap-use-after-free tosh.c:15 in main
+```
+
+**Qanday o'qiladi:**
+
+| ASan satri | Ma'nosi |
+|---|---|
+| `ERROR: AddressSanitizer: heap-buffer-overflow` | **xato turi**: heap'dagi buferdan chiqish |
+| `WRITE of size 4` | 4 baytlik **yozuv** (o'qish bo'lsa `READ`) |
+| `#0 ... in main tosh.c:12` | aniq **qator**: 12-qator, `a[4] = 99` |
+| `heap-use-after-free` | ikkinchi xato turi: bo'shatilgan xotira |
+| `SUMMARY` | qisqa xulosa: tur + qator |
+
+(Birinchi buyruqdagi `# xato kutiladi` izohi: kompilyator `use-after-free` ni o'zi ham ogohlantiradi — `-Wuse-after-free`; bu ogohlantirish ataylab qoldirilgan.)
+
+Oldingi bobda (8) qo'lda qidirgan xatolarni ASan **soniyada, qator raqami bilan** topdi.
+
+### TSan: poyga
+
+**Bu dastur nima qiladi (umumiy):** ikki oqim bitta global sanagichni qulfsiz 100 000 martadan oshiradi — klassik poyga (15-bob).
+
+```c
+/* poyga.c - ikki oqim, himoyalanmagan sanagich */
+#include <pthread.h>
+#include <stdio.h>
+
+static long sanagich;
+
+static void *ishchi(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < 100000; i++)
+        sanagich++;
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t a, b;
+    pthread_create(&a, NULL, ishchi, NULL);
+    pthread_create(&b, NULL, ishchi, NULL);
+    pthread_join(a, NULL);
+    pthread_join(b, NULL);
+    printf("sanagich = %ld\n", sanagich);
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=thread -pthread poyga.c -o poyga_t
+$ ./poyga_t 2>&1 | grep SUMMARY | sort -u | sed 's#/[^ :]*/##g'
+SUMMARY: ThreadSanitizer: data race poyga.c:11 in ishchi
+```
+
+TSan poygani **qator** (`poyga.c:11`, `sanagich++`) bilan ko'rsatdi. Natijaning o'zi (`sanagich = ...`) har safar boshqacha bo'lardi, TSan esa poygani ishlash natijasiga qaramay aniqlaydi.
+
+Mashqlardagi tekshiruvchi ASan + UBSan ishlatadi. Ko'p oqimli kodni (29, 34, 38, 44, 45-mashqlar) qo'shimcha ravishda TSan bilan sinang:
+
+```bash
+gcc -g -fsanitize=thread -pthread -Imashqlar -Imashqlar/29_oqimlar \
+    mashqlar/29_oqimlar/yechim.c mashqlar/29_oqimlar/test.c -o t29 && ./t29
+```
+
+> **Eslab qoling:** xotira xatosi → **ASan**; UB (toshish, chegara) → **UBSan**; ko'p oqimli noto'g'ri natija → **TSan**. Ko'p mashqlarda `-fsanitize=address,undefined` ni doim yoqing.
+
+## 29.6. Valgrind — sinchkov inspektor
+
+**Oddiy qilib aytganda:** valgrind dasturni **qayta yig'masdan** tekshiradi: uni virtual protsessorda bajaradi va har xotira murojaatini kuzatadi. Sanitizer'dan **20–50 marta** sekin, lekin boshlanmagan qiymatlardan foydalanishni ham topadi.
+
+```bash
+valgrind --leak-check=full --track-origins=yes ./dastur
+```
+
+### Sizib chiqish (leak)
+
+**Bu dastur nima qiladi (umumiy):** `f` funksiyasi 50 bayt ajratadi va ko'rsatkichni yo'qotadi — `free` yo'q. Eng oddiy xotira sizib chiqishi.
+
+```c
+/* sizish.c - eng oddiy sizib chiqish */
+#include <stdlib.h>
+
+static void f(void)
+{
+    void *p = malloc(50);
+    (void)p;                                    /* f tugadi, p yo'qoldi, free yo'q */
+}
+
+int main(void)
+{
+    f();
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g sizish.c -o sizish
+$ valgrind --leak-check=full ./sizish 2>&1 | grep -E "definitely lost:|by 0x|ERROR SUMMARY" | sed 's/==[0-9]*==/==PID==/; s/0x[0-9A-F]*/0xADRES/'
+==PID==    by 0xADRES: f (sizish.c:6)
+==PID==    by 0xADRES: main (sizish.c:12)
+==PID==    definitely lost: 50 bytes in 1 blocks
+==PID== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+```
+
+**Nima ko'rdik:** `definitely lost: 50 bytes in 1 blocks` — 50 bayt qaytarilmadi; ajratilgan joy `f (sizish.c:6)` va uni `main` 12-qatordan chaqirgan.
+
+### Boshlanmagan qiymat
+
+**Bu dastur nima qiladi (umumiy):** `chegirma` o'zgaruvchisiga qiymat berilmaydi, lekin shartda ishlatiladi. Qaysi shoxga kirishi — tasodifiy (stekdagi eski qoldiqqa bog'liq).
+
+```c
+/* boshlanmagan.c - boshlang'ich qiymat berilmagan o'zgaruvchi */
+#include <stdio.h>
+
+int main(void)
+{
+    int chegirma;                               /* qiymat berilmadi! */
+    if (chegirma > 10)                          /* qaysi shoxga kirishi noma'lum */
+        printf("chegirma katta\n");
+    else
+        printf("chegirma kichik\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g -O0 boshlanmagan.c -o boshlanmagan   # xato kutiladi
+boshlanmagan.c: In function ‘main’:
+boshlanmagan.c:7:8: warning: ‘chegirma’ is used uninitialized [-Wuninitialized]
+    7 |     if (chegirma > 10)                          /* qaysi shoxga kirishi noma'lum */
+      |        ^
+boshlanmagan.c:6:9: note: ‘chegirma’ was declared here
+    6 |     int chegirma;                               /* qiymat berilmadi! */
+      |         ^~~~~~~~
+$ valgrind --track-origins=yes ./boshlanmagan 2>&1 | grep -E "Conditional|Uninitialised|ERROR SUMMARY" | sed 's/==[0-9]*==/==PID==/'
+==PID== Conditional jump or move depends on uninitialised value(s)
+==PID==  Uninitialised value was created by a stack allocation
+==PID== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+```
+
+**Nima ko'rdik:** valgrind `Conditional jump or move depends on uninitialised value(s)` dedi — shart boshlanmagan qiymatga bog'liq; `--track-origins=yes` esa uning **qayerda yaratilganini** (`stack allocation`: `main` stekidagi o'zgaruvchi) ko'rsatdi. Bu holatni kompilyator ham ogohlantirgan (`-Wuninitialized`) — **ogohlantirishlarni o'qing**.
+
+`valgrind --tool=callgrind` — qaysi funksiya qancha buyruq bajarayotgani.
+
+> **Eslab qoling:** ASan — tez, qayta yig'ish kerak; valgrind — sekin, lekin qayta yig'masdan va boshlanmagan qiymatni ham topadi. Ikkisi bir-birini to'ldiradi.
+
+## 29.7. strace — dastur OS bilan nima gaplashyapti
+
+**Oddiy qilib aytganda:** hamma dastur OS bilan **syscall**'lar (14-bob) orqali gaplashadi. `strace` shu suhbatni **yozib** ko'rsatadi: qaysi faylni ochdi, nima o'qidi, qayerda xato oldi. **Hayotdan misol:** telefon suhbatlari yozuvi. Kodni o'qimasdan, dasturning "tashqi xatti-harakati"dan sabab topish mumkin.
+
+**Bu dastur nima qiladi (umumiy):** `data` papkasidagi `sozlama.cfg` ni ochishga urinadi. Fayl yo'li `papka` va `nom` ni birlashtirib hosil qilinadi. Dastur "fayl topilmadi" deydi — lekin **qaysi** yo'lni izlaganini ko'rsatmaydi.
+
+```c
+/* fayl_oqi.c - "fayl topilmadi" - lekin qaysi fayl izlandi? */
+#include <stdio.h>
+
+int main(void)
+{
+    const char *papka = "data";
+    const char *nom = "sozlama.cfg";
+    char yol[64];
+    snprintf(yol, sizeof(yol), "%s%s", papka, nom);     /* '/' unutilgan! */
+
+    FILE *f = fopen(yol, "r");
+    if (!f) {
+        printf("sozlama fayli topilmadi!\n");
+        return 1;
+    }
+    fclose(f);
+    printf("sozlama o'qildi\n");
+    return 0;
+}
+```
+
+```console
+$ gcc -Wall -Wextra -g fayl_oqi.c -o fayl_oqi
+$ ./fayl_oqi
+sozlama fayli topilmadi!
+$ strace -o iz.txt ./fayl_oqi > /dev/null; grep openat iz.txt | grep -v '/lib\|/etc/ld'
+openat(AT_FDCWD, "datasozlama.cfg", O_RDONLY) = -1 ENOENT (No such file or directory)
+```
+
+**Qanday o'qiladi:** `openat(AT_FDCWD, "datasozlama.cfg", O_RDONLY) = -1 ENOENT (No such file or directory)`:
+
+| Qism | Ma'nosi |
+|---|---|
+| `openat(...)` | chaqirilgan syscall |
+| `"datasozlama.cfg"` | **aslida izlangan yo'l** — papka va nom orasida `/` yo'q! (`snprintf` formatida `/` unutilgan) |
+| `= -1 ENOENT` | natija: xato "fayl yoki papka yo'q" |
+
+Dastur "topilmadi" degan, strace esa **nima izlaganini** ko'rsatdi — xato bir qarashda ko'rindi.
+
+```bash
+strace ./dastur                  # hamma syscall'lar: openat, read, write, mmap...
+strace -e trace=openat,read ls   # faqat tanlanganlari
+strace -f -p PID                 # ishlayotgan jarayonga (bolalari bilan)
+strace -c ./dastur               # statistika: qaysi syscall necha marta, qancha vaqt
+ltrace ./dastur                  # kutubxona funksiyalari chaqiruvlari
+```
+
+"Dastur nega bu faylni topmayapti?", "qayerda osilib qoldi?" (oxirgi syscall — `read` yoki `futex` da kutyapti) kabi savollarga kodni o'qimasdan javob beradi.
+
+**14-bobdagi tushunchalarni jonli ko'rish:** shell `ls | wc -l` ni bajarganda qaysi syscall'lar ishlaydi?
+
+```console
+$ strace -f -o iz2.txt sh -c 'ls | wc -l' > /dev/null; grep -oE '\b(pipe2|clone|dup2|execve|wait4)\(' iz2.txt | sort -u
+clone(
+dup2(
+execve(
+pipe2(
+wait4(
+```
+
+Hammasi ko'rindi: `pipe2` (quvur), `clone` (yangi jarayon — `fork`), `dup2` (stdin/stdout ni quvurga ulash), `execve` (dasturni yuklash), `wait4` (bolani kutish) — 14-bobda o'zingiz yozgan mexanizmlar.
+
+> **Eslab qoling:** dastur "fayl topilmadi" desa, qaysi fayl? — `strace`. "Osilib qoldi" — `strace -p PID` (oxirgi syscall qayerda to'xtagan).
+
+## 29.8. Binar fayllarni ko'rish
+
+**Oddiy qilib aytganda:** ba'zan manba kod yo'q yoki kompilyator nima hosil qilganini ko'rish kerak. Bunda binar faylni **o'qiladigan** ko'rinishga aylantirish vositalari ishlatiladi. Yadro dasturchisi uchun ayniqsa muhim: PANIC xabaridagi **manzilni** manba qatoriga aylantirish.
+
+| Vosita | Nima qiladi |
+|---|---|
+| `nm -n dastur` | belgilar (funksiya/o'zgaruvchi nomlari) manzil bo'yicha tartiblangan |
+| `addr2line -e dastur -f ADRES` | manzil → funksiya va `fayl:qator` |
+| `objdump -d -M intel dastur` | disassembly (Intel sintaksisi) |
+| `objdump -S dastur` | manba kod bilan aralash (`-g` bilan yig'ilgan bo'lsa) |
+| `readelf -a dastur` | ELF'ning hammasi (22-bob) |
+| `od -A x -t x1z fayl` yoki `xxd fayl` | baytlarni o'n oltilikda |
+
+Yuqoridagi `talaba` dasturi bilan (29.3):
+
+```console
+$ nm -n talaba | grep -E ' [tT] (baholar_kirit|main)$'
+0000000000001169 t baholar_kirit
+000000000000119d T main
+$ addr2line -f -e talaba $(nm talaba | awk '$3=="baholar_kirit"{print $1}') | sed 's#/[^ :]*/##g'
+baholar_kirit
+talaba.c:10
+$ objdump -d -M intel --no-show-raw-insn talaba | sed -n '/<baholar_kirit>:/,/ret/p' | head -12
+0000000000001169 <baholar_kirit>:
+    1169:	endbr64
+    116d:	push   rbp
+    116e:	mov    rbp,rsp
+    1171:	mov    QWORD PTR [rbp-0x18],rdi
+    1175:	mov    DWORD PTR [rbp-0x4],0x0
+    117c:	jmp    1193 <baholar_kirit+0x2a>
+    117e:	mov    rax,QWORD PTR [rbp-0x18]
+    1182:	mov    edx,DWORD PTR [rbp-0x4]
+    1185:	movsxd rdx,edx
+    1188:	mov    DWORD PTR [rax+rdx*4],0x5
+    118f:	add    DWORD PTR [rbp-0x4],0x1
+$ od -A x -t x1z -N 16 talaba
+000000 7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00  >.ELF............<
+000010
+```
+
+**Nima ko'rdik:**
+
+| Buyruq | Natija |
+|---|---|
+| `nm -n` | `baholar_kirit` va `main` manzillari (kichik raqam = bu faylga nisbatan offset) |
+| `addr2line` | shu manzil → funksiya `baholar_kirit` va `talaba.c:10` (funksiya tanasi boshlangan qator) |
+| `objdump -d` | funksiyaning assembly kodi (17-bob): `push rbp`, `mov rbp, rsp`, ... (kompilyator versiyasiga qarab biroz boshqacha bo'lishi mumkin) |
+| `od` | faylning birinchi baytlari: `7f 45 4c 46` = `\x7f ELF` — ELF sehrli raqami (22-bob) |
+
+**`addr2line` — yadro PANIC'ini o'qish:** MyOS PANIC xabarida `RIP=0xffffffff8010abcd` bo'lsa: `addr2line -e build/kernel.elf -f 0xffffffff8010abcd` → funksiya va qator. Stek zanjiridagi har bir manzil uchun takrorlang.
+
+> **Eslab qoling:** PANIC manzili → `addr2line`; "kompilyator nima qildi?" → `objdump -d`; "bu fayl nima?" → `od`/`readelf`.
+
+## 29.9. perf va QEMU vositalari
+
+### perf — dastur vaqti qayerga ketyapti
+
+**Oddiy qilib aytganda:** `perf` protsessorning ichki hisoblagichlarini o'qiydi: nechta takt, nechta buyruq, nechta kesh xatosi, qaysi funksiyada qancha vaqt. **Hayotdan misol:** fitnes-soat. **Qoida:** optimallashtirishdan oldin **o'lchang** — dasturchilarning "qayer sekin" haqidagi taxminlari ko'pincha noto'g'ri.
+
+```bash
+perf stat ./dastur                          # umumiy: taktlar, buyruqlar, kesh xatolari, sakrash xatolari
+perf stat -e cache-misses,cache-references ./dastur
+perf record -g ./dastur && perf report      # qaysi funksiyalar eng ko'p vaqt oladi (chaqiruv zanjirlari bilan)
+perf top                                    # jonli: butun tizimda hozir nima issiq
+```
+
+(Bu bobdagi sinov muhitida `perf` o'rnatilmagan; o'z mashinangizda `perf` paketini o'rnating.) 21-bobdagi matritsa tajribasini `perf stat -e cache-misses` bilan takrorlang.
+
+### QEMU'ning o'z vositalari (yadro uchun)
+
+| Vosita | Nima |
+|---|---|
+| `-d int,cpu_reset -no-reboot` | har bir uzilish/istisno va CPU qayta yuklanishi jurnali — triple fault'ni topish |
+| `-d in_asm` | bajarilgan har bir blok (juda ko'p chiqish) |
+| `-s -S` | gdb server, birinchi buyruqdan oldin to'xtash (`make debug`) |
+| QEMU monitor (`Ctrl-A C` nographic rejimda) | `info registers`, `info mem` (sahifa xaritasi!), `info tlb`, `x/10i $pc`, `info pic` |
+| `-serial stdio` / `-nographic` | serial port chiqishi terminalda |
+
+## 29.10. Tipik holatlar uchun "retsept"lar
+
+| Belgi | Birinchi qadam |
+|---|---|
+| Segmentation fault | ASan bilan qayta yig'ish yoki `gdb` → `run` → `bt` |
+| Qiymat "o'z-o'zidan" o'zgaradi | `watch -l` o'sha o'zgaruvchiga (29.3) |
+| "Fayl topilmadi" / noma'lum xato | `strace` |
+| Dastur osilib qoldi | `gdb -p PID` → `thread apply all bt`; yoki `strace -p PID` |
+| Ba'zan noto'g'ri natija (ko'p oqimli) | TSan; qulflarni tekshirish |
+| Sekin | `perf record` → `perf report` |
+| Xotira o'sib boradi | ASan/valgrind leak hisoboti |
+| "Oldin ishlardi" | `git bisect` (19-bob) |
+| Yadro qayta yuklanib turadi | QEMU `-d int,cpu_reset -no-reboot` |
+| Yadro PANIC | `addr2line` bilan RIP va stek manzillari |
+| Yadro osilib qoldi | `make debug`, `Ctrl-C` gdb'da, `bt`, `info registers` |
+
+## Hayotdan misol va to'liq dastur
+
+**Non ushoqlari.** Ikkilik qidiruv (28-bob) dasturi: `-DDEBUG` bilan yig'ilsa — dastur qaysi yo'ldan o'tganini yozadi (non ushoqlari), usiz — jim ishlaydi. `assert` esa kutilmagan holatni darhol to'xtatadi.
+
+**Bu dastur nima qiladi (umumiy):** narxlar saralangan massivida uchta narxni (12000, 1500, 8000) ikkilik qidiruv bilan qidiradi va topilgan o'rinni yoki "topilmadi" ni chiqaradi. `-DDEBUG` bilan har qidiruv qadamini `stderr` ga yozadi.
 
 ```c
 /* izlar.c - DEBUG izlari va assert: dastur qaysi yo'ldan o'tganini ko'rish */
@@ -109,179 +732,47 @@ $ ./izlar_debug 2>&1 | head -6
   [iz] 4-qadam: chap=6 ong=6 orta=6 a[orta]=12000
   [iz] 1-qadam: chap=0 ong=9 orta=4 a[orta]=7800
   [iz] 2-qadam: chap=0 ong=3 orta=1 a[orta]=3000
-$ gdb -q -batch -ex 'break qidir' -ex run -ex 'print n' -ex 'print x' -ex bt ./izlar 2>&1 | grep -E '^\$|^#'
+$ gdb -q -batch -ex 'break qidir' -ex run -ex 'print n' -ex 'print x' -ex bt ./izlar 2>&1 | grep -E '^\$|^#' | sed 's/0x[0-9a-f]\{6,\}/0xADRES/g'
 $1 = 10
 $2 = 12000
-#0  qidir (a=0x7fffffffc8f0, n=10, x=12000) at izlar.c:15
-#1  0x000055555555530c in main () at izlar.c:37
+#0  qidir (a=0xADRES, n=10, x=12000) at izlar.c:15
+#1  0xADRES in main () at izlar.c:37
 ```
 
-Oxirgi buyruq: gdb `qidir` funksiyasida to'xtadi, argumentlarni ko'rsatdi va `bt` bilan "bu yerga
-`main` dan keldik" degan zanjirni chiqardi.
+**Qismlar:**
 
-**Sinab ko'ring:** `ong = orta - 1;` ni `ong = orta;` qiling va 8000 ni qidiring — dastur nega to'xtamaydi?
-`-DDEBUG` bilan izlarni o'qib, sababini toping. (Ctrl+C bilan to'xtating.)
-
-## 29.1. Debug usuli — asbobdan oldin fikr
-
-1. **Takrorlang.** Xatoni har safar chiqadigan qiling (kirish, buyruq, qadamlar). Takrorlanmaydigan xato
-   tuzatilmaydi — faqat yashiriladi.
-2. **Kichraytiring.** Xatoni ko'rsatadigan eng kichik kirish/kodni toping (ikkilik bo'lish usuli: yarmini
-   olib tashlang — xato qoldimi?).
-3. **Faraz qiling va tekshiring.** "Menimcha x bu yerda NULL" → `print` yoki `assert` bilan tasdiqlang.
-   Farazlarsiz tasodifiy o'zgartirishlar — vaqtni yo'qotish.
-4. **Birinchi noto'g'ri narsani toping**, oxirgisini emas. Qulash — oqibat; sabab ancha oldinda
-   (masalan, bufer to'lishi 1000 qator oldin bo'lgan).
-5. **Tuzatgach — test qo'shing.** Xato qaytib kelmasin.
-6. **"Rezina o'rdak":** muammoni kimgadir (yoki o'yinchoqqa) ovoz chiqarib tushuntiring — ko'pincha
-   tushuntirish paytida o'zingiz topasiz.
-
-## 29.2. `printf` / `kprintf` — hali ham eng ko'p ishlatiladigan vosita
-
-```c
-fprintf(stderr, "[debug] %s:%d n=%zu p=%p\n", __FILE__, __LINE__, n, (void *)p);
-```
-
-`stderr` — buferlanmaydi (qulashdan oldin ham chiqadi). Yadroda — `kprintf` (serial port + dmesg).
-Muhim o'zgaruvchilarni **funksiya kirish/chiqishida** chiqarish ko'pincha gdb'dan tezroq natija beradi.
-
-## 29.3. gdb chuqur
-
-```bash
-gcc -g -O0 dastur.c -o dastur
-gdb --args ./dastur arg1 arg2
-```
-
-| Buyruq | Nima |
+| Qism | Vazifasi |
 |---|---|
-| `break fayl.c:42` / `b funksiya` | to'xtash nuqtasi |
-| `break 42 if i == 1000` | **shartli** to'xtash — sikl ichidagi 1000-aylanishda |
-| `watch x` / `watch -l p->qiymat` | **watchpoint**: o'zgaruvchi O'ZGARGANDA to'xtash — "buni kim buzdi?" savolining javobi |
-| `rwatch`, `awatch` | o'qilganda / har qanday murojaatda |
-| `run`, `continue` (`c`), `next` (`n`), `step` (`s`), `finish` | boshqarish |
-| `until 50` | 50-qatorgacha (siklni tugatish) |
-| `bt` / `bt full` | chaqiruvlar zanjiri (+ lokal o'zgaruvchilar) |
-| `frame 3`, `up`, `down` | zanjir bo'ylab yurish |
-| `print *p`, `print a[0]@10` | qiymat; massivning 10 ta elementi |
-| `print/x val`, `x/16xb p` | o'n oltilikda; xotirani baytlab ko'rish |
-| `info registers`, `x/10i $rip` | registrlar; keyingi 10 buyruq |
-| `display i` | har qadamda avtomatik ko'rsatish |
-| `set var x = 5` | ish vaqtida o'zgaruvchini o'zgartirish |
-| `layout src` / `layout asm` / `tui enable` | matnli interfeys: kod va assembly yonma-yon |
-| `thread apply all bt` | hamma oqimlarning zanjiri (deadlock'da!) |
+| `#ifdef DEBUG` ... `#define IZ(...)` | `-DDEBUG` bilan `IZ` — `stderr` ga yozuvchi; usiz — hech narsa qilmaydigan (lekin kompilyator argumentlarni baribir tekshiradi) |
+| `__VA_ARGS__` | makroga berilgan hamma argumentlarni `fprintf` ga uzatadi (`printf` kabi o'zgaruvchan sonli argument) |
+| `assert(orta >= 0 && orta < n)` | shart yolg'on bo'lsa — dastur xato xabari bilan to'xtaydi (chegaradan chiqishni darhol ushlash) |
+| `IZ(...)` qatori | har qadamda `chap`, `ong`, `orta`, `a[orta]` ni ko'rsatadi |
 
-**Core dump** — qulagan dasturning xotira "surati":
+**Nima ko'rdik:** oddiy ishga tushirishda faqat natija; `-DDEBUG` bilan har qidiruv qadami ko'rindi — `12000` uchun 4 qadam (`orta`: 4 → 7 → 5 → 6), `1500` uchun `chap` doim 0 bo'lib, chapga siljish. Oxirgi buyruq: gdb `qidir` funksiyasida to'xtadi, argumentlarni ko'rsatdi va `bt`
+bilan "bu yerga `main` dan keldik" zanjirini chiqardi.
 
-```bash
-ulimit -c unlimited              # core fayllarga ruxsat
-./dastur                          # Segmentation fault (core dumped)
-gdb ./dastur core                 # qulagan paytdagi holat: bt, print...
-```
+**Sinab ko'ring:** `ong = orta - 1;` ni `ong = orta;` qiling va 8000 ni qidiring — dastur nega to'xtamaydi? `-DDEBUG` bilan izlarni o'qib, sababini toping (`timeout 2 ./izlar_debug 2>&1 | head` bilan to'xtating).
 
-(Zamonaviy Linux'da core'lar `systemd-coredump` ga tushishi mumkin: `coredumpctl gdb`.)
+## Bob xulosasi (yodlash uchun)
 
-**Osilib qolgan dasturga ulanish:** `gdb -p PID`, keyin `thread apply all bt` — hamma oqim qayerda kutyapti.
+1. **Usul asbobdan muhim:** takrorla → kichraytir → faraz qil → tekshir → tuzat → test qo'sh. **Birinchi** noto'g'ri holatni qidiring, qulash joyini emas.
+2. **gdb:** `break`, `run`, `bt`, `print`, `frame`; **`watch`** — "buni kim buzdi?"; core dump — qulashning surati; `-g -O0` bilan yig'ing.
+3. **Sanitizer'lar:** ASan (xotira), UBSan (UB, massiv chegarasi), TSan (poyga) — xatoni sodir bo'lgan zahoti qator bilan ko'rsatadi; hech biri hammasini topmaydi, birga ishlating.
+4. **valgrind** (qayta yig'masdan, sekin, boshlanmagan qiymatni ham), **strace** (dastur ↔ OS: "qaysi fayl?", "qayerda osildi?"), **perf** (avval o'lchang).
+5. Binar: `nm`, `objdump -d`, `addr2line` (PANIC manzili → qator), `od`/`readelf`. Yadro: QEMU `-d int,cpu_reset`, `make debug`.
 
-**Yadroni debug qilish** (MyOS): `make debug` — QEMU gdb'ni kutadi; boshqa terminalda `gdb -x tools/gdbinit`.
-Xuddi shu buyruqlar yadroda ham ishlaydi: `break kmain`, `break mm_handle_fault` (page fault), `break handle_exception`, `bt`, `info registers`.
-`docs/08-test-debug.md` — batafsil.
+## Savol-javob
 
-## 29.4. Sanitizer'lar
+**Savol:** `printf` bilan debug qilish "ibtidoiy"mi?
+**Javob:** Yo'q — yadroda (`kprintf`) va ko'p production tizimlarda asosiy vosita. Gdb ishlamaydigan joylarda (boot, uzilish ishlovchisi, taymingga sezgir kod) izlar ba'zan yagona yo'l.
 
-| Bayroq | Nima topadi | Sekinlashish |
-|---|---|---|
-| `-fsanitize=address` (ASan) | chegaradan chiqish, use-after-free, double free, leak | ~2x |
-| `-fsanitize=undefined` (UBSan) | toshish, noto'g'ri surish, NULL, tekislanmagan | kam |
-| `-fsanitize=thread` (TSan) | poyga holatlari | 5–15x (ASan bilan birga emas) |
-| `-fsanitize=memory` (MSan, faqat clang) | boshlanmagan xotirani o'qish | 3x |
+**Savol:** Nega xato chiqarmagan sanitizer "xato yo'q" degani emas?
+**Javob:** Sanitizer faqat **bajarilgan yo'ldagi** xatolarni ko'radi va o'z toifasini biladi (29.3 da ASan struktura ichidagi chiqishni ko'rmadi). Test qamrovi va bir nechta vosita kerak.
 
-Mashqlardagi tekshiruvchi ASan + UBSan ishlatadi. Ko'p oqimli kodni (29, 34, 38, 44, 45-mashqlar)
-qo'shimcha ravishda TSan bilan sinang:
+**Savol:** `-O2` bilan gdb "optimized out" desa nima qilish kerak?
+**Javob:** Debug uchun `-O0 -g` bilan qayta yig'ing; xato faqat `-O2` da bo'lsa — bu odatda UB belgisi (13-bob); `-O2 -g` + `-fsanitize=undefined` sinang.
 
-```bash
-gcc -g -fsanitize=thread -pthread -Imashqlar -Imashqlar/29_oqimlar \
-    mashqlar/29_oqimlar/yechim.c mashqlar/29_oqimlar/test.c -o t29 && ./t29
-```
-
-Linux yadrosida analoglari: KASAN, UBSAN, KCSAN.
-
-## 29.5. Valgrind
-
-```bash
-valgrind --leak-check=full --track-origins=yes ./dastur
-```
-
-Qayta kompilyatsiyasiz ishlaydi (dasturni virtual CPU'da bajaradi — 20–50x sekin). Boshlanmagan
-qiymatlardan foydalanishni ham topadi (`--track-origins` — qayerdan kelgan). `valgrind --tool=callgrind`
-— qaysi funksiya qancha buyruq bajarayotgani.
-
-## 29.6. strace va ltrace — dastur OS bilan nima gaplashyapti
-
-```bash
-strace ./dastur                  # hamma syscall'lar: open, read, write, mmap...
-strace -e trace=openat,read ls   # faqat tanlanganlari
-strace -f -p PID                 # ishlayotgan jarayonga (bolalari bilan)
-strace -c ./dastur               # statistika: qaysi syscall necha marta, qancha vaqt
-ltrace ./dastur                  # kutubxona funksiyalari chaqiruvlari
-```
-
-"Dastur nega bu faylni topmayapti?", "qayerda osilib qoldi?" (oxirgi syscall — `read` yoki `futex` da kutyapti)
-kabi savollarga kodni o'qimasdan javob beradi. 14-bobdagi tushunchalarni jonli ko'rish uchun ajoyib:
-`strace -f sh -c 'ls | wc -l'` — `pipe`, `clone`, `dup2`, `execve`, `wait4` ni ko'rasiz.
-
-## 29.7. Binar fayllarni ko'rish
-
-```bash
-objdump -d -M intel dastur        # disassembly (Intel sintaksisi)
-objdump -S dastur                 # manba kod bilan aralash (-g bilan kompilyatsiya qilingan bo'lsa)
-readelf -a dastur                 # ELF'ning hammasi (22-bob)
-nm -n dastur                      # belgilar manzil bo'yicha tartiblangan
-addr2line -e dastur -f 0x401136   # manzil -> funksiya va fayl:qator
-xxd fayl | head                   # baytlarni o'n oltilikda
-```
-
-**addr2line — yadro PANIC'ini o'qish:** MyOS PANIC xabarida `RIP=0xffffffff8010abcd` bo'lsa:
-`addr2line -e build/kernel.elf -f 0xffffffff8010abcd` → funksiya va qator. Stek zanjiridagi har bir
-manzil uchun takrorlang.
-
-## 29.8. perf — dastur vaqti qayerga ketyapti
-
-```bash
-perf stat ./dastur                          # umumiy: taktlar, buyruqlar, kesh xatolari, sakrash xatolari
-perf stat -e cache-misses,cache-references ./dastur
-perf record -g ./dastur && perf report      # qaysi funksiyalar eng ko'p vaqt oladi (chaqiruv zanjirlari bilan)
-perf top                                    # jonli: butun tizimda hozir nima issiq
-```
-
-**Qoida:** optimallashtirishdan oldin o'lchang. Dasturchilarning "qayer sekin" haqidagi taxminlari
-ko'pincha noto'g'ri. 21-bobdagi matritsa tajribasini `perf stat -e cache-misses` bilan takrorlang.
-
-## 29.9. QEMU'ning o'z vositalari (yadro uchun)
-
-| Vosita | Nima |
-|---|---|
-| `-d int,cpu_reset -no-reboot` | har bir uzilish/istisno va CPU qayta yuklanishi jurnali — triple fault'ni topish |
-| `-d in_asm` | bajarilgan har bir blok (juda ko'p chiqish) |
-| `-s -S` | gdb server, birinchi buyruqdan oldin to'xtash (`make debug`) |
-| QEMU monitor (`Ctrl-A C` nographic rejimda) | `info registers`, `info mem` (sahifa xaritasi!), `info tlb`, `x/10i $pc`, `info pic` |
-| `-serial stdio` / `-nographic` | serial port chiqishi terminalda |
-
-## 29.10. Tipik holatlar uchun "retsept"lar
-
-| Belgi | Birinchi qadam |
-|---|---|
-| Segmentation fault | ASan bilan qayta yig'ish yoki `gdb` → `run` → `bt` |
-| Qiymat "o'z-o'zidan" o'zgaradi | `watch -l` o'sha o'zgaruvchiga |
-| Dastur osilib qoldi | `gdb -p PID` → `thread apply all bt`; yoki `strace -p PID` |
-| Ba'zan noto'g'ri natija (ko'p oqimli) | TSan; qulflarni tekshirish |
-| Sekin | `perf record` → `perf report` |
-| Xotira o'sib boradi | ASan/valgrind leak hisoboti |
-| "Oldin ishlardi" | `git bisect` (19-bob) |
-| Yadro qayta yuklanib turadi | QEMU `-d int,cpu_reset -no-reboot` |
-| Yadro PANIC | `addr2line` bilan RIP va stek manzillari |
-| Yadro osilib qoldi | `make debug`, `Ctrl-C` gdb'da, `bt`, `info registers` |
-
-## 29.11. O'zingizni tekshiring
+## O'zingizni tekshiring
 
 1. "Bu o'zgaruvchini kim o'zgartiryapti?" — qaysi gdb buyrug'i?
 2. Dastur osilib qoldi — qaysi ikkita vosita bilan qayerda turganini ko'rasiz?
@@ -298,10 +789,10 @@ ko'pincha noto'g'ri. 21-bobdagi matritsa tajribasini `perf stat -e cache-misses`
 5. O'lchash (`perf`) — sekin joyni aniq topish.
 </details>
 
-## 29.12. Mashq
+## Mashq
 
 - 18-mashqni ASan'siz yig'ib, `valgrind` bilan xatolarni toping — hisobotlarni solishtiring.
-- `strace -f sh -c 'ls | wc -l'` chiqishida `pipe`, `clone`, `dup2`, `execve` qatorlarini topib, 14-bob bilan bog'lang.
+- `strace -f sh -c 'ls | wc -l'` chiqishida `pipe2`, `clone`, `dup2`, `execve` qatorlarini topib, 14-bob bilan bog'lang.
 - MyOS'da: `make run-nographic APPEND=demo=uaf` — slab qanday ushlashini ko'ring; `make debug` bilan `kmain` da to'xtab, `bt` va `info registers` ni sinang.
 
 <!-- loyiha:boshi -->
