@@ -1,0 +1,16 @@
+=== MAOSH VARAQASI ===
+Xodim:                        Aziza
+ID:                          1042-3
+Imzo kodi:                       43
+Oddiy soat:                     160 soat
+Qo'shimcha soat:                 12 soat
+Soatlik tarif:             25000.50 so'm
+Asosiy ish haqi:         4000080.00 so'm
+Ustama (x1.5):            450009.00 so'm
+Brutto:                  4450089.00 so'm
+Soliq (12%):              534010.68 so'm
+Kasaba (1%):               44500.89 so'm
+Qo'lga tegadi:           3871577.43 so'm
+Yillik (int64_t):       46458929.16 so'm
+Yillik (int32_t):         350925620 tiyin (XATO!)
+

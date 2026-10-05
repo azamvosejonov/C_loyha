@@ -1,0 +1,11 @@
+=== MAOSH VARAQASI ===
+Xodim:                   Aziza
+Oddiy soat:                160 soat
+Qo'shimcha soat:            12 soat
+Soatlik tarif:           25000 so'm
+Asosiy ish haqi:       4000000 so'm
+Ustama (x1.5):          450000 so'm
+Brutto:                4450000 so'm
+Soliq (12%):            534000 so'm
+Kasaba (1%):             44500 so'm
+Qo'lga tegadi:         3871500 so'm

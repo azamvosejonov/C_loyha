@@ -33,6 +33,10 @@ Boblarni bitta **o'sib boradigan dastur** bog'laydi: **Ombor** (mahsulotlar ombo
 
 13–31-boblarning har birida ham o'zining **katta loyihasi** bor (fuzzer, shell, fayl tizimi, mini-yadro, `malloc` kuzatuvchisi va h.k. — jadval: [katta_loyiha/README.md](katta_loyiha/README.md)). Har bobda: **umumiy fikr → kod → haqiqiy chiqish → tushuntirish → o'zingiz qo'shing (yechimsiz)**.
 
+## Birlashtiruvchi loyihalar
+
+Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashtiruvchi/README.md). Birinchisi — **Maosh hisobchisi** (0–2-boblar).
+
 ## Mundarija
 
 | Bob | Mavzu | Mashqlar |

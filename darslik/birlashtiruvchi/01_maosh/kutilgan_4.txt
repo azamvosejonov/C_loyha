@@ -1,0 +1,69 @@
+=== MAOSH VARAQASI ===
+Xodim:                        Aziza
+ID:                          1042-3
+Imzo kodi:                       43
+Oddiy soat:                     160 soat
+Qo'shimcha soat:                 12 soat
+Soatlik tarif:             25000.50 so'm
+Asosiy ish haqi:         4000080.00 so'm
+Ustama (x1.5):            450009.00 so'm
+Brutto:                  4450089.00 so'm
+Soliq (12%):              534010.68 so'm
+Kasaba (1%):               44500.89 so'm
+Qo'lga tegadi:           3871577.43 so'm
+Yillik (int64_t):       46458929.16 so'm
+Yillik (int32_t):         350925620 tiyin (XATO!)
+
+=== MAOSH VARAQASI ===
+Xodim:                        Bobur
+ID:                          2087-5
+Imzo kodi:                       53
+Oddiy soat:                     152 soat
+Qo'shimcha soat:                  0 soat
+Soatlik tarif:             31500.00 so'm
+Asosiy ish haqi:         4788000.00 so'm
+Ustama (x1.5):                 0.00 so'm
+Brutto:                  4788000.00 so'm
+Soliq (12%):              574560.00 so'm
+Kasaba (1%):               47880.00 so'm
+Qo'lga tegadi:           4165560.00 so'm
+Yillik (int64_t):       49986720.00 so'm
+Yillik (int32_t):         703704704 tiyin (XATO!)
+
+=== MAOSH VARAQASI ===
+Xodim:                      Dilnoza
+ID:                          3150-1
+Imzo kodi:                       45
+Oddiy soat:                     168 soat
+Qo'shimcha soat:                 24 soat
+Soatlik tarif:             18750.50 so'm
+Asosiy ish haqi:         3150084.00 so'm
+Ustama (x1.5):            675018.00 so'm
+Brutto:                  3825102.00 so'm
+Soliq (12%):              459012.24 so'm
+Kasaba (1%):               38251.02 so'm
+Qo'lga tegadi:           3327838.74 so'm
+Yillik (int64_t):       39934064.88 so'm
+Yillik (int32_t):        -301560808 tiyin (XATO!)
+
+=== MAOSH VARAQASI ===
+Xodim:                       Sardor
+ID:                          9999-6
+Imzo kodi:                       72
+Oddiy soat:                     160 soat
+Qo'shimcha soat:                 40 soat
+Soatlik tarif:          12500000.75 so'm
+Asosiy ish haqi:      2000000120.00 so'm
+Ustama (x1.5):         750000045.00 so'm
+Brutto:               2750000165.00 so'm
+Soliq (12%):           330000019.80 so'm
+Kasaba (1%):            27500001.65 so'm
+Qo'lga tegadi:        2392500143.55 so'm
+Yillik (int64_t):    28710001722.60 so'm
+Yillik (int32_t):        1962018532 tiyin (XATO!)
+
+=== JAMI ===
+Brutto:               2763063356.00 so'm
+Soliq:                 331567602.72 so'm
+Kasaba:                 27630633.56 so'm
+Qo'lga tegadi:        2403865119.72 so'm
