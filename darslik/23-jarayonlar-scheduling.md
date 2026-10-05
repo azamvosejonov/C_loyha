@@ -457,6 +457,209 @@ haqiqiy tizimda har bir almashish vaqt oladi.
 
 **Sinab ko'ring:** `kerak` massivini `{ 2, 4, 8 }` qiling (qisqasi birinchi) — FCFS natijasi qanday o'zgaradi? Bu aynan SJF. `kerak` ga to'rtinchi jarayon qo'shing (`J` ni ham o'zgartiring).
 
+<!-- katta:boshi -->
+## Katta loyiha: rejalashtiruvchi laboratoriyasi (FIFO, SJF, Round Robin, ustuvorlik, aging)
+
+**Umumiy fikr.** CPU bitta, jarayonlar ko'p. Kim **qachon** ishlasin? Bu savolga javob beradigan qoida — **rejalashtirish siyosati**. 23-bobda har birini ko'rdik; bu bosqichda hammasini **bitta simulyatorda** yozamiz va bir xil ishlar to'plamida **solishtiramiz**.
+
+**Hayotiy o'xshatish:** bitta kassa va navbat. Kim oldin kelsa — oldin (FIFO). Eng kam mahsulotlisi — oldin (SJF). Har kimga 3 daqiqadan (Round Robin). Nogironlar va keksalar oldin (ustuvorlik).
+
+### Kirish: ishlar ro'yxati
+
+`ishlar.txt` — har qator: **nom, kelish vaqti, kerakli CPU vaqti, ustuvorlik** (kichik son = muhimroq):
+
+```text
+A 0 8 3
+B 1 4 1
+C 2 9 2
+D 3 5 1
+E 4 2 5
+```
+
+Masalan `A`: 0-tikda keladi, 8 tik CPU kerak, ustuvorligi 3.
+
+### Dastur tuzilishi (umumiy)
+
+Simulyator **tik-tik** ishlaydi. Har tikda: (1) siyosatdan so'raymiz — *"keyingi tikda kim ishlasin?"*, (2) tanlangan ish bitta tik ishlaydi, (3) statistikani yangilaymiz. **Siyosat — oddiy funksiya** (`int (*)(struct sim *)`, funksiya ko'rsatkichi, 7-bob): bir xil simulyator uchun **funksiyani almashtirish** yetarli.
+
+```c
+struct is {
+    char nom[8];
+    int kelish, davom, ustuvor;                 /* kirish ma'lumoti: kelish vaqti, kerakli CPU vaqti, ustuvorlik (kichik = muhim) */
+    int qoldi;                                  /* hali bajarilishi kerak bo'lgan vaqt */
+    int birinchi, tugadi;                       /* birinchi marta ishga tushgan va tugagan vaqt (-1: hali emas) */
+    int kutdi;                                  /* aging uchun: ketma-ket kutgan tiklar */
+    int hozirgi_ustuvor;
+};
+```
+
+```c
+typedef int (*siyosat)(struct sim *s);
+```
+
+**Siyosatlar:**
+
+```c
+static int fifo(struct sim *s)
+{
+    if (s->joriy >= 0 && s->is[s->joriy].qoldi > 0)
+        return s->joriy;                        /* nopreemptiv: boshlangan ish tugamaguncha turadi */
+    int eng = -1;
+    for (int i = 0; i < s->n; i++)
+        if (tayyor(s, i) && (eng < 0 || s->is[i].kelish < s->is[eng].kelish))
+            eng = i;                            /* eng erta kelgan */
+    return eng;
+}
+```
+
+```c
+static int rr(struct sim *s)
+{
+    if (s->joriy >= 0 && s->is[s->joriy].qoldi > 0 && s->kvant_ishlatdi < s->kvant)
+        return s->joriy;                        /* kvant hali tugamagan */
+    if (s->joriy >= 0 && s->is[s->joriy].qoldi > 0)
+        s->navbat[s->oxir++] = s->joriy;        /* kvant tugadi, ish tugamagan: navbat OXIRIGA */
+    s->kvant_ishlatdi = 0;
+    return s->bosh < s->oxir ? s->navbat[s->bosh++] : -1;
+}
+```
+
+```c
+static int ustuvorlik(struct sim *s)            /* preemptiv ustuvorlik: har tikda eng muhimini tanlaymiz */
+{
+    int eng = -1;
+    for (int i = 0; i < s->n; i++) {
+        if (!tayyor(s, i))
+            continue;
+        if (eng < 0 || s->is[i].hozirgi_ustuvor < s->is[eng].hozirgi_ustuvor)
+            eng = i;
+    }
+    return eng;
+}
+```
+
+**Aging (qarish) nima?** Ustuvorlik siyosatida past ustuvorlikli ish **abadiy kutib qolishi** mumkin (*starvation* — ocharchilik). Davosi: ish kutgan sari uning ustuvorligi **oshiriladi**. Bizda: har 2 tik kutishda **bir pog'ona** muhimroq bo'ladi, ishlagach — asl ustuvorligiga qaytadi:
+
+```c
+static void yurgiz(struct sim *s, siyosat tanla, char *gantt)
+{
+    int bajarildi = 0;
+    for (s->t = 0; bajarildi < s->n && s->t < MAKS_VAQT; s->t++) {
+        for (int i = 0; i < s->n; i++)          /* RR: shu tikda kelgan ishlar navbatga qo'shiladi (preempt qilinganlardan OLDIN) */
+            if (s->is[i].kelish == s->t && tanla == rr)
+                s->navbat[s->oxir++] = i;
+
+        int k = tanla(s);
+        s->joriy = k;
+        if (k < 0) {
+            gantt[s->t] = '.';                  /* CPU bo'sh */
+            continue;
+        }
+        struct is *p = &s->is[k];
+        if (p->birinchi < 0)
+            p->birinchi = s->t;
+        gantt[s->t] = p->nom[0];
+        p->qoldi--;
+        p->kutdi = 0;
+        p->hozirgi_ustuvor = p->ustuvor;         /* ishlagan ish asl ustuvorligiga QAYTADI (aging faqat kutganlarga) */
+        s->kvant_ishlatdi++;
+        if (p->qoldi == 0) {
+            p->tugadi = s->t + 1;
+            bajarildi++;
+        }
+
+        for (int i = 0; i < s->n; i++)          /* aging: kutganlar har 2 tikda bir pog'ona "muhimroq" bo'ladi */
+            if (i != k && tayyor(s, i) && s->aging && ++s->is[i].kutdi % 2 == 0 && s->is[i].hozirgi_ustuvor > 0)
+                s->is[i].hozirgi_ustuvor--;
+    }
+    gantt[s->t] = '\0';
+}
+```
+
+**Ko'rsatkichlar (hisobot):**
+
+| Ko'rsatkich | Formulasi | Nimani o'lchaydi |
+|---|---|---|
+| **aylanish** (turnaround) | tugadi − kelish | ish qancha vaqtda **butunlay** bitdi |
+| **javob** (response) | birinchi ishlagan − kelish | foydalanuvchi **qancha kutib** birinchi reaksiyani ko'rdi |
+| **kutish** (waiting) | aylanish − davom | tayyor turib ishlamagan vaqt |
+
+Ishga tushiramiz:
+
+```console
+$ cd katta_loyiha/tizim/23_sched_lab
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined sched_lab.c -o sched_lab
+$ ./sched_lab ishlar.txt
+== FIFO (kim oldin kelsa) ==
+  AAAAAAAABBBBCCCCCCCCCDDDDDEE
+  ish  kelish davom  boshlandi tugadi  aylanish javob kutish
+  A        0     8         0      8        8     0     0
+  B        1     4         8     12       11     7     7
+  C        2     9        12     21       19    10    10
+  D        3     5        21     26       23    18    18
+  E        4     2        26     28       24    22    22
+  o'rtacha: aylanish 17.00, javob 11.40, kutish 11.40
+== SJF (eng qisqa ish birinchi, nopreemptiv) ==
+  AAAAAAAAEEBBBBDDDDDCCCCCCCCC
+  ish  kelish davom  boshlandi tugadi  aylanish javob kutish
+  A        0     8         0      8        8     0     0
+  B        1     4        10     14       13     9     9
+  C        2     9        19     28       26    17    17
+  D        3     5        14     19       16    11    11
+  E        4     2         8     10        6     4     4
+  o'rtacha: aylanish 13.80, javob 8.20, kutish 8.20
+== Round Robin (kvant = 3) ==
+  AAABBBCCCDDDAAAEEBCCCDDAACCC
+  ish  kelish davom  boshlandi tugadi  aylanish javob kutish
+  A        0     8         0     25       25     0    17
+  B        1     4         3     18       17     2    13
+  C        2     9         6     28       26     4    17
+  D        3     5         9     23       20     6    15
+  E        4     2        15     17       13    11    11
+  o'rtacha: aylanish 20.20, javob 4.60, kutish 14.60
+== Ustuvorlik (preemptiv, aging YO'Q) ==
+  ABBBBDDDDDCCCCCCCCCAAAAAAAEE
+  ish  kelish davom  boshlandi tugadi  aylanish javob kutish
+  A        0     8         0     26       26     0    18
+  B        1     4         1      5        4     0     0
+  C        2     9        10     19       17     8     8
+  D        3     5         5     10        7     2     2
+  E        4     2        26     28       24    22    22
+  o'rtacha: aylanish 15.60, javob 6.40, kutish 10.00
+== Ustuvorlik (preemptiv, aging BOR) ==
+  ABBBBDCADCDDACDECACCACCAECAA
+  ish  kelish davom  boshlandi tugadi  aylanish javob kutish
+  A        0     8         0     28       28     0    20
+  B        1     4         1      5        4     0     0
+  C        2     9         6     26       24     4    15
+  D        3     5         5     15       12     2     7
+  E        4     2        15     25       21    11    19
+  o'rtacha: aylanish 17.80, javob 3.40, kutish 12.20
+```
+
+**Gantt diagrammasini o'qish.** `AAAAAAAABBBBCCCC...` — har harf = bir tik. Masalan FIFO da: A 8 tik ishladi, keyin B 4 tik... Round Robin da: `AAABBBCCCDDDAAAEE...` — har kim 3 tikdan **navbat bilan**.
+
+**Nima ko'rdik (xulosalar):**
+
+| Siyosat | O'rtacha aylanish | O'rtacha javob | Fikr |
+|---|---|---|---|
+| FIFO | 17.00 | 11.40 | oddiy, lekin uzun ish (`C`) **boshqalarni kuttiradi** ("konvoy effekti") |
+| SJF | **13.80** | 8.20 | **eng kam o'rtacha aylanish** (nazariy isbotlangan), lekin ishlarning davomini **oldindan bilish** kerak va uzun ishlar och qolishi mumkin |
+| Round Robin (kvant 3) | 20.20 | **4.60** | aylanish yomon (ko'p almashinuv), lekin **javob eng yaxshi** — interaktiv tizimlarga mos |
+| Ustuvorlik (aging yo'q) | 15.60 | 6.40 | muhim ishlar tez bitdi, lekin `E` (ustuvorligi 5) **26-tikgacha kutdi** (kutish 22) — ocharchilik belgisi |
+| Ustuvorlik (aging bor) | 17.80 | **3.40** | `E` **15-tikda** boshladi (aging yo'qda 26-tikda): javob 11 (22 edi), kutish 19 (22 edi) — ocharchilik yumshadi |
+
+Bir xil ishlarda siyosat **o'rtacha ko'rsatkichlarni** va **adolatni** keskin o'zgartiradi: universal "eng yaxshi" siyosat **yo'q**, kelishuv bor: tezlik ↔ adolat ↔ javob berish vaqti. Linux **CFS/EEVDF** shu g'oyalarning murakkab birlashmasi.
+
+> **Eslab qoling:** rejalashtirish = **siyosat** (kim keyingi?) + **mexanizm** (kontekst almashish). Siyosatni funksiya ko'rsatkichi bilan **almashtiriladigan** qiling. Ko'rsatkichlar: **aylanish**, **javob**, **kutish**. Ustuvorlik **aging** siz — ocharchilikka olib keladi. Bitta o'lchov bo'yicha "eng yaxshi" siyosat boshqasi bo'yicha eng yomoni bo'lishi mumkin.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `ishlar.txt` ga **uzun** ish (`F 0 30 1`) qo'shing: FIFO va SJF da qisqa ishlarning kutishi qanday o'zgaradi? (konvoy effekti)
+2. Round Robin da kvantni 1, 3 va 8 ga o'zgartirib jadvalni solishtiring. Kvant juda **kichik** bo'lsa, haqiqiy tizimda nima yomonlashadi (kontekst almashish narxi)?
+3. **SRTF** (eng qisqa *qolgan* vaqt, preemptiv SJF) siyosatini yozing: `sjf` dan farqi — har tikda qayta tanlash va `davom` o'rniga `qoldi` ni solishtirish.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Jarayon** — "virtual CPU": o'z xotirasi + CPU holati + OS resurslari; illyuziya **vaqtni bo'lish** (kvant ~1–10 ms) bilan yaratiladi. **Mexanizm** (qanday almashtirish) va **siyosat** (qaysi birini) farqlanadi.

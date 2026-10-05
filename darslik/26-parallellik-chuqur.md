@@ -1022,6 +1022,206 @@ Oqimlar har safar boshqa tartibda ishlaydi, lekin natija doim bir xil: 10 ta non
 
 **Sinab ko'ring:** `while (soni == SIGIM)` ni `if (soni == SIGIM)` ga almashtiring. Nega bu xavfli (ikki novvoy bir signal bilan uyg'onsa nima bo'ladi)? `SIGIM` ni 1 qiling — dastur hali ham to'g'ri ishlaydimi?
 
+<!-- katta:boshi -->
+## Katta loyiha: oqimlar puli (thread pool)
+
+**Umumiy fikr.** Har kichik ish uchun yangi oqim yaratish **qimmat** (oqim yaratish ~10–50 mikrosekund). Shuning uchun **oqimlar puli**: bir necha **ishchi oqim** boshida yaratiladi va **topshiriqlar navbati**dan ishlarni olib turadi. Veb-serverlar, ma'lumotlar bazalari, brauzerlar — hammasida shunday. 26-bobdagi **mutex**, **shart o'zgaruvchisi** (condvar) va **ishlab chiqaruvchi–iste'molchi** g'oyalari shu yerda birlashadi.
+
+**Hayotiy o'xshatish:** oshxona. 4 ta oshpaz (ishchilar), buyurtmalar taxtasi (navbat). Ofitsiant buyurtmani taxtaga ilib qo'yadi; bo'sh oshpaz uni oladi. Taxta to'lsa — ofitsiant **kutadi**; taxta bo'sh bo'lsa — oshpazlar **kutadi**.
+
+### Interfeys
+
+Foydalanuvchi uchun faqat uch funksiya. `struct pool` ning ichi **yashirin** (opaque tur, 11-bob):
+
+```c
+/* pool.h - oqimlar puli (thread pool): ishchilar navbatdan topshiriq oladi. Navbat CHEGARALANGAN: to'lsa yuboruvchi kutadi */
+#ifndef POOL_H
+#define POOL_H
+
+typedef void (*topshiriq_fn)(void *arg);
+
+struct pool;
+
+struct pool *pool_yarat(int ishchilar, int navbat_sigimi);
+int pool_yubor(struct pool *p, topshiriq_fn f, void *arg);    /* 0 - OK; navbat to'la bo'lsa joy bo'shaguncha KUTADI; -1 - pool yopilgan */
+void pool_tugat(struct pool *p);                              /* navbatdagi hamma ishni tugatadi, ishchilarni to'xtatadi, xotirani qaytaradi */
+
+#endif
+```
+
+### Dizayn
+
+| Element | Vazifasi |
+|---|---|
+| `qulf` (mutex) | navbatni **bir vaqtda bitta oqim** o'zgartiradi |
+| `navbat` (aylanma bufer) | chegaralangan topshiriqlar ro'yxati (`bosh`, `soni`, `sigim`) |
+| `ish_bor` (condvar) | "navbatga ish tushdi" — **ishchilarni** uyg'otadi |
+| `joy_bor` (condvar) | "navbatda joy bo'shadi" — **yuboruvchilarni** uyg'otadi |
+| `yopilgan` | `pool_tugat` chaqirilgan: yangi ish olinmaydi |
+
+**Shart o'zgaruvchisi qanday ishlaydi?** `pthread_cond_wait(&cond, &qulf)` uch ishni **bo'linmas** qiladi: (1) qulfni qo'yib yuboradi, (2) oqimni uxlatadi, (3) uyg'otilgach qulfni **qayta oladi**. Shartni **`while`** bilan tekshiring (`if` emas) — oqim "soxta" uyg'onishi yoki boshqa oqim ishni **o'g'irlab ketishi** mumkin.
+
+**Ishchi oqim** — cheksiz sikl: navbat bo'sh bo'lsa uxlaydi; ish kelsa — olib, **qulfni qo'yib yuborib** bajaradi:
+
+```c
+static void *ishchi(void *arg)
+{
+    struct pool *p = arg;
+    for (;;) {
+        pthread_mutex_lock(&p->qulf);
+        while (p->soni == 0 && !p->yopilgan)    /* while: soxta uyg'onishdan himoya (26-bob) */
+            pthread_cond_wait(&p->ish_bor, &p->qulf);
+        if (p->soni == 0 && p->yopilgan) {      /* ish ham yo'q, yangisi ham kelmaydi: chiqamiz */
+            pthread_mutex_unlock(&p->qulf);
+            return NULL;
+        }
+        struct topshiriq t = p->navbat[p->bosh];
+        p->bosh = (p->bosh + 1) % p->sigim;
+        p->soni--;
+        pthread_cond_signal(&p->joy_bor);       /* joy bo'shadi: bitta yuboruvchi davom etsin */
+        pthread_mutex_unlock(&p->qulf);
+
+        t.f(t.arg);                             /* topshiriqni QULFSIZ bajaramiz: boshqa ishchilar to'xtab qolmasin */
+    }
+}
+```
+
+Muhim: topshiriq `t.f(t.arg)` **qulfsiz** bajariladi. Qulf ichida bajarsak, **boshqa ishchilar kutib qolardi** — parallellikdan foyda qolmas edi.
+
+**Yuboruvchi** — navbat to'la bo'lsa **kutadi** (orqa bosim, *backpressure*): shunda ish ishlab chiqarish ishlov berishdan **tez ketib**, xotirani to'ldirib yubormaydi:
+
+```c
+int pool_yubor(struct pool *p, topshiriq_fn f, void *arg)
+{
+    pthread_mutex_lock(&p->qulf);
+    while (p->soni == p->sigim && !p->yopilgan)
+        pthread_cond_wait(&p->joy_bor, &p->qulf);   /* navbat to'la: joy bo'shaguncha uxlaymiz (qulfni qo'yib yuborib) */
+    if (p->yopilgan) {
+        pthread_mutex_unlock(&p->qulf);
+        return -1;
+    }
+    p->navbat[(p->bosh + p->soni) % p->sigim] = (struct topshiriq){ f, arg };
+    p->soni++;
+    pthread_cond_signal(&p->ish_bor);           /* bitta ishchini uyg'otamiz */
+    pthread_mutex_unlock(&p->qulf);
+    return 0;
+}
+```
+
+**To'xtatish** — `yopilgan = 1`, **hamma** kutayotganni `broadcast` bilan uyg'otish, `pthread_join` bilan tugashini kutish, xotirani qaytarish. Ishchilar chiqishdan **oldin navbatdagi ishlarni tugatadi** (`soni == 0 && yopilgan` bo'lganda chiqadi).
+
+### Foydalanish: tub sonlarni parallel sanash
+
+0 dan 200 000 gacha tub sonlarni sanaymiz: 20 ta topshiriq (har biri 10 000 ta songa), 4 ishchi, navbat sig'imi atigi **3** (yuboruvchi ba'zan kutadi — ataylab):
+
+```c
+/* main.c - pulni sinash: 200000 gacha tub sonlarni 20 ta bo'lakka bo'lib, 4 ishchi parallel sanaydi */
+#include <stdio.h>
+
+#include "pool.h"
+
+#define BOLAKLAR 20
+#define BOLAK_UZ 10000                          /* har topshiriq 10000 ta sonni tekshiradi */
+
+struct bolak {
+    int id;
+    int bosh, oxir;                             /* [bosh, oxir) */
+    int tublar;                                 /* natija: shu oraliqda nechta tub son */
+};
+
+static int tub_mi(int n)
+{
+    if (n < 2)
+        return 0;
+    for (int d = 2; d * d <= n; d++)
+        if (n % d == 0)
+            return 0;
+    return 1;
+}
+
+/* topshiriq: o'z bo'lagiga yozadi (har topshiriq BOSHQA struct ga yozadi: poyga yo'q, qulf kerak emas) */
+static void sana(void *arg)
+{
+    struct bolak *b = arg;
+    int s = 0;
+    for (int n = b->bosh; n < b->oxir; n++)
+        s += tub_mi(n);
+    b->tublar = s;
+}
+
+int main(void)
+{
+    static struct bolak bolaklar[BOLAKLAR];
+    struct pool *pul = pool_yarat(4, 3);        /* 4 ishchi, navbat sig'imi atigi 3: yuboruvchi ba'zan KUTADI */
+    if (!pul)
+        return 1;
+
+    for (int i = 0; i < BOLAKLAR; i++) {
+        bolaklar[i] = (struct bolak){ i, i * BOLAK_UZ, (i + 1) * BOLAK_UZ, 0 };
+        pool_yubor(pul, sana, &bolaklar[i]);
+    }
+    pool_tugat(pul);                            /* hamma ish tugagach qaytadi: natijalar tayyor */
+
+    int jami = 0;
+    for (int i = 0; i < BOLAKLAR; i++) {
+        printf("  bo'lak %2d [%6d, %6d): %4d ta tub son\n", i, bolaklar[i].bosh, bolaklar[i].oxir, bolaklar[i].tublar);
+        jami += bolaklar[i].tublar;
+    }
+    printf("jami: %d ta tub son (0..199999). To'g'ri javob: 17984\n", jami);
+    return jami == 17984 ? 0 : 1;
+}
+```
+
+Har topshiriq **o'z** `struct bolak` iga yozadi, shuning uchun qo'shimcha qulf **kerak emas** (26-bob qoidasi: **ishni shunday bo'lingki, yozuvlar to'qnashmasin**). `pool_tugat` qaytgach, hamma natija tayyor.
+
+Oddiy va **ThreadSanitizer** bilan yig'amiz:
+
+```console
+$ cd katta_loyiha/tizim/26_thread_pool
+$ gcc -Wall -Wextra -O2 -pthread main.c pool.c -o pul
+$ ./pul
+  bo'lak  0 [     0,  10000): 1229 ta tub son
+  bo'lak  1 [ 10000,  20000): 1033 ta tub son
+  bo'lak  2 [ 20000,  30000):  983 ta tub son
+  bo'lak  3 [ 30000,  40000):  958 ta tub son
+  bo'lak  4 [ 40000,  50000):  930 ta tub son
+  bo'lak  5 [ 50000,  60000):  924 ta tub son
+  bo'lak  6 [ 60000,  70000):  878 ta tub son
+  bo'lak  7 [ 70000,  80000):  902 ta tub son
+  bo'lak  8 [ 80000,  90000):  876 ta tub son
+  bo'lak  9 [ 90000, 100000):  879 ta tub son
+  bo'lak 10 [100000, 110000):  861 ta tub son
+  bo'lak 11 [110000, 120000):  848 ta tub son
+  bo'lak 12 [120000, 130000):  858 ta tub son
+  bo'lak 13 [130000, 140000):  851 ta tub son
+  bo'lak 14 [140000, 150000):  838 ta tub son
+  bo'lak 15 [150000, 160000):  835 ta tub son
+  bo'lak 16 [160000, 170000):  814 ta tub son
+  bo'lak 17 [170000, 180000):  845 ta tub son
+  bo'lak 18 [180000, 190000):  828 ta tub son
+  bo'lak 19 [190000, 200000):  814 ta tub son
+jami: 17984 ta tub son (0..199999). To'g'ri javob: 17984
+$ gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread main.c pool.c -o pul_tsan
+$ ./pul_tsan 2>&1 | tail -1
+jami: 17984 ta tub son (0..199999). To'g'ri javob: 17984
+```
+
+**Nima ko'rdik:**
+
+- Hamma 20 bo'lak hisoblandi; **jami `17984`** — bu **to'g'ri javob** (200 000 gacha tub sonlar soni). Parallel natija ketma-ket natija bilan **mos**.
+- Bo'laklar bo'yicha tub sonlar **asosan** kamayib boradi (1229 → 814): son kattalashgan sari tub sonlar **siyrakroq** — matematikadan ma'lum qonuniyat.
+- **TSan** hech qanday ogohlantirish bermadi: oxirgi qator faqat natija. (Agar poyga bo'lganda, chiqishda `WARNING: ThreadSanitizer` ko'rinardi.)
+- Navbat sig'imi atigi 3 bo'lgani uchun yuboruvchi **kutishga majbur bo'lishi mumkin edi** — dastur esa **qotib qolmadi** (deadlock yo'q): har `signal` to'g'ri condvar ga yuborilgan.
+
+> **Eslab qoling:** pul = **mutex + 2 ta condvar + navbat**. `wait` ni **doim `while`** da chaqiring. Qulfni **faqat navbat bilan ishlashda** ushlang, topshiriqni **qulfsiz** bajaring. Navbatni **chegaralang** (orqa bosim). To'xtatishda **hammani `broadcast`** bilan uyg'oting va `join` qiling. Parallel dasturni **doim TSan bilan** sinang.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `pool_tugat` dagi `pthread_cond_broadcast(&p->ish_bor)` ni `pthread_cond_signal` ga almashtiring. Dastur nima qiladi? Nega? (Maslahat: nechta ishchi kutayapti?)
+2. Ishchilar sonini 1, 2, 4, 8 ga o'zgartirib `time ./pul` ni o'lchang. Yadrolaringizdan ko'p ishchi qo'yganda tezlik nega oshmaydi?
+3. `pool_yubor_kutmasdan()` qo'shing: navbat to'la bo'lsa **kutmaydi**, `-1` qaytaradi. Qanday vaziyatlarda bu yaxshiroq?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Oddiy bayroq qulf bo'la olmaydi: "tekshirish" va "o'rnatish" orasida **teshik** bor. Yechim — apparat **bo'linmas** buyruqlari: test-and-set, **CAS**, fetch-and-add.

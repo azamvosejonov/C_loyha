@@ -422,6 +422,184 @@ User dasturda: `malloc` → (kichik) o'z ro'yxatlari / (katta) `mmap` → `brk`/
 **Avtoturargoh.** Bobning to'liq dasturi — 25.2 dagi `turargoh.c`: first fit siyosati, ajratish/bo'shatish va tashqi fragmentatsiya. Qolgan misollar (haqiqiy `malloc` o'lchovi, buddy XOR hisobi, slab) — shu
 g'oyaning boshqa qatlamlari: `malloc` (ro'yxatlar), buddy (sahifalar), slab (obyektlar).
 
+<!-- katta:boshi -->
+## Katta loyiha: qo'riqchi sahifali ajratuvchi (xotira xatolarini darhol ushlaymiz)
+
+**Umumiy fikr.** `malloc` ning eng yomon xususiyati: xotirani **jimgina** buzish. `p[64] = 'X'` (64 baytlik blokdan 1 bayt tashqariga yozish) — dastur hech narsa demaydi, lekin **boshqa** narsani buzib yuboradi, va xato **keyinroq, boshqa joyda** chiqadi. Shu bosqichda **ajratuvchini (allocator) o'zimiz yozamiz**, shunday: xato bo'lgan **zahoti, aynan o'sha qatorda** dastur `SIGSEGV` bilan to'xtaydi. Bu g'oya haqiqiy vositalarda ham bor (*Electric Fence*, `GWP-ASan`, `libgmalloc`).
+
+**Hayotiy o'xshatish:** do'kon javoni va yong'in zinasi orasiga **qizil lenta** tortib qo'yish: kimdir lentani kesib o'tsa — **darhol** signal beradi, uni keyin izlab yurish shart emas.
+
+### G'oya: qo'riqchi sahifa
+
+Virtual xotira (24-bob) **sahifalar** bilan ishlaydi (4096 bayt). Har sahifaga **ruxsatlar** berish mumkin: o'qish, yozish, **hech narsa** (`PROT_NONE`). `PROT_NONE` sahifaga tegilsa — protsessor page fault hosil qiladi, yadro esa `SIGSEGV` yuboradi.
+
+Ajratish sxemasi (`GUARD_OXIRI` rejimi):
+
+```text
+ [ ma'lumot sahifa(lar)i  ........ | foydalanuvchi bloki ][ QO'RIQCHI sahifa (PROT_NONE) ]
+                                    ^                     ^
+                                    p                     p + n   <-- p[n] ga yozsangiz: SIGSEGV!
+```
+
+Foydalanuvchi bloki sahifa **oxiriga aynan taqalib** turadi — shuning uchun **1 baytlik** overflow ham qo'riqchiga tegadi.
+
+### Interfeys va kod
+
+```c
+/* guard.h - "qo'riqchi sahifali" ajratuvchi: xotira xatolarini ZUDLIK bilan (SIGSEGV) ushlaydi */
+#ifndef GUARD_H
+#define GUARD_H
+
+#include <stddef.h>
+
+enum guard_rejim {
+    GUARD_OXIRI,                                /* foydalanuvchi xotirasi sahifa OXIRIGA taqalgan: 1 baytlik overflow ham qulatadi */
+    GUARD_BOSHI                                 /* sahifa BOSHIGA taqalgan: underflow (p[-1]) ni ushlaydi */
+};
+
+void *gmalloc(size_t n, enum guard_rejim rejim);
+int gfree(void *p);                             /* 0 - OK, -1 - noto'g'ri yoki ikki marta free */
+
+#endif
+```
+
+**`gmalloc` — ajratish:**
+
+```c
+void *gmalloc(size_t n, enum guard_rejim rejim)
+{
+    size_t sahifa = (size_t)sysconf(_SC_PAGESIZE);
+    size_t malumot_sahifalar = (n + sahifa - 1) / sahifa;
+    if (malumot_sahifalar == 0)
+        malumot_sahifalar = 1;
+    size_t jami = (malumot_sahifalar + 1) * sahifa;         /* + 1 ta qo'riqchi sahifa */
+
+    struct blok *b = NULL;
+    for (int i = 0; i < MAKS_BLOK; i++)
+        if (!jadval[i].bosh) {
+            b = &jadval[i];
+            break;
+        }
+    if (!b)
+        return NULL;
+
+    char *taban = mmap(NULL, jami, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (taban == MAP_FAILED)
+        return NULL;
+
+    char *foy;
+    if (rejim == GUARD_OXIRI) {
+        char *qoriqchi = taban + malumot_sahifalar * sahifa;    /* ma'lumot sahifalaridan KEYIN */
+        mprotect(qoriqchi, sahifa, PROT_NONE);                  /* unga tegsangiz - SIGSEGV */
+        foy = qoriqchi - n;                                     /* xotira qo'riqchi sahifaga aynan taqalgan */
+    } else {
+        mprotect(taban, sahifa, PROT_NONE);                     /* qo'riqchi sahifa BOSHIDA */
+        foy = taban + sahifa;
+    }
+
+    b->taban = taban;
+    b->uzunlik = jami;
+    b->foydalanuvchi = foy;
+    b->bosh = 1;
+    b->bo_shatilgan = 0;
+    return foy;
+}
+```
+
+| Qadam | Kod | Nima uchun |
+|---|---|---|
+| 1 | `sahifalar = (n + sahifa - 1) / sahifa` | **yuqoriga yaxlitlash**: kerakli sahifalar soni |
+| 2 | `jami = (sahifalar + 1) * sahifa` | **+1** — qo'riqchi sahifa |
+| 3 | `mmap(...)` | yadrodan to'g'ridan-to'g'ri sahifalar (`malloc` ishlatmaymiz) |
+| 4 | `mprotect(qoriqchi, sahifa, PROT_NONE)` | qo'riqchi sahifaga **hamma ruxsatni olib tashlaymiz** |
+| 5 | `foy = qoriqchi - n` | blokni qo'riqchiga **taqab** joylashtiramiz |
+
+**`gfree` — bo'shatish.** Bu yerda muhim fikr: `munmap` **qilmaymiz**. Buning o'rniga **hamma ruxsatni olib tashlaymiz** (`PROT_NONE`) — shunda bo'shatilgan blokka keyingi har qanday tegish **darhol qulatadi** (use-after-free ushlanadi). Manzil boshqa narsaga ham berilmaydi (*karantin*). Ikkinchi `gfree` — `bo_shatilgan` bayrog'i bilan aniqlanadi (double free):
+
+```c
+int gfree(void *p)
+{
+    for (int i = 0; i < MAKS_BLOK; i++) {
+        struct blok *b = &jadval[i];
+        if (b->bosh && b->foydalanuvchi == p) {
+            if (b->bo_shatilgan)
+                return -1;                      /* allaqachon free qilingan: ikki marta free */
+            mprotect(b->taban, b->uzunlik, PROT_NONE);          /* hamma ruxsat olinadi: keyingi har qanday tegish qulatadi */
+            b->bo_shatilgan = 1;                /* munmap QILMAYMIZ: manzil boshqa narsaga berilib ketmasin (karantin) */
+            return 0;
+        }
+    }
+    return -1;                                  /* bunday ko'rsatkich bizniki emas */
+}
+```
+
+### Sinov: har xato alohida jarayonda
+
+Xato dasturni **o'ldiradi**, shuning uchun har sinovni `fork` bilan **alohida jarayonda** o'tkazamiz; ota jarayon bolaning **qanday** o'lganini (`WIFSIGNALED`, `WTERMSIG`) tekshiradi:
+
+```c
+static void bajar(const char *nom, sinov_fn f, int xato_bor)    /* xato_bor: sinovda ataylab xato bormi */
+{
+    fflush(stdout);
+    pid_t pid = fork();
+    if (pid == 0) {
+        f();
+        _exit(0);
+    }
+    int holat;
+    waitpid(pid, &holat, 0);
+    const char *natija;
+    if (WIFSIGNALED(holat) && WTERMSIG(holat) == SIGSEGV)
+        natija = "USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)";
+    else if (WIFEXITED(holat) && WEXITSTATUS(holat) == 3)
+        natija = "USHLANDI: ajratuvchi xatoni o'zi aniqladi";
+    else if (WIFEXITED(holat) && WEXITSTATUS(holat) == 0)
+        natija = xato_bor ? "ushlanmadi (xato bor, lekin dastur xatosiz tugagandek ko'rindi!)" : "xatosiz tugadi (to'g'ri)";
+    else
+        natija = "kutilmagan natija";
+    printf("  %-36s %s\n", nom, natija);
+}
+```
+
+Yetti sinov: to'g'ri ishlatish; overflow; ikki xil underflow; use-after-free; double free; va **solishtirish uchun** oddiy `malloc` ning overflowi.
+
+```console
+$ cd katta_loyiha/tizim/25_guard_alloc
+$ gcc -Wall -Wextra -O0 -g sinov.c guard.c -o sinov
+$ ./sinov
+Har sinov alohida jarayonda (xato bo'lsa faqat o'sha jarayon o'ladi):
+  to'g'ri ishlatish                    xatosiz tugadi (to'g'ri)
+  overflow +1 bayt (oxiri rejimi)      USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  underflow -1 bayt (oxiri rejimi)     ushlanmadi (xato bor, lekin dastur xatosiz tugagandek ko'rindi!)
+  underflow -1 bayt (boshi rejimi)     USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  free dan keyin yozish                USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  ikki marta free                      USHLANDI: ajratuvchi xatoni o'zi aniqladi
+  oddiy malloc: overflow +1 bayt       ushlanmadi (xato bor, lekin dastur xatosiz tugagandek ko'rindi!)
+```
+
+**Nima ko'rdik:**
+
+| Sinov | Natija | Tushuntirish |
+|---|---|---|
+| to'g'ri ishlatish | xatosiz | aynan 64 bayt yozdik — chegaradan chiqmadik |
+| overflow +1 bayt | **SIGSEGV** | `p[64]` qo'riqchi sahifada — darhol |
+| underflow -1 (**oxiri** rejimi) | **ushlanmadi** | `p[-1]` — hali **shu ma'lumot sahifasi** ichida (blok oldida bo'sh joy bor), ruxsat bor |
+| underflow -1 (**boshi** rejimi) | **SIGSEGV** | blok sahifa **boshiga** taqalgan, uning oldida qo'riqchi bor |
+| free dan keyin yozish | **SIGSEGV** | `gfree` ruxsatlarni olib tashlagan |
+| ikki marta free | **aniqlandi** | jadvaldagi `bo_shatilgan` bayrog'i |
+| oddiy `malloc` overflow | **ushlanmadi** | heap da jim buzilish |
+
+**Kamchiligi nima?** Har blok **kamida 2 sahifa** (8 KB) oladi — bu **juda ko'p xotira** va **sekin** (har `gmalloc` ikki tizim chaqiruvi). Shuning uchun u **ishlab chiqarishda emas**, **xato qidirishda** (debug) ishlatiladi. **Ikkala** yo'nalishdagi xatoni (overflow **va** underflow) bir vaqtda ushlash uchun odatda **ikkala tomonda** qo'riqchi sahifa qo'yiladi (yoki ikki rejim bilan ikki marta sinab ko'rish kerak).
+
+> **Eslab qoling:** xotira himoyasi = **sahifa ruxsatlari** (`mprotect`). Qo'riqchi sahifa xatoni **yuz bergan zahoti** ushlaydi (keyinroq emas!). Bo'shatilgan xotirani **darhol qaytarmang** — `PROT_NONE` qiling (karantin): use-after-free ham ushlanadi. ASan/Valgrind ham shu g'oyaning boshqacha (**"soya xotira"**) amalga oshirilishi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. **Ikkala tomonda** qo'riqchi sahifa bo'lgan yangi rejim (`GUARD_IKKALASI`) qo'shing: bunda blok sahifa **o'rtasida** bo'lmaydi — sizning vazifangiz: qaysi tomonga taqash kerak? (Maslahat: ikkala xatoni bir blokda ushlab bo'lmaydi — nega?)
+2. `gmalloc` ichida **`calloc` kabi nollash** qo'shing. `mmap` xotirasi o'zi nollanganmi? (Hujjat: `man mmap`, `MAP_ANONYMOUS`.)
+3. `MAKS_BLOK = 64` chegarasini oshirib ketsangiz nima bo'ladi? Jadvalni **dinamik** qiling (`realloc`) — lekin jadvalning **o'zi** qaysi ajratuvchidan olinadi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Allocator katta hududni bo'laklab beradi; bloklarni **ko'chirib bo'lmaydi**; tezlik va isrof — zid maqsadlar. Haqiqiy `malloc(1)` ham 24 bayt beradi (ichki fragmentatsiya).

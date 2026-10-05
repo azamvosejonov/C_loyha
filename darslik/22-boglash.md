@@ -385,6 +385,185 @@ lekin **fayl hajmi** keskin farq qiladi.
 
 **Sinab ko'ring:** `readelf -S bss_bilan | grep -A1 "\.bss"` bilan `.bss` bo'limining o'lchamini toping. `ldd bss_bilan` — dastur qaysi dinamik kutubxonalarga bog'liq? `-static` bilan yig'ib, hajmini solishtiring.
 
+<!-- katta:boshi -->
+## Katta loyiha: ELF belgilar jadvalini o'qish (mini `nm`)
+
+**Umumiy fikr.** `gcc -c` natijasi — **obyekt fayl** (`.o`). U oddiy baytlar emas, balki **tuzilgan** ELF fayli: sarlavha, bo'limlar (`.text` — kod, `.data` — boshlang'ich qiymatli o'zgaruvchilar, `.bss` — nollangan) va **belgilar jadvali** (`.symtab`): "qaysi nom qayerda va qanday ko'rinadi". Linker (22-bob) aynan shu jadval orqali fayllarni **bir-biriga ulaydi**. Bu bosqichda jadvalni **o'zimiz** `nm` kabi o'qiymiz.
+
+**Hayotiy o'xshatish:** kitob mundarijasi. "Funksiya `qosh` — 0-bet, hajmi 4" degan yozuvlar: kerakli narsani **darrov topish** uchun.
+
+### ELF faylning tuzilishi (qisqa)
+
+```text
++------------------+
+| ELF sarlavhasi   |  <- "bo'limlar jadvali qayerda" (e_shoff), nechta (e_shnum)
++------------------+
+| .text  .data ... |  <- bo'limlar (kod, ma'lumot)
++------------------+
+| .symtab          |  <- belgilar: har biri Elf64_Sym (nom, qiymat, hajm, tur, bog'lanish, bo'lim)
+| .strtab          |  <- nomlar matni (belgi faqat NOM INDEKSini saqlaydi)
++------------------+
+| bo'limlar jadvali|  <- har bo'lim haqida: tur, siljish, hajm
++------------------+
+```
+
+Bizning dastur shu zanjir bo'yicha yuradi: **sarlavha → bo'limlar jadvali → `.symtab` → `.strtab` (nomlar)**.
+
+### Tekshiriladigan obyekt fayl
+
+`demo.s` — assembly bilan yozilgan kichik fayl. U ataylab **turli belgilarni** o'z ichiga oladi: global va lokal funksiyalar, ma'lumot, BSS va **tashqi** (`puts`) chaqiruv:
+
+```text
+# demo.s - ELF belgilar jadvalini o'rganish uchun kichik obyekt fayl (as bilan yig'iladi: natijasi har safar bir xil)
+        .intel_syntax noprefix
+        .text
+
+        .globl  qosh                    # GLOBAL funksiya: boshqa fayllar ko'radi
+        .type   qosh, @function
+qosh:
+        lea     eax, [rdi + rsi]
+        ret
+        .size   qosh, .-qosh
+
+        .globl  kopaytir
+        .type   kopaytir, @function
+kopaytir:
+        mov     eax, edi
+        imul    eax, esi
+        ret
+        .size   kopaytir, .-kopaytir
+
+        .type   yordamchi, @function    # LOCAL funksiya (.globl yo'q): faqat shu faylda ko'rinadi
+yordamchi:
+        xor     eax, eax
+        ret
+        .size   yordamchi, .-yordamchi
+
+        .globl  tashqi_chaqir
+        .type   tashqi_chaqir, @function
+tashqi_chaqir:
+        sub     rsp, 8
+        call    puts@PLT                # puts shu faylda YO'Q: UNDEFINED belgi (linker keyin topadi)
+        add     rsp, 8
+        ret
+        .size   tashqi_chaqir, .-tashqi_chaqir
+
+        .data
+        .globl  hisoblagich
+        .type   hisoblagich, @object
+        .size   hisoblagich, 4
+hisoblagich:
+        .long   7
+
+        .bss
+        .lcomm  bufer, 64               # BSS dagi LOCAL o'zgaruvchi (nollar bilan boshlanadi)
+
+        .section .note.GNU-stack, "", @progbits
+```
+
+| Belgi | Tur | Bog'lanish | Nega qiziq |
+|---|---|---|---|
+| `qosh`, `kopaytir`, `tashqi_chaqir` | FUNC | **GLOBAL** | boshqa fayllar ko'radi (`.globl`) |
+| `yordamchi` | FUNC | **LOCAL** | `.globl` yo'q — faqat shu faylda ko'rinadi (C da `static` funksiya) |
+| `hisoblagich` | OBJECT | GLOBAL | `.data` bo'limida (boshlang'ich qiymati 7) |
+| `bufer` | OBJECT | LOCAL | `.bss` (nollar bilan boshlanadi, faylda joy egallamaydi) |
+| `puts` | NOTYPE | GLOBAL, **UND** | shu faylda **yo'q** — linker keyin libc dan topadi (undefined) |
+
+### Dastur: sarlavhadan belgigacha
+
+Birinchi qism — faylni xotiraga o'qib, **ELF sarlavhasi orqali** `.symtab` ni topish:
+
+```c
+    const Elf64_Ehdr *eh = (const Elf64_Ehdr *)fayl;
+    if (memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0 || eh->e_ident[EI_CLASS] != ELFCLASS64) {
+        fprintf(stderr, "%s: 64 bitli ELF emas\n", argv[1]);
+        return 1;
+    }
+
+    const Elf64_Shdr *bolimlar = (const Elf64_Shdr *)(fayl + eh->e_shoff);   /* bo'limlar jadvali */
+    const char *bolim_nomlari = (const char *)(fayl + bolimlar[eh->e_shstrndx].sh_offset);
+
+    const Elf64_Shdr *symtab = NULL;
+    for (int i = 0; i < eh->e_shnum; i++)
+        if (bolimlar[i].sh_type == SHT_SYMTAB)
+            symtab = &bolimlar[i];
+    if (!symtab) {
+        fprintf(stderr, "%s: .symtab yo'q (strip qilingan)\n", argv[1]);
+        return 1;
+    }
+    const Elf64_Sym *belgilar = (const Elf64_Sym *)(fayl + symtab->sh_offset);
+    size_t soni = symtab->sh_size / sizeof(Elf64_Sym);
+    const char *nomlar = (const char *)(fayl + bolimlar[symtab->sh_link].sh_offset);   /* sh_link: nomlar jadvali */
+```
+
+Muhim joylari: `fayl + eh->e_shoff` — bo'limlar jadvali **faylning o'zida** qayerdaligini sarlavha aytadi (fayl boshidan siljish — "ko'rsatkich arifmetikasi", 7-bob). `sh_link` — bu bo'lim **qaysi boshqa bo'lim bilan bog'liq** ekanini aytadi: `.symtab` uchun u — nomlar jadvali `.strtab`.
+
+Ikkinchi qism — **manzil bo'yicha qidirish**: "bu manzil qaysi funksiya ichida?" (xuddi `addr2line` yoki yadro `oops` xabaridagi `qosh+0x5/0x20`):
+
+```c
+    unsigned long m = strtoul(argv[2], NULL, 16);
+    for (size_t i = 0; i < soni; i++) {
+        const Elf64_Sym *s = &belgilar[i];
+        if (ELF64_ST_TYPE(s->st_info) == STT_FUNC && s->st_shndx != SHN_UNDEF && m >= s->st_value &&
+            m < s->st_value + s->st_size) {
+            printf("0x%lx: %s + %lu\n", m, nomlar + s->st_name, m - s->st_value);
+            return 0;
+        }
+    }
+    printf("0x%lx: hech qaysi funksiyaga tegishli emas\n", m);
+```
+
+```console
+$ cd katta_loyiha/tizim/22_elf_sym
+$ as demo.s -o demo.o
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined elf_sym.c -o elf_sym
+$ ./elf_sym demo.o
+#   qiymat   hajm  tur     bog'    bo'lim    nom
+0   00000000 0     NOTYPE  LOCAL   UND       
+1   0000000a 3     FUNC    LOCAL   .text     yordamchi
+2   00000000 64    OBJECT  LOCAL   .bss      bufer
+3   00000000 4     FUNC    GLOBAL  .text     qosh
+4   00000004 6     FUNC    GLOBAL  .text     kopaytir
+5   0000000d 14    FUNC    GLOBAL  .text     tashqi_chaqir
+6   00000000 0     NOTYPE  GLOBAL  UND       puts
+7   00000000 4     OBJECT  GLOBAL  .data     hisoblagich
+$ echo "--- manzil qidirish ---"
+--- manzil qidirish ---
+$ ./elf_sym demo.o 0
+0x0: qosh + 0
+$ ./elf_sym demo.o 5
+0x5: kopaytir + 1
+$ ./elf_sym demo.o 6
+0x6: kopaytir + 2
+$ ./elf_sym demo.o 9
+0x9: kopaytir + 5
+$ ./elf_sym demo.o 100; echo "chiqish kodi: $?"
+0x100: hech qaysi funksiyaga tegishli emas
+chiqish kodi: 1
+$ echo "--- nm bilan solishtirish ---"
+--- nm bilan solishtirish ---
+$ echo "bizning FUNC belgilar: $(./elf_sym demo.o | awk '$4 == "FUNC"' | wc -l)"
+bizning FUNC belgilar: 4
+$ echo "nm ning T/t belgilari: $(nm demo.o | awk '$2 == "T" || $2 == "t"' | wc -l)"
+nm ning T/t belgilari: 4
+```
+
+**Nima ko'rdik:**
+
+- **Jadval:** `qosh` — `0x0` da, hajmi 4; `kopaytir` — `0x4` da, hajmi 6; `yordamchi` — `0xa` da, **LOCAL**; `puts` — **UND** (undefined): bu fayl uni ishlatadi, lekin **o'zida yo'q**.
+- **Manzil qidirish:** `0x5` — `kopaytir + 1` (kopaytir `0x4` da boshlanadi, 5-bayt = 1-bayt ichkarida); `0x9` — `kopaytir + 5`, `0x6` — `kopaytir + 2`. `0x100` — hech qaysi funksiyaga tegishli emas → chiqish kodi 1. Aynan shu g'oya yadro "panic" xabarlarida ishlatiladi.
+- **`nm` bilan solishtirish:** bizning 4 ta `FUNC` belgimiz `nm` ning `T`/`t` (kod bo'limidagi) belgilari soniga **teng** — dastur to'g'ri o'qiyapti.
+- Nomlar `.strtab` da, belgining o'zida esa **nom indeksi** (`st_name`) bor: shuning uchun `nomlar + s->st_name`.
+
+> **Eslab qoling:** ELF — **tuzilgan** fayl: sarlavha → jadvallar → ma'lumot. Hamma narsa **siljishlar** (offset) orqali topiladi. `.symtab` belgilari: **nom**, **qiymat** (manzil), **hajm**, **tur** (FUNC/OBJECT), **bog'lanish** (LOCAL/GLOBAL), **bo'lim**. **UND** belgi — "kimdir menga bu nomni bersin" (linkerning vazifasi). `strip` shu jadvalni o'chiradi — shuning uchun qaytarilgan fayllarda funksiya nomlari yo'q.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `elf_sym.c` ga **bo'limlar ro'yxati** rejimini qo'shing (`readelf -S` kabi): nom, siljish, hajm. `.text` hajmi `qosh+kopaytir+yordamchi+tashqi_chaqir` yig'indisiga tengmi?
+2. `strip demo.o` dan keyin dasturni ishga tushiring — nima xabar chiqadi? (`readelf` yoki `nm` nima deydi?)
+3. C faylda `static int x; int y = 5; extern int z;` yozing, `gcc -c` bilan yig'ing va `./elf_sym` bilan **har o'zgaruvchi qaysi bo'lim va qaysi bog'lanishda** ekanini tekshiring. Bashoratingiz to'g'rimi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **ELF** — dastur fayl formati: `.o` (REL, linker uchun), bajariladigan/PIE (yuklovchi uchun). **Bo'limlar** — linker uchun (`.text`, `.data`, `.bss`, `.rodata`), **segmentlar** — yuklovchi uchun.

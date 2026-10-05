@@ -558,6 +558,221 @@ Maskalar bilan ajratish: yil 2026, oy 9, kun 27
 
 **Sinab ko'ring:** 3-o'rindiqni sotib, `birinchi_bosh()` qanday o'zgarishini kuzating. Barcha 64 o'rindiqni sotuvchi sikl yozing — `birinchi_bosh()` endi nima qaytaradi?
 
+<!-- katta:boshi -->
+## Katta loyiha: IPv4 paket dekoderi (bit, bayt va tarmoq tartibi)
+
+**Umumiy fikr.** Internetda ma'lumot **paketlar** bilan yuradi, paket esa — oddiygina **baytlar ketma-ketligi**. Har baytning **joyi** ma'noga ega: 0-bayt — versiya va uzunlik, 8-bayt — TTL, 12–15-baytlar — jo'natuvchi manzili va h.k. Bu bosqichda "xom baytlar"dan **ma'nolarni ajratib olamiz**. Bu — 16-bobning hammasi: bitlar, maskalar, siljitish, baytlar tartibi (endianness).
+
+**Hayotiy o'xshatish:** konvert. Ustida **manzil, indeks, vazn** bir xil joylarda yozilgan — pochtachi qayerga qarashni biladi. Paket sarlavhasi ham shunday: har maydonning **joyi qat'iy**.
+
+### Bu bosqichda nima qilamiz
+
+`ip_paket` hex matn (bir qator = bir paket) o'qiydi, baytlarga aylantiradi va chiqaradi: versiya, TTL, protokol, manzillar, **nazorat yig'indisini tekshiradi**, TCP/UDP ichki sarlavhasini ko'rsatadi.
+
+**IPv4 sarlavhasi (20 bayt):**
+
+| Bayt | Maydon | Misol |
+|---|---|---|
+| 0 | **yuqori 4 bit** — versiya (4); **pastki 4 bit** — IHL (sarlavha uzunligi, 4 baytli so'zlarda) | `0x45` → versiya 4, uzunlik 5×4 = 20 bayt |
+| 2–3 | umumiy uzunlik | |
+| 4–5 | id | |
+| 6–7 | yuqori 3 bit — bayroqlar (DF, MF); pastki 13 bit — bo'lak siljishi | `0x4000` → DF yoniq |
+| 8 | TTL (yashash vaqti) | 64 |
+| 9 | protokol | 6 = TCP, 17 = UDP, 1 = ICMP |
+| 10–11 | sarlavha nazorat yig'indisi | |
+| 12–15 | jo'natuvchi IP | `C0 A8 01 0A` = 192.168.1.10 |
+| 16–19 | qabul qiluvchi IP | |
+
+**Bayt tartibi (endianness) — eng muhim fikr.** `0x1C46` sonini tarmoqda **`1C 46`** tartibida (katta bayt **birinchi** — *big-endian*) yuboriladi. Sizning x86 kompyuteringiz esa xotirada **teskari** (`46 1C`, *little-endian*) saqlaydi. Shuning uchun baytlarni `uint16_t *` ga **to'g'ridan-to'g'ri** o'qib bo'lmaydi — qo'lda yig'amiz: `(p[0] << 8) | p[1]`.
+
+```c
+/* ip_paket.c - IPv4 paket dekoderi: baytlardan maydonlarni ajratish, bayt tartibi, bit maskalar, nazorat yig'indisi */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+/* tarmoqda ko'p baytli sonlar BIG-endian: katta bayt birinchi. Xotiradan (little-endian x86) to'g'ridan-to'g'ri o'qib bo'lmaydi */
+static uint16_t o16(const uint8_t *p)
+{
+    return (uint16_t)((p[0] << 8) | p[1]);      /* katta bayt chapga 8 bitga suriladi */
+}
+
+static uint32_t o32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+}
+
+/* Internet nazorat yig'indisi (RFC 1071): 16 bitli so'zlar yig'indisi, ortiqcha bitlar qo'shib qo'yiladi, so'ng inversiya.
+   To'g'ri sarlavhada (nazorat maydoni bilan birga) natija 0 bo'lishi kerak. */
+static uint16_t nazorat(const uint8_t *p, size_t uzunlik)
+{
+    uint32_t s = 0;
+    for (size_t i = 0; i + 1 < uzunlik; i += 2)
+        s += o16(p + i);
+    if (uzunlik & 1)
+        s += (uint32_t)p[uzunlik - 1] << 8;     /* toq bayt: o'ng tomoni nol bilan to'ldiriladi */
+    while (s >> 16)
+        s = (s & 0xFFFF) + (s >> 16);           /* 16 bitdan oshgan qismini pastga qo'shamiz */
+    return (uint16_t)~s;
+}
+
+static const char *protokol_nomi(uint8_t p)
+{
+    switch (p) {
+    case 1: return "ICMP";
+    case 6: return "TCP";
+    case 17: return "UDP";
+    default: return "?";
+    }
+}
+
+static void manzil(const char *nom, uint32_t a)
+{
+    printf("  %-14s %u.%u.%u.%u\n", nom, a >> 24, (a >> 16) & 0xFF, (a >> 8) & 0xFF, a & 0xFF);
+}
+
+/* hex matnni baytlarga aylantiradi. Baytlar sonini yoki -1 ni qaytaradi */
+static int hex_oqi(const char *s, uint8_t *chiq, int sigim)
+{
+    int n = 0;
+    while (s[0] && s[1] && s[0] != '\n') {
+        unsigned v;
+        if (n == sigim || sscanf(s, "%2x", &v) != 1)
+            return -1;
+        chiq[n++] = (uint8_t)v;
+        s += 2;
+    }
+    return n;
+}
+
+static void tcp_chop(const uint8_t *t)
+{
+    uint8_t bayroq = t[13];                     /* 6 ta bayroq: pastki 6 bit */
+    printf("  TCP: %u -> %u, ketma-ketlik raqami %u, bayroqlar:", o16(t), o16(t + 2), o32(t + 4));
+    static const char *nomlar[6] = { "FIN", "SYN", "RST", "PSH", "ACK", "URG" };
+    int bor = 0;
+    for (int bit = 0; bit < 6; bit++)
+        if (bayroq & (1u << bit)) {             /* har bit - bitta bayroq (3-bob maskalari) */
+            printf(" %s", nomlar[bit]);
+            bor = 1;
+        }
+    printf("%s, oyna %u\n", bor ? "" : " yo'q", o16(t + 14));
+}
+
+static void udp_chop(const uint8_t *u, int mavjud)
+{
+    unsigned uz = o16(u + 4);
+    printf("  UDP: %u -> %u, uzunlik %u, ma'lumot: \"", o16(u), o16(u + 2), uz);
+    for (int i = 8; i < (int)uz && i < mavjud; i++)
+        putchar(u[i] >= 32 && u[i] < 127 ? u[i] : '.');
+    printf("\"\n");
+}
+
+static void paket_tahlil(int raqam, const uint8_t *p, int n)
+{
+    printf("Paket %d (%d bayt):\n", raqam, n);
+    if (n < 20 || (p[0] >> 4) != 4) {
+        printf("  XATO: IPv4 sarlavhasi emas\n");
+        return;
+    }
+    int ihl = (p[0] & 0x0F) * 4;                /* sarlavha uzunligi 4 baytli so'zlarda */
+    unsigned jami = o16(p + 2);
+    unsigned bayroq_siljish = o16(p + 6);       /* yuqori 3 bit - bayroqlar, pastki 13 bit - siljish */
+
+    printf("  versiya %u, sarlavha %d bayt, umumiy uzunlik %u\n", p[0] >> 4, ihl, jami);
+    int df = (bayroq_siljish & 0x4000) != 0, mf = (bayroq_siljish & 0x2000) != 0;
+    printf("  id 0x%04X, bayroqlar:%s%s%s, bo'lak siljishi %u\n", o16(p + 4), df ? " DF" : "", mf ? " MF" : "",
+           (df || mf) ? "" : " yo'q", bayroq_siljish & 0x1FFF);
+    printf("  TTL %u, protokol %u (%s)\n", p[8], p[9], protokol_nomi(p[9]));
+    manzil("jo'natuvchi", o32(p + 12));
+    manzil("qabul qiluvchi", o32(p + 16));
+
+    uint16_t y = nazorat(p, (size_t)ihl);
+    printf("  nazorat yig'indisi: 0x%04X -> %s\n", o16(p + 10), y == 0 ? "TO'G'RI" : "NOTO'G'RI (paket buzilgan)");
+    if (y != 0)
+        return;                                 /* buzilgan paketning ichiga ishonib bo'lmaydi */
+
+    if (p[9] == 6 && n >= ihl + 20)
+        tcp_chop(p + ihl);
+    else if (p[9] == 17 && n >= ihl + 8)
+        udp_chop(p + ihl, n - ihl);
+}
+
+int main(void)
+{
+    char qator[512];
+    int raqam = 0;
+    while (fgets(qator, sizeof(qator), stdin)) {
+        uint8_t paket[256];
+        int n = hex_oqi(qator, paket, sizeof(paket));
+        if (n < 0) {
+            printf("Paket %d: XATO: hex matn noto'g'ri\n", ++raqam);
+            continue;
+        }
+        paket_tahlil(++raqam, paket, n);
+    }
+    return 0;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `o16(p)`, `o32(p)` | 2 va 4 baytni **big-endian** tartibida bitta songa yig'adi (siljitish `<<` + `\|`) |
+| `p[0] >> 4`, `p[0] & 0x0F` | bitta baytdan **yuqori** va **pastki** yarmini ajratish (siljitish va maska) |
+| `bayroq_siljish & 0x4000` | maska bilan bitta bitni tekshirish (DF); `& 0x1FFF` — pastki 13 bit |
+| `nazorat()` | **RFC 1071** yig'indisi: 16 bitli so'zlarni qo'shadi, 16 bitdan oshgan qismini pastga **qo'shib qo'yadi**, so'ng bitlarni invertlaydi (`~`). To'g'ri sarlavhada natija **0** |
+| `hex_oqi()` | `"45 00"` matnini `sscanf("%2x")` bilan baytlarga aylantiradi |
+| `tcp_chop()` | TCP bayroqlarini (`SYN`, `ACK` ...) har bitni alohida tekshirib chiqaradi |
+| `paket_tahlil()` | hammasini birlashtiradi; buzilgan paketning **ichiga qaramaydi** |
+
+Uchta paketni kiritamiz (uchinchisi — birinchisining **nusxasi, faqat TTL 64 → 63**, nazorat yig'indisi esa o'zgarmagan):
+
+```console
+$ cd katta_loyiha/tizim/16_ip_paket
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined ip_paket.c -o ip_paket
+$ ./ip_paket < kirish.txt
+Paket 1 (40 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 40
+  id 0x1C46, bayroqlar: DF, bo'lak siljishi 0
+  TTL 64, protokol 6 (TCP)
+  jo'natuvchi    192.168.1.10
+  qabul qiluvchi 93.184.216.34
+  nazorat yig'indisi: 0x26FD -> TO'G'RI
+  TCP: 51234 -> 80, ketma-ketlik raqami 4096, bayroqlar: SYN, oyna 64240
+Paket 2 (33 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 33
+  id 0x0001, bayroqlar: yo'q, bo'lak siljishi 0
+  TTL 255, protokol 17 (UDP)
+  jo'natuvchi    10.0.0.5
+  qabul qiluvchi 224.0.0.251
+  nazorat yig'indisi: 0xD0CA -> TO'G'RI
+  UDP: 5353 -> 5353, uzunlik 13, ma'lumot: "salom"
+Paket 3 (40 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 40
+  id 0x1C46, bayroqlar: DF, bo'lak siljishi 0
+  TTL 63, protokol 6 (TCP)
+  jo'natuvchi    192.168.1.10
+  qabul qiluvchi 93.184.216.34
+  nazorat yig'indisi: 0x26FD -> NOTO'G'RI (paket buzilgan)
+```
+
+**Nima ko'rdik:**
+
+- **Paket 1:** `0x45` → versiya **4**, sarlavha **20** bayt; `C0A8010A` → **192.168.1.10**; protokol 6 → TCP, **SYN** bayrog'i yoniq (ulanish so'rovi), 51234 → 80 (veb-server porti). Nazorat yig'indisi **TO'G'RI**.
+- **Paket 2:** protokol 17 → UDP, manzil `224.0.0.251` (mDNS multicast), ichida `"salom"` matni.
+- **Paket 3:** faqat **bitta bayt** (TTL) o'zgargan — nazorat yig'indisi endi **mos kelmaydi** → dastur "paket buzilgan" deydi va **ichki sarlavhani chiqarmaydi**. Aynan shunday tarmoq uskunalari buzilgan paketlarni tashlab yuboradi.
+
+> **Eslab qoling:** protokollar = **baytlarning qat'iy joylashuvi**. Maydonni ajratish uchun uchta vosita: **siljitish** (`>>`, `<<`), **maska** (`&`), **baytlarni yig'ish** (`|`). Tarmoq tartibi — **big-endian**; hamma ko'p baytli sonni **aniq** yig'ing. Kirish kelgan baytlarga **ishonmang**: avval uzunlik va nazorat yig'indisini tekshiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. Hex qatorni qo'lda o'zgartiring: boshqa **IP manzil** qo'ying. Nazorat yig'indisi nega buziladi? To'g'ri qiymatni dasturning o'zi yordamida **hisoblab** toping (maslahat: nazorat maydonini `0000` qilib `nazorat()` chaqiring).
+2. `ICMP` (protokol 1) uchun `icmp_chop()` yozing: tur (`type`, 8 = so'rov, 0 = javob) va kod.
+3. IHL > 5 bo'lgan paketni (sarlavhada **parametrlar** bor) qo'shing. Dastur TCP sarlavhasini **to'g'ri joydan** o'qiyaptimi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. x86 — **little-endian**: `0x11223344` xotirada `44 33 22 11`; tarmoq — big-endian (`htonl`/`ntohl`); formatni qo'lda o'qishda baytlarni aniq tartibda yig'ing.

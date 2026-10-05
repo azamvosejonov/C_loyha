@@ -559,6 +559,190 @@ Balans: 1000000 (boshida 1000000 edi - har bir qo'yilgan pul yechildi)
 
 **Sinab ko'ring:** `pthread_mutex_lock` va `unlock` qatorlarini o'chiring (izohga oling). Dasturni bir necha marta ishga tushiring — balans har safar boshqacha chiqadi. `-fsanitize=thread` bilan yig'ing — ThreadSanitizer poygani qaysi qatorda ko'rsatadi?
 
+<!-- katta:boshi -->
+## Katta loyiha: parallel matritsa ko'paytirish va poyga ovchisi
+
+**Umumiy fikr.** Ko'p yadroli protsessorda bitta katta ishni **bir necha oqimga bo'lish** mumkin. Lekin parallellikning ikki muammosi bor: (1) ish **to'g'ri bo'linishi** kerak, (2) oqimlar **bir xotiraga bir vaqtda yozmasligi** kerak (aks holda **poyga** — data race, 15-bob). Bu bosqichda ikkalasini ham ko'ramiz: **to'g'ri** parallel dastur (`matmul.c`) va **ataylab xato** dastur (`poyga_misol.c`), ularni **ThreadSanitizer** (TSan) bilan sinaymiz.
+
+**Hayotiy o'xshatish:** 240 sahifali daftarni tekshirish kerak. To'rt o'qituvchi **o'z sahifalarini** tekshirsa — tez va to'qnashuvsiz (har biri boshqa sahifada). Hamma **bitta ballar varag'iga** bir vaqtda yozsa — raqamlar chalkashadi (poyga).
+
+### Bu bosqichda nima qilamiz
+
+`C = A × B` (240×240 matritsa). Hisoblash qoidasi: `C[i][j]` = `A` ning `i`-qatori bilan `B` ning `j`-ustuni ko'paytmalari yig'indisi. Parallellik g'oyasi: **`C` ning har qatori boshqa qatorga bog'liq emas** — shuning uchun qatorlarni oqimlar orasida bo'lamiz, har oqim **o'z qatorlariga** yozadi. Umumiy xotirada to'qnashuv **tuzilishi bo'yicha** yo'q.
+
+```c
+/* matmul.c - parallel matritsa ko'paytirish: qatorlarni oqimlar orasida bo'lish, natijani ketma-ket variant bilan solishtirish */
+#include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define N 240                                   /* N x N matritsalar */
+
+static int a[N][N], b[N][N];
+static long c_ketma[N][N], c_par[N][N];
+
+struct ish {
+    int bosh, oxir;                             /* shu oqim hisoblaydigan qatorlar: [bosh, oxir) */
+};
+
+/* qatorlar oralig'ini hisoblaydi: C[i][*] = A[i][*] x B. Har oqim BOSHQA qatorlarga yozadi - umumiy xotirada to'qnashuv yo'q */
+static void qatorlar_hisobla(long c[N][N], int bosh, int oxir)
+{
+    for (int i = bosh; i < oxir; i++)
+        for (int k = 0; k < N; k++) {           /* i-k-j tartibi: b[k][j] ni qator bo'ylab o'qiymiz (keshga mos, 21-bob) */
+            long aik = a[i][k];
+            for (int j = 0; j < N; j++)
+                c[i][j] += aik * b[k][j];
+        }
+}
+
+static void *oqim_ishi(void *arg)
+{
+    const struct ish *ish = arg;
+    qatorlar_hisobla(c_par, ish->bosh, ish->oxir);
+    return NULL;
+}
+
+/* T oqim bilan hisoblaydi: N qatorni T bo'lakka bo'ladi */
+static void parallel(int T)
+{
+    memset(c_par, 0, sizeof(c_par));
+    pthread_t oqim[16];
+    struct ish ish[16];
+    int bolak = (N + T - 1) / T;                /* yuqoriga yaxlitlash: oxirgi oqimga kamroq tushishi mumkin */
+    int ishga_tushdi = 0;
+    for (int t = 0; t < T; t++) {
+        ish[t].bosh = t * bolak;
+        ish[t].oxir = (t + 1) * bolak < N ? (t + 1) * bolak : N;
+        if (ish[t].bosh >= ish[t].oxir)
+            break;
+        pthread_create(&oqim[t], NULL, oqim_ishi, &ish[t]);
+        ishga_tushdi++;
+    }
+    for (int t = 0; t < ishga_tushdi; t++)
+        pthread_join(oqim[t], NULL);            /* hamma oqim tugashini kutamiz */
+}
+
+static uint32_t nazorat_yigindisi(long c[N][N])
+{
+    uint32_t s = 0;
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            s = s * 31u + (uint32_t)c[i][j];    /* tartibga bog'liq: bitta qiymat xato bo'lsa ham o'zgaradi */
+    return s;
+}
+
+int main(void)
+{
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++) {
+            a[i][j] = (i * 7 + j * 3) % 10;     /* deterministik "tasodifiy" ma'lumot */
+            b[i][j] = (i * 5 + j * 11) % 10;
+        }
+
+    qatorlar_hisobla(c_ketma, 0, N);
+    uint32_t etalon = nazorat_yigindisi(c_ketma);
+    printf("ketma-ket: nazorat yig'indisi = %u, c[0][0] = %ld, c[%d][%d] = %ld\n", etalon, c_ketma[0][0], N - 1, N - 1,
+           c_ketma[N - 1][N - 1]);
+
+    int hamma_mos = 1;
+    for (int T = 1; T <= 8; T *= 2) {
+        parallel(T);
+        uint32_t y = nazorat_yigindisi(c_par);
+        int mos = memcmp(c_ketma, c_par, sizeof(c_ketma)) == 0;
+        printf("%d oqim:     nazorat yig'indisi = %u (%s)\n", T, y, mos ? "ketma-ket bilan MOS" : "FARQ QILADI!");
+        hamma_mos &= mos;
+    }
+    return hamma_mos ? 0 : 1;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `struct ish { bosh, oxir }` | har oqimga beriladigan "topshiriq": qaysi qatorlar `[bosh, oxir)` |
+| `qatorlar_hisobla()` | oraliqdagi qatorlarni hisoblaydi. **i-k-j** tartibi: ichki sikl `b[k][j]` ni **qator bo'ylab** o'qiydi — keshga mos (21-bob) |
+| `parallel(T)` | `N` qatorni `T` bo'lakka bo'ladi (`bolak`, yuqoriga yaxlitlab), `pthread_create` bilan oqimlarni ishga tushiradi, `pthread_join` bilan kutadi |
+| `nazorat_yigindisi()` | butun matritsadan **bitta son** (xesh): bitta qiymat xato bo'lsa ham o'zgaradi |
+| `main` | ketma-ket natijani **etalon** qiladi, 1/2/4/8 oqimli natijani unga solishtiradi (`memcmp`) |
+
+**Nega to'g'riligini tekshiramiz?** Parallel dastur "ishlayapti"-yu, **ba'zan** noto'g'ri natija beradi — shuning uchun doim **ketma-ket (sodda) variant bilan solishtiring**.
+
+Endi **ataylab xatoli** misol. Hamma oqim bitta umumiy `yigindi++` qiladi:
+
+```c
+/* poyga_misol.c - XATOLI variant: hamma oqim BITTA umumiy o'zgaruvchiga qulfsiz yozadi (ThreadSanitizer bilan sinang) */
+#include <pthread.h>
+#include <stdio.h>
+
+#define OQIMLAR 4
+#define QADAM 100000
+
+static long yigindi;                            /* HAMMA oqim shuni o'zgartiradi: poyga! */
+
+static void *ishchi(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < QADAM; i++)
+        yigindi++;                              /* o'qi - qo'sh - yoz: ikki oqim bir vaqtda bajarsa, qo'shish yo'qoladi */
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t t[OQIMLAR];
+    for (int i = 0; i < OQIMLAR; i++)
+        pthread_create(&t[i], NULL, ishchi, NULL);
+    for (int i = 0; i < OQIMLAR; i++)
+        pthread_join(t[i], NULL);
+    printf("kutilgan %d, chiqdi %ld\n", OQIMLAR * QADAM, yigindi);
+    return 0;
+}
+```
+
+`yigindi++` aslida **uch qadam**: (1) xotiradan o'qi, (2) 1 qo'sh, (3) xotiraga yoz. Ikki oqim bir vaqtda (1) ni bajarsa, ikkalasi **bir xil eski qiymatni** o'qiydi va ikkalasi `eski+1` yozadi — bitta qo'shish **yo'qoladi**.
+
+Ikkala dasturni TSan bilan yig'amiz (TSan poyga **bo'lmasa ham**, bo'lishi mumkin bo'lgan holatni topadi):
+
+```console
+$ cd katta_loyiha/tizim/15_matmul
+$ gcc -Wall -Wextra -O2 -pthread matmul.c -o matmul
+$ ./matmul
+ketma-ket: nazorat yig'indisi = 2324938752, c[0][0] = 3000, c[239][239] = 7320
+1 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+2 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+4 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+8 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+$ gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread matmul.c -o matmul_tsan
+$ ./matmul_tsan > /dev/null && echo "TSan matmul: poyga topilmadi"
+TSan matmul: poyga topilmadi
+$ gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread poyga_misol.c -o poyga_misol_tsan
+$ ./poyga_misol_tsan 2>&1 | grep -E "WARNING|SUMMARY" | sort -u | sed "s#[^ ]*/##; s/pid=[0-9]*/pid=N/" # xato kutiladi
+SUMMARY: ThreadSanitizer: data race poyga_misol.c:13 in ishchi
+WARNING: ThreadSanitizer: data race (pid=N)
+```
+
+**Nima ko'rdik:**
+
+- **1, 2, 4, 8 oqimli** natijalar **bir xil** nazorat yig'indisiga ega va ketma-ket variant bilan **MOS** — qatorlarni bo'lish to'g'ri ishladi.
+- `TSan matmul: poyga topilmadi` — to'g'ri dasturda TSan hech narsa topmadi (har oqim **boshqa qatorga** yozadi).
+- `poyga_misol.c` da TSan: `data race poyga_misol.c:13 in ishchi` — **qaysi qator** ekanini ham aytdi (`yigindi++`).
+- Oddiy (sanitizersiz) ishga tushirsangiz `kutilgan 400000, chiqdi 200000` (yoki 100000, 317000 ...) kabi **har safar boshqa** va **kutilgandan kam** son chiqadi — poyganing eng yomon belgisi: xato **tasodifiy** va qaytarilmaydi.
+
+**Poygani qanday davolash mumkin?** (1) **mutex** bilan himoyalash (`pthread_mutex_lock`) — to'g'ri, lekin oqimlar navbatda kutadi; (2) **atomik** amal (`__atomic_fetch_add`) — bitta bo'linmas buyruq; (3) har oqim **o'z lokal yig'indisini** hisoblab, oxirida qo'shadi — eng tez, chunki bo'lishilmaydi (matmul shu g'oyaga asoslangan).
+
+> **Eslab qoling:** parallellikda **ishni shunday bo'ling**ki, oqimlar **bir xotira katagiga yozmasin**. Bo'lishilgan o'zgaruvchi bo'lsa — mutex yoki atomik. Parallel dasturni **doim** sodda (ketma-ket) etalon va **TSan** bilan tekshiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `poyga_misol.c` ni **mutex** bilan tuzating: `chiqdi` endi `400000` bo'ladimi? TSan jim turadimi? Ishlash vaqti qanday o'zgardi (`time ./poyga_misol`)?
+2. Xuddi shuni **atomik** (`__atomic_fetch_add(&yigindi, 1, __ATOMIC_RELAXED)`) bilan qiling va mutex bilan **tezlikni** solishtiring.
+3. `matmul.c` da `T` ni 16 ga oshiring va `time` bilan o'lchang: 4 yadroli mashinada 8 va 16 oqim 4 oqimdan tezmi? Nega?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Oqim** — jarayon ichidagi bajaruvchi; **xotirani bo'lishadi** (shuning uchun tez va xavfli). `pthread_create` / `pthread_join`; `-pthread`.

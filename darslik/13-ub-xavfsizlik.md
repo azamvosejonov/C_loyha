@@ -409,6 +409,307 @@ yana ikki usul bilan toshishni oldindan aniqlashni ko'rsatadi.
 
 **Sinab ko'ring:** `qosh_xavfsiz` ichidagi ikkala `if` ni o'chirib, faqat `*natija = balans + summa;` qoldiring. Dasturni `-fsanitize=undefined` bilan ishga tushiring — sanitizer qaysi qatorni ko'rsatadi?
 
+<!-- katta:boshi -->
+## Katta loyiha: Fuzzer — o'z xatolaringizni mashina bilan toping
+
+**Umumiy fikr.** Oldingi boblarda xatolarni **o'zimiz** topdik: dasturni ishga tushirdik, noto'g'ri natijani ko'rdik. Haqiqiy xatolar esa odatda **kutilmagan kirishda** chiqadi — kimdir 200 belgili nom yoki `99999999999` kiritganda. Bunday kirishlarni qo'lda o'ylab topish qiyin. **Fuzzer** — shuni mashinaning o'ziga topshiradigan dastur: u minglab **tasodifiy buzilgan** kirishlarni parserga yuboradi, sanitizer (13-bob) esa birinchi xatoda dasturni to'xtatib, **qayerda** va **nega** deb aytadi.
+
+**Hayotiy o'xshatish:** yangi eshik qulfini sinash uchun uni million marta turli kalitlar bilan ochib ko'rasiz — qaysidir kalit "noto'g'ri" bo'lsa-yu, eshik ochilib ketsa, qulf nuqsonli.
+
+### Bu bosqichda nima qilamiz
+
+`nom:narx:soni` ko'rinishidagi qatorni (masalan `non:4000:120`) o'qiydigan kichik parser yozamiz. Uni **ikki xil** yozamiz:
+
+| Variant | Fayl | Qanday |
+|---|---|---|
+| **zaif** | `parser_zaif.c` | ataylab 4 ta xato bilan (hech qachon bunday yozmang!) |
+| **xavfsiz** | `parser_xavfsiz.c` | har xatoga qarshi chora ko'rilgan |
+
+Ikkalasi ham **bitta interfeys** (`parser.h`) orqali ishlaydi — shuning uchun **bitta fuzzer** ikkalasini sinay oladi (1-bobdagi "e'lon va ta'rif" g'oyasi, 11-bobdagi ko'p fayl).
+
+**Birinchi — interfeys (`parser.h`):**
+
+```c
+/* parser.h - "nom:narx:soni" qatorlarini o'qiydigan kutubxona interfeysi (ikki ichki variant bor: zaif va xavfsiz) */
+#ifndef PARSER_H
+#define PARSER_H
+
+#include <stddef.h>
+
+struct yozuv {
+    char nom[16];                               /* eng ko'pi bilan 15 belgi + '\0' */
+    int narx;                                   /* so'mda */
+    int soni;
+};
+
+/* "non:4000:120" ni y ga o'qiydi. 0 - muvaffaqiyat, -1 - format noto'g'ri */
+int yozuv_oqi(const char *satr, struct yozuv *y);
+
+/* hamma yozuvlar narx * soni yig'indisi. 0 - muvaffaqiyat, -1 - toshib ketdi */
+int yozuvlar_jami(const struct yozuv *y, size_t n, long *jami);
+
+#endif
+```
+
+**Ikkinchi — zaif variant.** Har xato izohda ko'rsatilgan:
+
+```c
+/* parser_zaif.c - ZAIF variant: ataylab xatolar bilan (hech qachon bunday yozmang!) */
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"
+
+int yozuv_oqi(const char *satr, struct yozuv *y)
+{
+    char nusxa[64];
+    strcpy(nusxa, satr);                        /* XATO 1: satr 64 baytdan uzun bo'lsa stek buziladi */
+
+    char *birinchi = strchr(nusxa, ':');
+    if (!birinchi)
+        return -1;
+    *birinchi = '\0';
+    strcpy(y->nom, nusxa);                      /* XATO 2: nom 15 belgidan uzun bo'lsa y->nom dan chiqib ketadi */
+
+    char *ikkinchi = strchr(birinchi + 1, ':');
+    if (!ikkinchi)
+        return -1;
+    *ikkinchi = '\0';
+    y->narx = atoi(birinchi + 1);               /* XATO 3: atoi xatoni bildirmaydi, katta sonda UB */
+    y->soni = atoi(ikkinchi + 1);
+    return 0;
+}
+
+int yozuvlar_jami(const struct yozuv *y, size_t n, long *jami)
+{
+    int yig = 0;
+    for (size_t i = 0; i < n; i++)
+        yig += y[i].narx * y[i].soni;           /* XATO 4: int toshishi (aniqlanmagan xatti-harakat) */
+    *jami = yig;
+    return 0;
+}
+```
+
+**Uchinchi — xavfsiz variant.** Bu yerda barcha xatolar yopilgan:
+
+```c
+/* parser_xavfsiz.c - XAVFSIZ variant: har xatoga qarshi chora */
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"
+
+/* matnni butun songa o'giradi: faqat raqamlar, chegarada. 0 - OK */
+static int son_oqi(const char *s, size_t uzunlik, int *natija)
+{
+    if (uzunlik == 0 || uzunlik > 9)            /* bo'sh yoki juda uzun: int ga sig'maydi */
+        return -1;
+    long v = 0;
+    for (size_t i = 0; i < uzunlik; i++) {
+        if (s[i] < '0' || s[i] > '9')
+            return -1;                          /* raqam bo'lmagan belgi */
+        v = v * 10 + (s[i] - '0');
+    }
+    *natija = (int)v;                           /* 9 raqam <= 999999999 < INT_MAX */
+    return 0;
+}
+
+int yozuv_oqi(const char *satr, struct yozuv *y)
+{
+    const char *a = strchr(satr, ':');
+    if (!a)
+        return -1;
+    const char *b = strchr(a + 1, ':');
+    if (!b)
+        return -1;
+
+    size_t nom_uz = (size_t)(a - satr);
+    if (nom_uz == 0 || nom_uz >= sizeof(y->nom))
+        return -1;                              /* nom bo'sh yoki joyga sig'maydi */
+
+    int narx, soni;
+    if (son_oqi(a + 1, (size_t)(b - a - 1), &narx) != 0)
+        return -1;
+    const char *oxir = b + 1;
+    if (son_oqi(oxir, strlen(oxir), &soni) != 0)
+        return -1;
+
+    memcpy(y->nom, satr, nom_uz);               /* uzunlik tekshirilgan: chegaradan chiqmaydi */
+    y->nom[nom_uz] = '\0';
+    y->narx = narx;
+    y->soni = soni;
+    return 0;
+}
+
+int yozuvlar_jami(const struct yozuv *y, size_t n, long *jami)
+{
+    long yig = 0;
+    for (size_t i = 0; i < n; i++) {
+        long p;
+        if (__builtin_mul_overflow((long)y[i].narx, (long)y[i].soni, &p) || __builtin_add_overflow(yig, p, &yig))
+            return -1;                          /* toshishni TEKSHIRIB aniqlaymiz */
+    }
+    *jami = yig;
+    return 0;
+}
+```
+
+**To'rtinchi — fuzzer o'zi.** Uning ishi: kirishni tasodifiy **buzish** va parserga berish.
+
+```c
+/* fuzz.c - fuzzer: tasodifiy buzilgan kirishlarni parserga yuboradi; xato bo'lsa sanitizer to'xtatadi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "parser.h"
+
+static unsigned long holat;                     /* tasodif generatori holati (bir xil urug' = bir xil ketma-ketlik) */
+
+static unsigned tasodif(void)
+{
+    holat = holat * 6364136223846793005UL + 1442695040888963407UL;
+    return (unsigned)(holat >> 33);
+}
+
+/* haqiqiy kirishni olib, tasodifiy "buzamiz": uzaytirish, belgi almashtirish, ikki nuqta qo'shish */
+static void buz(char *bufer, size_t sigim)
+{
+    static const char *urug[] = { "non:4000:120", "sut:12000:45", "guruch:18000:8", "shakar:15000:60" };
+    snprintf(bufer, sigim, "%s", urug[tasodif() % 4]);
+    size_t uz = strlen(bufer);
+
+    switch (tasodif() % 5) {
+    case 0:                                     /* nomni uzun qilamiz */
+        for (unsigned k = tasodif() % 100; k && uz + 1 < sigim; k--)
+            memmove(bufer + 1, bufer, ++uz), bufer[0] = 'a' + (char)(tasodif() % 26);
+        break;
+    case 1:                                     /* ko'p raqam qo'shamiz */
+        for (unsigned k = tasodif() % 30; k && uz + 1 < sigim; k--)
+            bufer[uz++] = '0' + (char)(tasodif() % 10);
+        bufer[uz] = '\0';
+        break;
+    case 2:                                     /* tasodifiy belgi almashtiramiz */
+        if (uz)
+            bufer[tasodif() % uz] = (char)(33 + tasodif() % 90);
+        break;
+    case 3:                                     /* ':' belgilarini ko'paytiramiz yoki yo'qotamiz */
+        for (size_t i = 0; i < uz; i++)
+            if (bufer[i] == ':' && tasodif() % 2)
+                bufer[i] = 'x';
+        break;
+    default:                                    /* hech narsa: to'g'ri kirish */
+        break;
+    }
+}
+
+int main(int argc, char **argv)
+{
+    unsigned long urug = argc > 1 ? strtoul(argv[1], NULL, 10) : 1;
+    long n = argc > 2 ? atol(argv[2]) : 1000;
+    holat = urug;
+
+    /* 1) aniq sinov: 12 ta juda katta yozuvning yig'indisi long ga ham sig'maydi */
+    struct yozuv katta[12];
+    for (int i = 0; i < 12; i++) {
+        strcpy(katta[i].nom, "x");
+        katta[i].narx = 999999999;
+        katta[i].soni = 999999999;
+    }
+    long yig;
+    int r = yozuvlar_jami(katta, 12, &yig);
+    printf("toshish sinovi: yozuvlar_jami() = %d (%s)\n", r, r ? "toshish aniqlandi" : "toshish ANIQLANMADI!");
+
+    /* 2) fuzz: n ta tasodifiy buzilgan kirish */
+    long togri = 0, rad = 0, toshdi = 0;
+    for (long i = 0; i < n; i++) {
+        char kirish[256];
+        buz(kirish, sizeof(kirish));
+        FILE *f = fopen("oxirgi_kirish.txt", "w");  /* qulash bo'lsa, qaysi kirish sababchi ekanini bilamiz */
+        if (f) {
+            fputs(kirish, f);
+            fclose(f);
+        }
+
+        struct yozuv y[2];
+        long jami;
+        if (yozuv_oqi(kirish, &y[0]) == 0) {
+            togri++;
+            y[1] = y[0];                        /* ikkita yozuv: yig'indini tekshirish uchun */
+            if (yozuvlar_jami(y, 2, &jami) != 0)
+                toshdi++;
+        } else {
+            rad++;
+        }
+    }
+    printf("urug %lu, %ld ta kirish: %ld ta to'g'ri o'qildi, %ld ta rad etildi, %ld ta yig'indi toshdi (aniqlandi)\n",
+           urug, n, togri, rad, toshdi);
+    return 0;
+}
+```
+
+**Fuzzer qanday ishlaydi (umumiy):**
+
+1. `holat` — tasodif generatori (LCG). **Bir xil urug' = bir xil ketma-ketlik**: shuning uchun topilgan xatoni **qayta ishlab chiqarish** mumkin (`./fuzz_zaif 12345`).
+2. `buz()` — to'rtta haqiqiy qatordan birini oladi va **tasodifiy buzadi**: nomni uzaytiradi, raqam qo'shadi, bitta belgini almashtiradi yoki `:` ni yo'qotadi.
+3. Har kirishdan **oldin** `oxirgi_kirish.txt` ga yoziladi: dastur qulasa, shu fayl **aynan qaysi kirish** sababchi ekanini ko'rsatadi.
+4. Parser kirishni qabul qilsa — `yozuvlar_jami()` bilan yig'indisi tekshiriladi; rad etsa — sanab qo'yiladi.
+
+Avval **zaif** variantni sinaymiz. Sanitizer (`-fsanitize=address,undefined`) xatoni topgach xabar beradi. Chiqish juda uzun, shuning uchun faqat muhim qatorlarni olamiz (`grep`), manzillarni esa `sed` bilan yashiramiz:
+
+```console
+$ cd katta_loyiha/tizim/13_fuzz
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined fuzz.c parser_zaif.c -o fuzz_zaif
+$ ./fuzz_zaif 12345 200000 2>&1 | grep -E 'runtime error|ERROR|SUMMARY|toshish sinovi' | sed -E 's/==[0-9]+==//; s/0x[0-9a-f]+/0x.../g' # xato kutiladi
+parser_zaif.c:31:26: runtime error: signed integer overflow: 999999999 * 999999999 cannot be represented in type 'int'
+parser_zaif.c:31:13: runtime error: signed integer overflow: 1616697346 + 808348673 cannot be represented in type 'int'
+ERROR: AddressSanitizer: stack-buffer-overflow on address 0x... at pc 0x... bp 0x... sp 0x...
+SUMMARY: AddressSanitizer: stack-buffer-overflow ../../../../src/libsanitizer/asan/asan_interceptors.cpp:563 in strcpy
+```
+
+**Nima ko'rdik:**
+
+- `signed integer overflow` — UBSan `parser_zaif.c` ning **31-qatorida** `int` toshganini topdi (`yig += narx * soni`, XATO 4).
+- `stack-buffer-overflow ... in strcpy` — ASan **64 baytlik** `nusxa` massivi chegarasidan chiqilganini topdi (XATO 1): fuzzer **uzun nomli** kirish yaratgan edi.
+- Sanitizer **qator raqamini** ham, **qaysi funksiya** (`yozuv_oqi`) ekanini ham aytdi — qidirish kerak emas.
+- Qaysi kirish sabab bo'ldi? `cat oxirgi_kirish.txt` — 90 ga yaqin belgidan iborat uzun nom.
+
+Endi **xavfsiz** variantni ayni shu fuzzer bilan sinaymiz:
+
+```console
+$ cd katta_loyiha/tizim/13_fuzz
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined fuzz.c parser_xavfsiz.c -o fuzz_xavfsiz
+$ ./fuzz_xavfsiz 12345 200000
+toshish sinovi: yozuvlar_jami() = -1 (toshish aniqlandi)
+urug 12345, 200000 ta kirish: 80734 ta to'g'ri o'qildi, 119266 ta rad etildi, 0 ta yig'indi toshdi (aniqlandi)
+```
+
+**Nima ko'rdik:**
+
+- **Hech qanday sanitizer xabari yo'q** — 200 000 ta buzilgan kirishdan keyin ham dastur tinch tugadi.
+- `toshish sinovi: ... = -1 (toshish aniqlandi)`: 12 ta juda katta yozuvning yig'indisi `long` ga ham sig'maydi, xavfsiz variant buni **-1** bilan **bildirdi** (zaif variant jimgina noto'g'ri son qaytarardi).
+- Taxminan 40% kirish to'g'ri o'qildi, 60% rad etildi: parser **buzilgan kirishni to'g'ri rad etyapti**, qulamayapti — xavfsizlikning asosiy ma'nosi shu.
+
+**To'rtta xato va ularning davosi:**
+
+| # | Zaif kod | Muammo | Xavfsiz kod |
+|---|---|---|---|
+| 1 | `strcpy(nusxa, satr)` | satr 64 baytdan uzun bo'lsa — **stek buziladi** | nusxa olmaymiz; uzunlikni **avval tekshirib**, `memcpy` qilamiz |
+| 2 | `strcpy(y->nom, nusxa)` | nom 15 belgidan uzun bo'lsa — struct dan chiqib ketadi | `nom_uz >= sizeof(y->nom)` bo'lsa **rad etamiz** |
+| 3 | `atoi(...)` | xatoni bildirmaydi: `"abc"` ham `0` bo'ladi, katta sonda UB | `son_oqi()`: faqat `'0'..'9'`, uzunlik ≤ 9 |
+| 4 | `int yig += a * b` | **signed overflow** — UB (2-bob) | `__builtin_mul_overflow` / `__builtin_add_overflow` — toshishni **aniqlaydi** |
+
+> **Eslab qoling:** tashqaridan kelgan **har bir** kirish (fayl, tarmoq, foydalanuvchi) — **dushman** deb hisoblang. Parser: (1) uzunlikni tekshiradi, (2) belgilarni tekshiradi, (3) chegaradan chiqmaydi, (4) toshishni aniqlaydi. Fuzzer + sanitizer — buni isbotlashning eng arzon yo'li.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `parser_xavfsiz.c` dan `nom_uz >= sizeof(y->nom)` tekshiruvini **vaqtincha** olib tashlab, fuzzer bilan sinang: sanitizer endi qaysi xatoni topadi? Fuzzer buni **tez** topdimi?
+2. `buz()` ga **beshinchi usul** qo'shing: kirishning o'rtasiga `\0` (null bayt) kiriting. Parser buni qanday qabul qiladi?
+3. Fuzzerni kengaytiring: har 1000 kirishdan keyin **progress** (`... 1000 ta tekshirildi`) chiqaring. Urug'ni (`argv[1]`) o'zgartirib turli xatolar topiladimi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **UB** — standart natijani **kafolatlamagan** holat (toshish, chegaradan chiqish, NULL...). Dastur ishlashi ham, qulashi ham, jim noto'g'ri bo'lishi ham mumkin.

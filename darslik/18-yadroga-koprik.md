@@ -380,6 +380,209 @@ YAKUNIY.md IV qism                  yangi drayverlar va quyi tizimlar (NVMe, USB
 **Libc'siz yashash (`chodir.c`).** Bobning to'liq dasturi — 18.1 dagi `chodir.c`: `_start` dan boshlanadi, o'z `strlen`i, o'z son→matn funksiyasi, to'g'ridan-to'g'ri `syscall`.
 U yadro dasturchisi uchun "hello world": hech narsa tayyor emas, hammasi o'zingizniki. Keyingi qadam (loyiha) — shu g'oya ustiga o'zingizning `kprintf` ni qurish.
 
+<!-- katta:boshi -->
+## Katta loyiha: libk — yadro uchun mini kutubxona
+
+**Umumiy fikr.** Oddiy C dasturi `memcpy`, `strlen`, `printf` kabi funksiyalarni **libc**dan oladi. Lekin **yadro** (OS kernel) ishga tushganda hech qanday libc **yo'q** — yadroning o'zi libc'ni ta'minlashi kerak. Shu bosqichda yadroda kerak bo'ladigan asosiy funksiyalarni **noldan, libc'siz** yozamiz va ularni **haqiqiy libc bilan solishtirib** sinaymiz.
+
+**Hayotiy o'xshatish:** orolda yashash. Do'kon (libc) yo'q: bolta, arra, ipni o'zingiz yasashingiz kerak. Lekin yasaganingizni **do'kondagisi bilan solishtirib** ko'rsangiz, to'g'ri yasaganingizga ishonch hosil qilasiz.
+
+### Bu bosqichda nima qilamiz
+
+Kutubxona (`libk.h` + `libk.c`) to'rt guruh funksiyadan iborat. Nomlar `k` prefiksi bilan (libc nomlari bilan to'qnashmaslik uchun — yadroda bu odat):
+
+| Guruh | Funksiyalar | Nima uchun yadroda kerak |
+|---|---|---|
+| xotira | `kmemset`, `kmemcpy`, `kmemmove`, `kmemcmp` | sahifalarni nollash, bufer ko'chirish |
+| satr | `kstrlen`, `kstrcmp`, `kstrlcpy` | fayl nomlari, buyruq qatori |
+| son → matn | `kutoa(son, bufer, asos)` | konsolga son chiqarish (`printf` yo'q!) |
+| bitmap | `kbit_yoq`, `kbit_och`, `kbit_bor`, `kbit_bosh_top` | bo'sh sahifalarni kuzatish (1 bit = 1 sahifa) |
+| halqa bufer | `kring_*` | klaviatura buferi: bitta yozadi, bitta o'qiydi |
+
+**Interfeys (`libk.h`):**
+
+```c
+/* libk.h - yadro uchun mini kutubxona: libc'siz (freestanding) satr/xotira funksiyalari, bitmap, halqa bufer */
+#ifndef LIBK_H
+#define LIBK_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+/* --- xotira va satrlar (libc nomlari bilan to'qnashmasligi uchun "k" prefiksi) --- */
+void *kmemset(void *dst, int bayt, size_t n);
+void *kmemcpy(void *dst, const void *src, size_t n);       /* ustma-ust tushmasligi shart */
+void *kmemmove(void *dst, const void *src, size_t n);      /* ustma-ust tushsa ham to'g'ri */
+int kmemcmp(const void *a, const void *b, size_t n);
+size_t kstrlen(const char *s);
+int kstrcmp(const char *a, const char *b);
+size_t kstrlcpy(char *dst, const char *src, size_t hajm); /* dst ga ko'pi bilan hajm-1 belgi + '\0'; src uzunligini qaytaradi */
+
+/* --- sonlarni matnga aylantirish: asos 2..16, bufer yetarlicha katta bo'lishi shart (kamida 65 bayt) --- */
+char *kutoa(uint64_t son, char *bufer, int asos);
+
+/* --- bitmap: 1 bit = 1 obyekt (16-bob). bitlar massivi uint8_t bayt qatorida --- */
+void kbit_yoq(uint8_t *b, size_t i);
+void kbit_och(uint8_t *b, size_t i);
+int kbit_bor(const uint8_t *b, size_t i);
+long kbit_bosh_top(const uint8_t *b, size_t n);            /* birinchi 0 bitning indeksi yoki -1 */
+
+/* --- halqa bufer: bitta yozuvchi va bitta o'quvchi (klaviatura buferi kabi). sig'im 2 ning darajasi bo'lishi shart --- */
+struct kring {
+    uint8_t *ma_lumot;
+    size_t sigim;                               /* 2 ning darajasi */
+    size_t bosh, oxir;                          /* o'qish va yozish hisoblagichlari (cheksiz oshadi, mask bilan indeks olinadi) */
+};
+
+void kring_boshla(struct kring *r, uint8_t *xotira, size_t sigim);
+int kring_yoz(struct kring *r, uint8_t bayt);              /* 0 - OK, -1 - to'la */
+int kring_oqi(struct kring *r, uint8_t *bayt);             /* 0 - OK, -1 - bo'sh */
+size_t kring_band(const struct kring *r);
+
+#endif
+```
+
+**Eng nozik funksiyalardan uchtasi.**
+
+**1) `kmemmove` — nega `kmemcpy` dan farqli?** Agar manba va nishon **ustma-ust** tushsa, oldinga ko'chirish manbani **o'zimiz buzib yuboramiz**. Shuning uchun `dst` manba **orqasida** bo'lsa, **oxiridan boshlab** ko'chiramiz:
+
+```c
+void *kmemmove(void *dst, const void *src, size_t n)
+{
+    uint8_t *d = dst;
+    const uint8_t *s = src;
+    if (d < s) {
+        while (n--)                             /* oldinga ko'chirish: dst manba oldida */
+            *d++ = *s++;
+    } else if (d > s) {
+        d += n;
+        s += n;
+        while (n--)                             /* ORQAGA ko'chirish: dst manba orqasida bo'lsa, oxiridan boshlaymiz */
+            *--d = *--s;
+    }
+    return dst;
+}
+```
+
+**2) `kutoa` — sonni matnga aylantirish.** Son `% asos` — eng **past raqam**, `/ asos` — qolgani. Raqamlar **teskari** chiqadi, shuning uchun vaqtinchalik `teskari[]` ga yozib, so'ng ag'daramiz:
+
+```c
+char *kutoa(uint64_t son, char *bufer, int asos)
+{
+    static const char raqamlar[] = "0123456789abcdef";
+    char teskari[65];
+    int n = 0;
+    if (asos < 2 || asos > 16)
+        asos = 10;
+    do {
+        teskari[n++] = raqamlar[son % (uint64_t)asos];      /* eng past raqam birinchi chiqadi */
+        son /= (uint64_t)asos;
+    } while (son);
+    int i = 0;
+    while (n)
+        bufer[i++] = teskari[--n];              /* teskari tartibda yozamiz */
+    bufer[i] = '\0';
+    return bufer;
+}
+```
+
+Masalan `kutoa(11, b, 2)`: `11 % 2 = 1`, `5 % 2 = 1`, `2 % 2 = 0`, `1 % 2 = 1` → teskari `1101` → ag'darilgach `1011`.
+
+**3) Halqa bufer.** `bosh` (o'qish) va `oxir` (yozish) hisoblagichlari **cheksiz oshadi**; indeks `& (sigim - 1)` bilan olinadi (sig'im 2 ning darajasi bo'lgani uchun `%` o'rniga maska — tez):
+
+```c
+size_t kring_band(const struct kring *r)
+{
+    return r->oxir - r->bosh;                   /* ayirma toshsa ham (ishorasiz) to'g'ri qoladi */
+}
+```
+
+```c
+int kring_yoz(struct kring *r, uint8_t bayt)
+{
+    if (kring_band(r) == r->sigim)
+        return -1;
+    r->ma_lumot[r->oxir & (r->sigim - 1)] = bayt;   /* & (sigim-1): 2 ning darajasida % o'rniga */
+    r->oxir++;
+    return 0;
+}
+```
+
+`oxir - bosh` — band joy soni; ayirma `size_t` (ishorasiz) bo'lgani uchun hisoblagich toshib o'tgandan keyin ham **to'g'ri** qoladi.
+
+### Sinov: libc bilan solishtirish
+
+`sinov.c` har funksiyani **20 000 marta tasodifiy kirish bilan** libc'dagi etaloni bilan solishtiradi. Muhim joylari: ustma-ust tushadigan siljishlar (`kmemmove` uchun), kichik alifbo (`a b c` — teng satrlar ko'p uchrasin), halqa buferda **FIFO tartibi** tekshiruvi:
+
+```c
+#define TEKSHIR(shart, xabar)                                                      \
+    do {                                                                           \
+        if (!(shart)) {                                                            \
+            xatolar++;                                                             \
+            if (xatolar <= 5)                                                      \
+                printf("  XATO %s:%d: %s\n", __FILE__, __LINE__, xabar);           \
+        }                                                                          \
+    } while (0)
+```
+
+```c
+static void halqa_sinovi(void)
+{
+    uint8_t xotira[8];
+    struct kring r;
+    kring_boshla(&r, xotira, 8);
+    unsigned yozilgan = 0, oqilgan = 0;
+    uint8_t kutilgan = 0, yoz = 0;
+    for (int t = 0; t < 100000; t++) {
+        if (tasodif() % 2) {
+            if (kring_yoz(&r, yoz) == 0) {
+                yoz++;
+                yozilgan++;
+            }
+        } else {
+            uint8_t b;
+            if (kring_oqi(&r, &b) == 0) {
+                TEKSHIR(b == kutilgan, "halqa: FIFO tartibi buzildi");
+                kutilgan++;
+                oqilgan++;
+            }
+        }
+        TEKSHIR(kring_band(&r) == yozilgan - oqilgan && kring_band(&r) <= 8, "halqa: band soni");
+    }
+}
+```
+
+Kutubxonani **ikki xil** yig'amiz: (1) **freestanding** — libc'siz, yadroga mos (`-ffreestanding -fno-builtin ...`); (2) sinov uchun **oddiy**, sanitizer bilan:
+
+```console
+$ cd katta_loyiha/tizim/18_libk
+$ gcc -Wall -Wextra -O2 -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fno-stack-protector -mno-red-zone -fno-pic -c libk.c -o libk.o
+$ ar rcs libk.a libk.o
+$ echo "libk.o ning tashqi (libc) bog'liqliklari: $(nm -u libk.o | wc -l) ta"
+libk.o ning tashqi (libc) bog'liqliklari: 0 ta
+$ nm libk.a | awk '$2 == "T" { print $3 }' | sort | tr '\n' ' '; echo
+kbit_bor kbit_bosh_top kbit_och kbit_yoq kmemcmp kmemcpy kmemmove kmemset kring_band kring_boshla kring_oqi kring_yoz kstrcmp kstrlcpy kstrlen kutoa 
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined sinov.c libk.c -o sinov
+$ ./sinov
+libk sinovi: hammasi to'g'ri (5 ta guruh, ~200000 tekshiruv)
+```
+
+**Nima ko'rdik:**
+
+- `tashqi (libc) bog'liqliklari: 0 ta` — `nm -u` obyekt faylning **hal qilinmagan** (boshqa joydan kerak) belgilarini ko'rsatadi. **0** — demak libk **butunlay mustaqil**: yadroga qo'shilganda libc kerak emas. Agar bu yerda `memcpy` chiqsa, kompilyator sizning siklingizni `memcpy` chaqirig'iga aylantirgan bo'ladi (shuning uchun `-fno-builtin`, `-fno-tree-loop-distribute-patterns` bayroqlari bor!).
+- `nm libk.a | ... T` — kutubxonadagi **eksport qilingan** (`T` = kod bo'limi) funksiyalar ro'yxati: 16 ta.
+- `libk sinovi: hammasi to'g'ri` — sanitizer (ASan + UBSan) ostida ~200 000 tekshiruv o'tdi: chegaradan chiqish yo'q, aniqlanmagan xatti-harakat yo'q.
+- Bayroqlar: `-ffreestanding` — "libc mavjud deb o'ylama"; `-mno-red-zone` — yadroda uzilish steki "qizil zonani" buzishi mumkin; `-fno-stack-protector` — himoya kanareykasi libc'dan funksiya chaqiradi.
+
+> **Eslab qoling:** yadro — libc'siz dunyo. O'z `mem*`/`str*` funksiyalaringizni yozing, **libc etaloni bilan tasodifiy sinang** va `nm -u` bilan hech narsa **tashqaridan** talab qilinmasligini **isbotlang**. `memmove` — ustma-ust holat uchun, `memcpy` — yo'q.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `kstrncmp(a, b, n)` va `kstrchr(s, c)` yozing va `sinov.c` ga ularning libc bilan taqqoslash testini qo'shing.
+2. `kring_yoz` dagi `r->sigim - 1` maskasini `% r->sigim` ga almashtiring va sinov o'tadimi? Sig'im 2 ning darajasi **bo'lmasa** (masalan 6) maska nima beradi?
+3. `kbit_bosh_top` ni sekin (har bit) o'rniga **bayt-bayt** tezlashtiring: avval `b[i] == 0xFF` bo'lsa butun baytni o'tkazib yuboring. `time` bilan 1 million bitli bitmapda solishtiring.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Hosted** (oddiy dastur: libc, `main`) va **freestanding** (yadro: hech narsa, o'z kirish nuqtasi) — yadro libc'siz yashaydi.

@@ -617,6 +617,206 @@ boshqa tomonlarini ko'rsatadi:
 
 **Sinab ko'ring:** `xizmatlar.c` ga `[3] = x_kopaytir` qo'shing. MyOS'ning haqiqiy `switch`'ini oching: `grep -n "SYS_" ~/C_loyha/kernel/sys/syscall.c | head` — xuddi shu g'oyani taniysizmi?
 
+<!-- katta:boshi -->
+## Katta loyiha: foydalanuvchi maydonidagi "mini-yadro" (jarayonlar, syscall, kontekst almashish)
+
+**Umumiy fikr.** Yadroning asosiy ishi — **bitta CPU da ko'p jarayonni** ishlatish: har biriga "o'zimda ishlayapman" degan tuyg'u berish. Buning uchun yadro **ishlayotgan jarayonning registrlarini saqlaydi**, boshqasiniki **tiklaydi** (*kontekst almashish*). Bu bosqichda shuni **oddiy dastur ichida** qilamiz: `ucontext` (`getcontext`, `makecontext`, `swapcontext`) — registrlar va stekni saqlash/tiklash uchun tayyor funksiyalar. Natijada **haqiqiy** rejalashtiruvchi, **jarayonlar jadvali**, **syscall jadvali**, **uxlash/kutish** — yadroning asosiy qismlari, faqat "protsessor emas, funksiya chaqiruvi" bilan.
+
+**Hayotiy o'xshatish:** bir ishchi ikki ish bilan shug'ullanadi. Birinchisini to'xtatayotganda **qaysi joyga yetganini yozib qo'yadi** (kontekst), ikkinchisiga o'tadi. Qaytganda yozuvni o'qib, aynan o'sha joydan davom etadi.
+
+### Arxitektura
+
+```text
+  +--------------------------------------------------------+
+  |  YADRO  (yadro_kirish: rejalashtiruvchi sikl)            |
+  |    jarayonlar jadvali: jadval[MAKS]                      |
+  |    syscall jadvali:    jadval_syscall[]                  |
+  +----------------------^---------------------------------+
+            swapcontext  |  trap()  (jarayon -> yadro)
+            (yadro -> jarayon)
+  +--------+  +--------+  +--------+  +--------+
+  |  init  |  |   A    |  |   B    |  |   C    |   <- "user rejimi": faqat sys_*() chaqiradi
+  +--------+  +--------+  +--------+  +--------+
+   o'z steki   o'z steki   o'z steki   o'z steki
+```
+
+**Qoida:** jarayon yadro ma'lumotlariga **to'g'ridan-to'g'ri tegmaydi**. Yadro xizmati kerak bo'lsa — `sys_write()`, `sys_sleep()` ... chaqiradi. Ular **`trap()`** ichida yadroga o'tadi (haqiqiy mashinada bu `syscall` buyrug'i).
+
+### 1) Jarayon (PCB — process control block)
+
+```c
+enum holat { BOSH, TAYYOR, UXLAYDI, KUTADI, TUGADI };
+```
+
+```c
+struct jarayon {
+    int pid;
+    char nom[8];
+    enum holat holat;
+    ucontext_t ctx;                             /* saqlangan registrlar va stek ko'rsatkichi: "to'xtatilgan jarayon surati" */
+    char *stek;                                 /* har jarayonning O'Z steki */
+    void (*kirish)(void);
+    long uyg_tik;                               /* UXLAYDI: qaysi tikda uyg'onadi */
+    int kutilgan_pid;                           /* KUTADI: qaysi jarayon tugashini kutyapti */
+    int chiqish_kodi;
+    long a, b, natija;                          /* syscall argumentlari va natijasi (user -> yadro -> user) */
+    int nr;                                     /* qaysi syscall so'ralgan */
+};
+```
+
+| Maydon | Ma'nosi |
+|---|---|
+| `ctx` | **saqlangan kontekst**: registrlar + stek ko'rsatkichi. "To'xtatilgan jarayonning surati" |
+| `stek` | jarayonning **o'z steki** (64 KB) — jarayonlar bir-birining stekini buzmasin |
+| `holat` | `TAYYOR` (CPU kutayapti), `UXLAYDI` (`sys_sleep`), `KUTADI` (`sys_join`), `TUGADI` |
+| `a`, `b`, `nr`, `natija` | syscall **argumentlari, raqami va natijasi** (jarayon ↔ yadro "pochta qutisi") |
+
+### 2) Syscall jadvali
+
+Syscall — **raqam → funksiya**. Yadro raqamni oladi va jadvaldan ishlovchini topadi (xuddi Linux `sys_call_table` kabi):
+
+```c
+static long (*const jadval_syscall[SYS_SONI])(struct jarayon *) = {
+    [SYS_YIELD] = s_yield, [SYS_SLEEP] = s_sleep, [SYS_EXIT] = s_exit,
+    [SYS_SPAWN] = s_spawn, [SYS_JOIN] = s_join,   [SYS_WRITE] = s_write,
+};
+```
+
+Oltita syscall: `YIELD` (CPU ni o'z ixtiyori bilan berish), `SLEEP` (n tik uxlash), `EXIT`, `SPAWN` (yangi jarayon), `JOIN` (boshqasi tugashini kutish), `WRITE` (matn chiqarish). Masalan **`SPAWN`** yangi jarayon uchun joy topadi, **stek ajratadi**, `makecontext` bilan "ishga tushishga tayyor" kontekst yaratadi:
+
+```c
+static long s_spawn(struct jarayon *j)
+{
+    for (int i = 1; i < MAKS; i++)
+        if (jadval[i].holat == BOSH) {
+            struct jarayon *y = &jadval[i];
+            y->pid = i;
+            snprintf(y->nom, sizeof(y->nom), "%s", (const char *)j->b);
+            y->kirish = (void (*)(void))j->a;
+            y->stek = malloc(STEK_HAJM);
+            getcontext(&y->ctx);                /* hozirgi kontekstni nusxalab, so'ng o'zgartiramiz */
+            y->ctx.uc_stack.ss_sp = y->stek;
+            y->ctx.uc_stack.ss_size = STEK_HAJM;
+            y->ctx.uc_link = &yadro_ctx;        /* kirish funksiyasi qaytsa, yadroga qaytamiz */
+            makecontext(&y->ctx, y->kirish, 0);
+            y->holat = TAYYOR;
+            return i;
+        }
+    return -1;
+}
+```
+
+### 3) `trap` — jarayondan yadroga o'tish
+
+Eng muhim ikki qator. `swapcontext(&saqlash, &tiklash)` — joriy registrlarni `saqlash` ga yozadi va `tiklash` dagilarni **yuklaydi**. Jarayon `trap()` chaqirganda **to'xtab qoladi**; yadro bizni qayta ishga tushirganda **aynan shu `swapcontext` dan keyingi qatordan davom etamiz**:
+
+```c
+static long trap(int nr, long a, long b)
+{
+    struct jarayon *j = &jadval[joriy];
+    j->nr = nr;
+    j->a = a;
+    j->b = b;
+    swapcontext(&j->ctx, &yadro_ctx);           /* ENG MUHIM QATOR: registrlarni saqlab, yadro kontekstiga o'tamiz */
+    return j->natija;                           /* yadro bizni qayta ishga tushirganda shu yerdan davom etamiz */
+}
+```
+
+### 4) Yadroning rejalashtiruvchi sikli
+
+Yadro doim: (1) uxlayotganlarni **uyg'otadi** (vaqti kelgan bo'lsa), (2) **aylanma navbat** (round-robin) bilan keyingi tayyor jarayonni tanlaydi, (3) unga **o'tadi**, (4) u `trap` qilganda qaytib kelib, so'ralgan syscall ni **bajaradi**:
+
+```c
+static void yadro_kirish(void)
+{
+    while (tirik_bormi()) {
+        uyg_otish();
+        int k = keyingi_tayyor();
+        if (k < 0) {
+            tik++;                              /* hamma uxlayapti: vaqt o'tadi (CPU "bo'sh turadi", idle) */
+            continue;
+        }
+        joriy = k;
+        tik++;                                  /* har rejalashtirish qarori bitta tik (taymer uzilishi) */
+        swapcontext(&yadro_ctx, &jadval[k].ctx);        /* jarayonga o'tamiz; u trap() qilganda shu yerga qaytamiz */
+
+        struct jarayon *j = &jadval[k];
+        if (j->nr >= 0 && j->nr < SYS_SONI)
+            j->natija = jadval_syscall[j->nr](j);       /* so'ralgan syscall ni jadval orqali bajaramiz */
+        if (j->holat == TUGADI) {                       /* sys_exit: stekni qaytaramiz, jarayon boshqa ishlamaydi */
+            free(j->stek);
+            j->stek = NULL;
+        }
+    }
+}
+```
+
+Har rejalashtirish qarori **bitta tik** (taymer uzilishi: haqiqiy yadroda har ~1–4 ms). Hamma jarayon uxlayotgan bo'lsa — vaqt baribir o'tadi (`idle`: CPU "bo'sh turadi").
+
+### 5) "Dasturlar" va ishga tushirish
+
+Jarayonlar — oddiy funksiyalar, faqat `sys_*` chaqiradi. `init` (birinchi jarayon, PID 1) uch bola yaratadi (A, B, C) va hammasi tugashini kutadi:
+
+```c
+static void init_dastur(void)
+{
+    sys_write("init ishga tushdi, bolalar yaratilyapti");
+    int a = sys_spawn("A", dastur_a);
+    int b = sys_spawn("B", dastur_b);
+    int c = sys_spawn("C", dastur_c);
+    int ka = sys_join(a), kb = sys_join(b), kc = sys_join(c);
+    char s[64];
+    snprintf(s, sizeof(s), "hammasi tugadi: chiqish kodlari A=%d B=%d C=%d", ka, kb, kc);
+    sys_write(s);
+    sys_exit(0);
+}
+```
+
+```console
+$ cd katta_loyiha/tizim/30_ucontext_yadro
+$ gcc -Wall -Wextra -g mini_yadro.c -o mini_yadro
+$ ./mini_yadro
+[tik  1] init : init ishga tushdi, bolalar yaratilyapti
+[tik  3] A    : qadam 1, 4 tik uxlayman
+[tik  6] B    : hisoblayapman 1/4 (yield)
+[tik 11] A    : qadam 2, 4 tik uxlayman
+[tik 12] B    : hisoblayapman 2/4 (yield)
+[tik 15] B    : hisoblayapman 3/4 (yield)
+[tik 17] B    : hisoblayapman 4/4 (yield)
+[tik 18] A    : qadam 3, 4 tik uxlayman
+[tik 20] C    : uyg'ondim, ish qildim
+[tik 29] init : hammasi tugadi: chiqish kodlari A=10 B=20 C=30
+yadro to'xtadi: jami 30 tik
+```
+
+**Nima ko'rdik (qator bo'yicha):**
+
+| Tik | Voqea | Tushuntirish |
+|---|---|---|
+| 1 | `init ishga tushdi` | birinchi jarayon rejalashtirildi |
+| 3 | `A: qadam 1, 4 tik uxlayman` | `init` A ni `spawn` qildi; A birinchi marta ishga tushdi |
+| 6 | `B: hisoblayapman 1/4` | B ham spawn bo'ldi. B har safar `yield` qiladi: CPU ni boshqalarga beradi |
+| 11 | `A: qadam 2` | A `sleep(4)` qilgandi (tik 5 da, uyg'onish — 9 da), lekin tik 9–10 da navbat boshqalarda edi: **uxlash — "kamida" shuncha**, aniq emas |
+| 12, 15, 17 | B ning keyingi qadamlari | B boshqalar bilan **navbatlashib** ishlayapti (aylanma navbat) |
+| 20 | `C: uyg'ondim` | C `sleep(9)` qilgan edi (tik 9 da): 18-tikda uyg'onishi kerak edi, 20-tikda navbat yetdi |
+| 29 | `init: hammasi tugadi: A=10 B=20 C=30` | `init` `sys_join` bilan hammasini kutdi va **chiqish kodlarini** oldi |
+| — | `jami 30 tik` | yadro hamma jarayon tugagach to'xtadi |
+
+**Muhim kuzatuvlar:**
+
+- Jarayonlar **bir-biriga ko'rinmaydi**: har birining o'z steki, o'z `ctx`. `A` ning mahalliy o'zgaruvchisi (`i`) `swapcontext` lar orasida **saqlanib qoladi** — chunki butun stek saqlanadi.
+- **`join` — bloklanuvchi chaqiruv:** init `KUTADI` holatiga o'tadi va **CPU sarflamaydi**; yadro uni faqat A tugagach `TAYYOR` qiladi (`uyg_otish` ichida).
+- Jarayonlar **`yield` / `sleep` / `join` / `exit`** da yadroga o'tadi. Bu — **kooperativ** rejalashtirish: jarayon CPU ni o'zi qaytarmaguncha (`yield`/`sleep`/`join`/`exit`) yadro uni **majburan to'xtata olmaydi**. Haqiqiy yadro **taymer uzilishi** bilan majburan to'xtatadi (**preemptiv**, 23-bob).
+
+> **Eslab qoling:** jarayon = **kontekst** (registrlar + stek) + **holat** + **resurslar**. **Kontekst almashish** = bittasini saqlash + ikkinchisini tiklash. Syscall = **jarayon → yadro** o'tish, yadro ishni **jadval** orqali bajaradi. Yadroning 4 asosiy qismi: **jarayonlar jadvali**, **rejalashtiruvchi**, **syscall jadvali**, **bloklanish/uyg'otish** mexanizmi. Bu bosqichdagi dastur — shularning **butun, ishlaydigan** modeli.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. **Yangi syscall** qo'shing: `SYS_GETPID` — chaqiruvchi jarayonning `pid` ini qaytaradi. Qaysi **uch joyga** o'zgartirish kiritish kerak? (enum, jadval, `sys_*` o'rami.)
+2. `dastur_d` yozing: `sys_sleep(2)` + `sys_write` ni **5 marta** takrorlasin va `init` uni ham `spawn` va `join` qilsin. Natijadagi tik raqamlari qanday o'zgardi?
+3. **Ustuvorlik** qo'shing (23-bob): `struct jarayon` ga `ustuvor` maydonini qo'shing va `keyingi_tayyor` ni eng muhim tayyor jarayonni tanlaydigan qilib o'zgartiring.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Yadro beshta ish qiladi: **CPU**, **xotira**, **qurilmalar**, **fayllar**, **aloqa** — hammasi **himoya chegarasi** (user ↔ yadro) orqali; xizmat so'rash = **syscall raqami** → jadval → ishlovchi; xato = manfiy son (`-ENOSYS`).

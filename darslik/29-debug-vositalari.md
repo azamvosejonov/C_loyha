@@ -753,6 +753,192 @@ bilan "bu yerga `main` dan keldik" zanjirini chiqardi.
 
 **Sinab ko'ring:** `ong = orta - 1;` ni `ong = orta;` qiling va 8000 ni qidiring — dastur nega to'xtamaydi? `-DDEBUG` bilan izlarni o'qib, sababini toping (`timeout 2 ./izlar_debug 2>&1 | head` bilan to'xtating).
 
+<!-- katta:boshi -->
+## Katta loyiha: o'z `malloc` kuzatuvchingiz (LD_PRELOAD)
+
+**Umumiy fikr.** 29-bobdagi vositalar (valgrind, ASan) dasturni **tashqaridan** tekshiradi. Bu bosqichda **o'z vositamizni** yozamiz: dastur kodini **o'zgartirmasdan** uning `malloc`/`free` chaqiruvlarini **kuzatadigan** kutubxona. Sir shundaki: **dinamik linker** (22-bob) funksiya nomini **qidirish tartibi** bilan ishlaydi — va biz o'zimizning `malloc` ni **libc dan oldin** qidiriladigan qilib qo'yishimiz mumkin.
+
+**Hayotiy o'xshatish:** telefon qo'ng'irog'ini **kotib** orqali o'tkazish. Siz "do'konga qo'ng'iroq qil" desangiz, kotib uni **yozib qo'yadi** va haqiqiy do'konga **ulaydi**. Siz hech narsani sezmaysiz, lekin kotibda **to'liq jurnal** bor.
+
+### Qanday ishlaydi
+
+```text
+sinov_dastur  --malloc(100)-->  [ libtrace.so: malloc ]  --haqiqiy malloc-->  [ libc: malloc ]
+                                      | yozib qo'yadi: (manzil, hajm, kim chaqirdi)
+```
+
+| Element | Vazifasi |
+|---|---|
+| `LD_PRELOAD=./libtrace.so` | muhit o'zgaruvchisi: "bu kutubxonani **birinchi** yukla" — shuning uchun `malloc` nomi avval **bizdan** topiladi |
+| `dlsym(RTLD_NEXT, "malloc")` | "**mendan keyingi** `malloc` ni top" — ya'ni haqiqiy libc `malloc`i. Biz uni **chaqirib**, natijani qaytaramiz |
+| `__builtin_return_address(0)` | `malloc` dan **qaytish manzili**: **kim chaqirgani** (qaysi funksiya ichidan) |
+| `dladdr(manzil, &info)` | manzildan **funksiya nomini** topadi (shuning uchun test dasturi `-rdynamic` bilan yig'iladi) |
+| `__attribute__((destructor))` | dastur **tugaganda** avtomatik chaqiriladigan funksiya: hisobotni shu yerda chiqaramiz |
+| `__thread int ichkarida` | **qayta kirishdan himoya**: `printf` yoki `dlsym` o'zi `malloc` chaqirishi mumkin — uni **kuzatmaymiz** (aks holda cheksiz rekursiya) |
+
+**Nozik joy — "tuxum va tovuq".** `dlsym` o'zi `calloc` chaqiradi, lekin biz haqiqiy `calloc` ni topish uchun **aynan `dlsym` ni** ishlatyapmiz! Yechim: `calloc` ichida **kichik statik massiv**dan vaqtinchalik xotira beramiz (`boshlangich[4096]`) — faqat shu bir marta.
+
+### Kodning asosiy qismlari
+
+**Yozuv va haqiqiy funksiyalarni yuklash:**
+
+```c
+struct yozuv {
+    void *p;                                    /* berilgan ko'rsatkich */
+    size_t hajm;
+    void *chaqiruvchi;                          /* malloc dan qaytish manzili: kim chaqirgan (shu funksiya ichida) */
+    int tirik;
+};
+```
+
+```c
+static void yukla(void)
+{
+    haqiqiy_malloc = dlsym(RTLD_NEXT, "malloc");        /* RTLD_NEXT: bizdan KEYINGI (libc dagi) malloc */
+    haqiqiy_free = dlsym(RTLD_NEXT, "free");
+    haqiqiy_realloc = dlsym(RTLD_NEXT, "realloc");
+    haqiqiy_calloc = dlsym(RTLD_NEXT, "calloc");
+    tayyor = 1;
+}
+```
+
+**`malloc` o'rniga bizning funksiya.** Nomi **aynan `malloc`** — linker uni boshqasidan oldin topadi. U haqiqiy `malloc` ni chaqiradi, natijani **jadvalga yozadi** va qaytaradi:
+
+```c
+void *malloc(size_t n)
+{
+    if (!tayyor)
+        yukla();
+    void *p = haqiqiy_malloc(n);
+    if (p && !ichkarida) {
+        ichkarida = 1;
+        yoz(p, n, __builtin_return_address(0));
+        ichkarida = 0;
+    }
+    return p;
+}
+```
+
+`free` ham shunday: jadvaldan **o'chiradi** va haqiqiy `free` ni chaqiradi. `realloc` — eski blokni o'chirib, yangisini yozadi.
+
+**Hisobot** — dastur tugaganda: jadvalda **hali tirik** (free qilinmagan) bloklarni topadi va har biri uchun **kim ajratganini** chiqaradi:
+
+```c
+__attribute__((destructor)) static void hisobot(void)
+{
+    ichkarida = 1;                              /* hisobot chiqarishda printf ning malloc'i kuzatilmasin */
+    fprintf(stderr, "\n=== [trace] malloc hisoboti ===\n");
+    fprintf(stderr, "ajratishlar: %lu, bo'shatishlar: %lu, jami: %lu bayt, eng ko'pi bir vaqtda: %lu bayt\n", malloc_soni,
+            free_soni, jami_bayt, eng_katta_bayt);
+
+    static struct yozuv sizganlar[MAKS];
+    int k = 0;
+    for (int i = 0; i < MAKS; i++)
+        if (jadval[i].tirik)
+            sizganlar[k++] = jadval[i];
+    qsort(sizganlar, (size_t)k, sizeof(sizganlar[0]), solishtir);
+
+    unsigned long jami = 0, jami_baytlar = 0;
+    for (int i = 0; i < k; i++) {
+        Dl_info info;
+        int bor = dladdr(sizganlar[i].chaqiruvchi, &info);
+        if (bor && info.dli_fname && strstr(info.dli_fname, "libc.so"))
+            continue;                           /* libc ning o'z ichki xotirasi (masalan stdout buferi): dastur xatosi emas */
+        const char *kim = bor && info.dli_sname ? info.dli_sname : "?";
+        fprintf(stderr, "  SIZIB CHIQDI: %5zu bayt, ajratgan funksiya: %s()\n", sizganlar[i].hajm, kim);
+        jami++, jami_baytlar += sizganlar[i].hajm;
+    }
+    if (jami == 0)
+        fprintf(stderr, "  sizib chiqish yo'q.\n");
+    else
+        fprintf(stderr, "  JAMI: %lu ta blok, %lu bayt sizib chiqdi\n", jami, jami_baytlar);
+}
+```
+
+`libc.so` ichidan ajratilgan bloklar (masalan `stdout` buferi) **dastur xatosi emas**, shuning uchun filtrlanadi.
+
+### Sinov dasturi (ataylab sizib chiqish bilan)
+
+```c
+/* sinov_dastur.c - ataylab sizib chiqish bor dastur. trace.c uni KOD O'ZGARTIRMASDAN kuzatadi.
+   Funksiyalar static EMAS: dladdr faqat tashqariga ochiq (global) belgilarning nomini topa oladi (-rdynamic bilan) */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char *yaratish_a(void)
+{
+    char *p = malloc(100);                      /* free YO'Q: sizib chiqadi */
+    strcpy(p, "birinchi");
+    return p;
+}
+
+void yaratish_b(int n)
+{
+    for (int i = 0; i < n; i++) {
+        char *p = malloc(24);                   /* har aylanishda 24 bayt, hech biri free qilinmaydi */
+        snprintf(p, 24, "blok %d", i);
+    }
+}
+
+void toza_ish(void)
+{
+    char *p = malloc(4000);
+    memset(p, 1, 4000);
+    p = realloc(p, 8000);                       /* realloc: eski bloklar hisobdan chiqadi, yangisi yoziladi */
+    free(p);
+}
+
+int main(void)
+{
+    char *a = yaratish_a();
+    printf("a = \"%s\"\n", a);
+    yaratish_b(3);
+    toza_ish();
+    char *q = calloc(10, 16);
+    free(q);                                    /* bu to'g'ri qaytarildi */
+    puts("dastur tugadi");
+    fflush(stdout);                             /* stdout buferi hisobotdan OLDIN chiqsin */
+    return 0;
+}
+```
+
+Kutiladigan sizib chiqish: `yaratish_a()` — 100 bayt (1 blok), `yaratish_b(3)` — 3 × 24 bayt. `toza_ish` va `calloc(10,16)` — to'g'ri `free` qilingan.
+
+```console
+$ cd katta_loyiha/tizim/29_trace
+$ gcc -Wall -Wextra -O1 -fPIC -shared trace.c -o libtrace.so -ldl
+$ gcc -Wall -Wextra -O0 -fno-inline -rdynamic -g sinov_dastur.c -o sinov_dastur
+$ LD_PRELOAD=./libtrace.so ./sinov_dastur 2>&1
+a = "birinchi"
+dastur tugadi
+
+=== [trace] malloc hisoboti ===
+ajratishlar: 8, bo'shatishlar: 3, jami: 16428 bayt, eng ko'pi bir vaqtda: 12268 bayt
+  SIZIB CHIQDI:   100 bayt, ajratgan funksiya: yaratish_a()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  JAMI: 4 ta blok, 172 bayt sizib chiqdi
+```
+
+**Nima ko'rdik:**
+
+- `sinov_dastur` **qayta kompilyatsiya qilinmadi** va **kodi o'zgarmadi** — kuzatuv faqat `LD_PRELOAD` orqali ulandi. Xuddi shu usul bilan **istalgan** dasturni (`ls`, `python`...) kuzatish mumkin.
+- Hisobotdagi `ajratishlar: 8, bo'shatishlar: 3` — **hamma** `malloc`/`calloc`/`realloc`/`free` chaqiruvlari, shu jumladan **libc ning o'zi** qilganlari (masalan, birinchi `printf` ochgan 4096 baytlik `stdout` buferi). Dasturingizdagi 7 ta chaqiruvdan tashqari kuzatuvchi libc ichidagilarni ham ko'radi.
+- **`SIZIB CHIQDI: 100 bayt, yaratish_a()`** va **3 × 24 bayt, `yaratish_b()`** — kuzatuvchi nafaqat **qancha**, balki **qaysi funksiya** ajratganini ham topdi (`dladdr` + `__builtin_return_address`).
+- Jami **172 bayt** = 100 + 3 × 24. Hammasi hisobga mos.
+- `eng ko'pi bir vaqtda: 12268 bayt` — **eng yuqori nuqta** (peak): `realloc(8000)` paytida tirik bloklar: 100 + 3×24 + `stdout` buferi 4096 + 8000 = 12268. Peak — dastur **eng ko'pi bilan qancha RAM so'rashi**ni ko'rsatadi.
+
+> **Eslab qoling:** `LD_PRELOAD` + `dlsym(RTLD_NEXT, ...)` — **istalgan** libc funksiyasini **kodni o'zgartirmasdan** kuzatish yoki almashtirish usuli. Bu `valgrind`, `ltrace`, `jemalloc`/`tcmalloc` ni ulash, `libfaketime` va xavfsizlik tadqiqotlarining asosi. **Qayta kirish** (o'z ichingdan o'zingni chaqirish) — eng ko'p uchraydigan xato manbai: bayroq (`ichkarida`) bilan himoyalang.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `sinov_dastur.c` da `yaratish_a` dagi sizib chiqishni **tuzating** (`free(a)` qo'shing, `main` da): hisobot nima deydi? Tuzatilgan dastur uchun "sizib chiqish yo'q" chiqadimi?
+2. Kuzatuvchiga **double free** aniqlovchisini qo'shing: `free(p)` da `p` jadvalda **yo'q** bo'lsa (yoki allaqachon `tirik=0`) — ogohlantirish chiqaring.
+3. Hisobotni **hajm bo'yicha tarqalish** bilan boyiting: "1–64 bayt: N ta, 65–1024: M ta, >1024: K ta" — qaysi o'lchamlar eng ko'p ajratilishini ko'rsatadi (ajratuvchilarni sozlashda shu kerak bo'ladi).
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Usul asbobdan muhim:** takrorla → kichraytir → faraz qil → tekshir → tuzat → test qo'sh. **Birinchi** noto'g'ri holatni qidiring, qulash joyini emas.

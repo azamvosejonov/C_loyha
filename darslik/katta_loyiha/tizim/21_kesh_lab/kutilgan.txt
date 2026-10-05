@@ -1,5 +1,5 @@
-rejim      D1 o'qishlar   D1 xatolar     xato %
-satr             616673        36613      5.94%
-ustun            616685       282378     45.79%
-ijk             4647150      2153239     46.33%
-ikj             4630773       154375      3.33%
+rejim     D1 xatolar (ming)     xato %
+satr                     37         6%
+ustun                   282        46%
+ijk                    2153        46%
+ikj                     154         3%

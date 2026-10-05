@@ -562,6 +562,206 @@ ko'rinishini, `-5` ning ikkiga to'ldirilgan va kengaytirilgan ko'rinishini, qirq
 
 **Sinab ko'ring:** `float` ni `double` ga almashtiring — xato kamayadimi, yo'qoladimi? 12345 ni 8 bitga qirqish natijasini qo'lda hisoblang: 12345 % 256.
 
+<!-- katta:boshi -->
+## Katta loyiha: IEEE 754 laboratoriyasi (kasr sonlar ichidan)
+
+**Umumiy fikr.** `0.1 + 0.2 == 0.3` — **yolg'on**! Bu xato emas: kompyuter kasr sonlarni **ikkilikda** saqlaydi, `0.1` esa ikkilikda **cheksiz kasr** (xuddi 1/3 o'nlikda `0.333...` bo'lgani kabi). 20-bob shu haqda; bu bosqichda `float` ning **ichki bitlarini** ochib ko'ramiz.
+
+**Hayotiy o'xshatish:** ilmiy yozuv. `0.000123` ni `1.23 × 10⁻⁴` deb yozamiz: **ishora**, **mantissa** (1.23), **daraja** (−4). `float` ham xuddi shunday, faqat **ikkilikda**: `±1.mantissa × 2^daraja`.
+
+### Float ning 32 biti
+
+```text
+ ishora | daraja (8 bit) | mantissa (23 bit)
+   1    |   10000000     | 01000000000000000000000      -> -2.5
+```
+
+| Qism | Bitlar | Ma'nosi |
+|---|---|---|
+| ishora | 1 | 0 = musbat, 1 = manfiy |
+| daraja | 8 | 2 ning darajasi, **127 qo'shilgan** (daraja = saqlangan − 127) |
+| mantissa | 23 | `1.` dan keyingi kasr qismi (boshidagi `1.` **saqlanmaydi** — u har doim bor) |
+
+Masalan `-2.5 = -1.25 × 2¹`: ishora 1, daraja `1 + 127 = 128 = 10000000`, mantissa `.25 = 01000...`. **Maxsus qiymatlar:** daraja hammasi 1 (`0xFF`) → cheksizlik yoki NaN; daraja 0 → nol yoki **denormal** (juda kichik sonlar).
+
+### Dastur
+
+```c
+/* float_lab.c - IEEE 754 laboratoriyasi: bitlarni ajratish, yaxlitlash xatosi, ULP, yig'ish aniqligi */
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+/* float ning 32 bitini butun songa "o'qiymiz" (turni o'zgartirmasdan: memcpy - Asos bob, A.7) */
+static uint32_t bitlar(float f)
+{
+    uint32_t b;
+    memcpy(&b, &f, sizeof(b));
+    return b;
+}
+
+static void ikkilik(uint32_t v, int bit_soni)
+{
+    for (int i = bit_soni - 1; i >= 0; i--)
+        putchar((v >> i) & 1 ? '1' : '0');
+}
+
+/* float ni ishora (1 bit) | daraja (8 bit) | mantissa (23 bit) ga ajratib tushuntiradi */
+static void ajrat(float f)
+{
+    uint32_t b = bitlar(f);
+    uint32_t ishora = b >> 31;
+    uint32_t daraja = (b >> 23) & 0xFF;
+    uint32_t mantissa = b & 0x7FFFFF;
+
+    printf("%-14g 0x%08X  ", f, b);
+    printf("%u ", ishora);
+    ikkilik(daraja, 8);
+    putchar(' ');
+    ikkilik(mantissa, 23);
+
+    const char *tur;
+    if (daraja == 0xFF)
+        tur = mantissa ? "NaN (son emas)" : (ishora ? "-cheksizlik" : "+cheksizlik");
+    else if (daraja == 0)
+        tur = mantissa ? "denormal (juda kichik)" : "nol";
+    else
+        tur = "oddiy";
+    printf("  %s", tur);
+    if (daraja != 0 && daraja != 0xFF)
+        printf(", 2^%d * 1.%06X(hex)", (int)daraja - 127, mantissa << 1);
+    printf("\n");
+}
+
+/* ikki float orasida nechta "qadam" (ULP) bor: bitlarni tartibli sonlar kabi ayiramiz */
+static long ulp_farq(float a, float b)
+{
+    int32_t x = (int32_t)bitlar(a), y = (int32_t)bitlar(b);
+    return (long)y - (long)x;
+}
+
+/* oddiy yig'ish va Kahan (xatoni eslab qoluvchi) yig'ish */
+static float oddiy_yigindi(float qiymat, long n)
+{
+    float s = 0;
+    for (long i = 0; i < n; i++)
+        s += qiymat;
+    return s;
+}
+
+static float kahan_yigindi(float qiymat, long n)
+{
+    float s = 0, tuzatish = 0;                  /* tuzatish - oldingi qadamlarda yo'qotilgan qism */
+    for (long i = 0; i < n; i++) {
+        float y = qiymat - tuzatish;
+        float t = s + y;
+        tuzatish = (t - s) - y;                 /* (t - s) - y: qo'shishda yo'qotilgan xato */
+        s = t;
+    }
+    return s;
+}
+
+int main(void)
+{
+    printf("1) float bitlari: ishora | daraja(8) | mantissa(23)\n");
+    float sinov[] = { 1.0f, 0.5f, -2.5f, 0.1f, 16777216.0f, 1e-40f, INFINITY, NAN };
+    for (int i = 0; i < 8; i++) {
+        printf("  ");
+        ajrat(sinov[i]);
+    }
+
+    printf("\n2) 0.1 aniq saqlanmaydi:\n");
+    printf("  0.1f           = %.20f\n", (double)0.1f);
+    printf("  0.1  (double)  = %.20f\n", 0.1);
+    printf("  0.1 + 0.2      = %.20f\n", 0.1 + 0.2);
+    printf("  0.3            = %.20f\n", 0.3);
+    printf("  0.1 + 0.2 == 0.3 ? %s\n", 0.1 + 0.2 == 0.3 ? "ha" : "YO'Q");
+    printf("  |farq| < 1e-9 ?    %s   (to'g'ri taqqoslash: epsilon bilan)\n", fabs(0.1 + 0.2 - 0.3) < 1e-9 ? "ha" : "yo'q");
+
+    printf("\n3) katta sonlarda butun sonlar ham yo'qoladi (float 24 bit mantissa):\n");
+    float f = 16777216.0f;                      /* 2^24 */
+    printf("  16777216 + 1 = %.0f (float'da 1 qo'shilmadi!)\n", f + 1.0f);
+    printf("  16777216 + 2 = %.0f\n", f + 2.0f);
+
+    printf("\n4) ULP: qo'shni float'lar orasidagi masofa\n");
+    printf("  1.0f dan keyingi float: %.10f (nextafterf), ULP farqi: %ld\n", nextafterf(1.0f, 2.0f),
+           ulp_farq(1.0f, nextafterf(1.0f, 2.0f)));
+    printf("  1.0f va 1.000001f orasida %ld ta float bor\n", ulp_farq(1.0f, 1.000001f) - 1);
+    printf("  float epsilon (1.0 dan keyingi qadam): %g\n", (double)(nextafterf(1.0f, 2.0f) - 1.0f));
+
+    printf("\n5) 0.1 ni 10 million marta qo'shish (to'g'ri javob: 1000000):\n");
+    long n = 10000000;
+    printf("  oddiy yig'ish: %.1f   (xato: %.1f)\n", (double)oddiy_yigindi(0.1f, n), 1000000.0 - (double)oddiy_yigindi(0.1f, n));
+    printf("  Kahan yig'ish: %.1f   (xato: %.1f)\n", (double)kahan_yigindi(0.1f, n), 1000000.0 - (double)kahan_yigindi(0.1f, n));
+    return 0;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `bitlar(f)` | `memcpy` bilan `float` bitlarini `uint32_t` ga **ko'chiradi** (turni o'zgartirmasdan; `*(uint32_t*)&f` — qat'iy aliasing qoidasini buzadi, UB) |
+| `ajrat(f)` | `>> 31`, `>> 23 & 0xFF`, `& 0x7FFFFF` — uch qismni **siljitish va maska** bilan ajratadi (3-bob!) |
+| `ulp_farq(a, b)` | musbat floatlar uchun bitlar **tartibli** (kattaroq son = kattaroq bit-qiymat), shuning uchun bitlarni ayirish — orada nechta float borligini beradi |
+| `kahan_yigindi()` | **Kahan yig'indisi**: har qo'shishda yo'qotilgan xatoni `tuzatish` da saqlaydi va keyingi qadamda qaytaradi |
+
+Yig'amiz va ishga tushiramiz (`-ffp-contract=off` — kompilyator `a*b+c` ni birlashtirib natijani o'zgartirmasligi uchun):
+
+```console
+$ cd katta_loyiha/tizim/20_float_lab
+$ gcc -Wall -Wextra -O2 -ffp-contract=off float_lab.c -o float_lab -lm
+$ ./float_lab
+1) float bitlari: ishora | daraja(8) | mantissa(23)
+  1              0x3F800000  0 01111111 00000000000000000000000  oddiy, 2^0 * 1.000000(hex)
+  0.5            0x3F000000  0 01111110 00000000000000000000000  oddiy, 2^-1 * 1.000000(hex)
+  -2.5           0xC0200000  1 10000000 01000000000000000000000  oddiy, 2^1 * 1.400000(hex)
+  0.1            0x3DCCCCCD  0 01111011 10011001100110011001101  oddiy, 2^-4 * 1.99999A(hex)
+  1.67772e+07    0x4B800000  0 10010111 00000000000000000000000  oddiy, 2^24 * 1.000000(hex)
+  9.99995e-41    0x000116C2  0 00000000 00000010001011011000010  denormal (juda kichik)
+  inf            0x7F800000  0 11111111 00000000000000000000000  +cheksizlik
+  nan            0x7FC00000  0 11111111 10000000000000000000000  NaN (son emas)
+
+2) 0.1 aniq saqlanmaydi:
+  0.1f           = 0.10000000149011611938
+  0.1  (double)  = 0.10000000000000000555
+  0.1 + 0.2      = 0.30000000000000004441
+  0.3            = 0.29999999999999998890
+  0.1 + 0.2 == 0.3 ? YO'Q
+  |farq| < 1e-9 ?    ha   (to'g'ri taqqoslash: epsilon bilan)
+
+3) katta sonlarda butun sonlar ham yo'qoladi (float 24 bit mantissa):
+  16777216 + 1 = 16777216 (float'da 1 qo'shilmadi!)
+  16777216 + 2 = 16777218
+
+4) ULP: qo'shni float'lar orasidagi masofa
+  1.0f dan keyingi float: 1.0000001192 (nextafterf), ULP farqi: 1
+  1.0f va 1.000001f orasida 7 ta float bor
+  float epsilon (1.0 dan keyingi qadam): 1.19209e-07
+
+5) 0.1 ni 10 million marta qo'shish (to'g'ri javob: 1000000):
+  oddiy yig'ish: 1087937.0   (xato: -87937.0)
+  Kahan yig'ish: 1000000.0   (xato: 0.0)
+```
+
+**Nima ko'rdik:**
+
+1. **Bitlar.** `1.0` → `0x3F800000`: ishora 0, daraja `01111111` (=127 → 2⁰), mantissa nol. `0.1` → mantissa `10011001100110011001101` — `1001` takrorlanadi, oxirida **yaxlitlangan** (`...1100` → `...1101`): ana **cheksiz kasrning kesilishi**. `inf` va `nan` — daraja hammasi 1, `NaN` ning mantissasi nolmas.
+2. **0.1 aniq emas.** `0.1f = 0.10000000149...` — haqiqiy 0.1 dan biroz **katta**. `double` da yaxshiroq, lekin baribir aniq emas. `0.1 + 0.2 == 0.3` → **YO'Q**. To'g'ri taqqoslash: `fabs(a - b) < epsilon`.
+3. **Katta sonlar.** `16777216 + 1 = 16777216` — `float` ning mantissasi 24 bit (shu jumladan yashirin `1`), 2²⁴ dan boshlab **qo'shni sonlar orasi 2 ga teng**: `+1` yaxlitlanib yo'qoladi, `+2` esa ishlaydi. Pulni `float` da **hech qachon** saqlamang (2-bob).
+4. **ULP.** `1.0f` dan keyingi son `1.0000001192`: **ULP** (units in the last place) — qo'shni floatlar orasidagi masofa, `1.0` atrofida ≈ `1.19e-7`. `ulp_farq` = 1 — bitlar **ketma-ket** qo'shni.
+5. **10 million qo'shish.** `0.1f` ni 10 000 000 marta qo'shsak — `1087937` chiqadi (to'g'ri javob `1000000`, xato **−87937**). Sabab: yig'indi katta bo'lgach, `0.1` qo'shish natijasi yaxlitlanadi va xato **to'planadi**. **Kahan** esa aniq `1000000.0` beradi: yo'qotilgan qismni `tuzatish` da eslab qoladi.
+
+> **Eslab qoling:** `float` = `±1.mantissa × 2^daraja`. Ko'p kasrlar (0.1) aniq saqlanmaydi → `==` bilan **solishtirmang**, `epsilon` ishlating. Katta sonlarda **kichik qo'shilmalar yo'qoladi**. Uzun yig'indilarda xato **to'planadi** — Kahan yoki katta o'lchamli tur (`double`/`long double`).
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `ajrat()` ga `0.15625f`, `-0.0f`, `3.4e38f * 10` ni bering. `-0.0f` ning bitlari qanday? `0.0f == -0.0f` nima beradi?
+2. `double` uchun ham shu ishni qiling: daraja **11 bit**, mantissa **52 bit**, siljish **1023**. `uint64_t` va `memcpy` dan foydalaning.
+3. `float` da qaysi **eng kichik musbat butun** `n` uchun `n + 1 == n` bo'ladi? Dasturda **topib** isbotlang (maslahat: sikl, `float` o'zgaruvchi).
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Pozitsion sanoq: ikkilik (1, 2, 4, 8...), hex raqam = **4 bit**; o'nlikdan ikkilikka — ketma-ket 2 ga bo'lish (qoldiqlar pastdan yuqoriga).

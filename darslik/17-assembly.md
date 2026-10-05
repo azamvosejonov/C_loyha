@@ -461,6 +461,226 @@ Uni `gcc -O0 -S` va `gcc -O2 -S` bilan solishtiring — kompilyator inline asm b
 
 **Sinab ko'ring:** `asm_qosh` ga o'xshash `asm_ayir` yozing (`sub` buyrug'i). `gcc -O0 -S` va `gcc -O2 -S` bilan `main` ni solishtiring — `-O2` qancha qisqa?
 
+<!-- katta:boshi -->
+## Katta loyiha: assembly funksiyalari C bilan birga
+
+**Umumiy fikr.** Assembly — protsessor buyruqlarini **odam o'qiy oladigan** shaklda yozish. C kompilyatori sizning kodingizni aynan shunday buyruqlarga aylantiradi. Bu bosqichda to'rtta funksiyani **qo'lda** assemblyda yozamiz va **C dan chaqiramiz** — bu **ikki til birga ishlashining** eng aniq ko'rinishi: C funksiyasini chaqirish **qoidalari** (ABI) bo'yicha.
+
+**Hayotiy o'xshatish:** C — "qahvani tayyorla" desangiz, oshpaz hammasini o'zi hal qiladi. Assembly — "suvni 92 darajagacha qizdir, 18 gramm maydalangan donni sol..." ya'ni **har qadamni** o'zingiz aytasiz.
+
+### System V chaqirish qoidasi (x86-64 Linux)
+
+C kompilyatori va assembly **bir xil kelishuvga** amal qilishi kerak:
+
+| Nima | Qayerda |
+|---|---|
+| 1-, 2-, 3-, 4-argument | `rdi`, `rsi`, `rdx`, `rcx` registrlarida |
+| qaytariladigan qiymat | `rax` registrida |
+| **funksiya saqlashi shart** registrlar | `rbx`, `rbp`, `r12`–`r15` (ularga tegmasak — hammasi tartibda) |
+| funksiyadan qaytish | `ret` buyrug'i |
+
+Demak, `long yig_massiv(const int *a, long n)` chaqirilganda: `a` — `rdi` da, `n` — `rsi` da keladi; yig'indini `rax` ga qo'yib `ret` qilamiz.
+
+### Assembly fayli
+
+```text
+; asm_funk.asm - assembly funksiyalari (NASM, Intel sintaksisi, x86-64 System V chaqirish qoidasi)
+; Argumentlar: rdi, rsi, rdx, rcx, r8, r9. Natija: rax. Saqlanishi shart registrlar: rbx, rbp, r12-r15 (biz ularga tegmaymiz).
+
+global yig_massiv
+global satr_uzunligi
+global popcount64
+global bayt_almashtir32
+
+section .text
+
+; long yig_massiv(const int *a, long n)  - int massiv elementlari yig'indisi
+yig_massiv:
+    xor eax, eax                    ; rax = 0 (yig'indi); xor o'zi bilan - registrni nolga tushirishning tez yo'li
+    test rsi, rsi                   ; n == 0 ?
+    jle .tugadi
+.sikl:
+    movsxd rdx, dword [rdi]         ; int ni 64 bitga ishora bilan kengaytirib o'qiymiz
+    add rax, rdx
+    add rdi, 4                      ; keyingi element (int = 4 bayt)
+    dec rsi
+    jnz .sikl
+.tugadi:
+    ret
+
+; long satr_uzunligi(const char *s)  - '\0' gacha bayt soni (strlen)
+satr_uzunligi:
+    xor eax, eax
+.sikl:
+    cmp byte [rdi + rax], 0
+    je .tugadi
+    inc rax
+    jmp .sikl
+.tugadi:
+    ret
+
+; int popcount64(unsigned long x)  - yoniq bitlar soni: x & (x - 1) eng pastki yoniq bitni o'chiradi
+popcount64:
+    xor eax, eax
+.sikl:
+    test rdi, rdi
+    jz .tugadi
+    lea rdx, [rdi - 1]              ; rdx = x - 1
+    and rdi, rdx                    ; x &= x - 1
+    inc eax
+    jmp .sikl
+.tugadi:
+    ret
+
+; unsigned bayt_almashtir32(unsigned x)  - baytlar tartibini teskari qiladi (little <-> big endian)
+bayt_almashtir32:
+    mov eax, edi
+    bswap eax
+    ret
+
+section .note.GNU-stack noalloc noexec nowrite progbits
+```
+
+**Buyruqlar jadvali (shu faylda ishlatilgan):**
+
+| Buyruq | Ma'nosi |
+|---|---|
+| `xor eax, eax` | `rax = 0` (registrni o'zi bilan XOR — nolga tushirishning eng qisqa yo'li) |
+| `test rsi, rsi` + `jle` | `rsi <= 0` bo'lsa sakra (`n` nolmi?) |
+| `movsxd rdx, dword [rdi]` | `rdi` manzilidagi 4 baytni o'qib, 64 bitga **ishora bilan** kengaytiradi |
+| `add rdi, 4` | ko'rsatkichni keyingi `int` ga siljitadi |
+| `dec rsi` + `jnz` | `rsi` ni kamaytir, nol bo'lmasa sikl boshiga qayt |
+| `cmp byte [rdi + rax], 0` | `s[i]` ni `'\0'` bilan solishtir |
+| `lea rdx, [rdi - 1]` | `rdx = x - 1` (manzil hisoblash buyrug'i, arifmetika uchun ham ishlatiladi) |
+| `and rdi, rdx` | `x &= x - 1` — eng pastki **yoniq** bitni o'chiradi |
+| `bswap eax` | baytlar tartibini **teskari** qiladi (16-bob: endianness) |
+
+**`popcount64` qanday ishlaydi?** `x & (x - 1)` har safar **bitta yoniq bitni** o'chiradi. Nechta marta takrorlasak — shuncha yoniq bit bor edi. Masalan `0b0110` → `0b0100` → `0b0000`: 2 marta → 2 bit.
+
+### C tomoni — solishtirish
+
+C faylida funksiyalarning **faqat e'loni** bor (ta'rifi assemblyda). Har natija C dagi **etalon** bilan solishtiriladi:
+
+```c
+/* asm_lab.c - assembly funksiyalarini C dan chaqirish va C versiyalari bilan solishtirish */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+/* bular asm_funk.asm da yozilgan: bu yerda faqat E'LON (chaqirish qoidasi - System V) */
+long yig_massiv(const int *a, long n);
+long satr_uzunligi(const char *s);
+int popcount64(unsigned long x);
+unsigned bayt_almashtir32(unsigned x);
+
+/* C dagi muqobillari (to'g'ri javob etaloni) */
+static long yig_massiv_c(const int *a, long n)
+{
+    long s = 0;
+    for (long i = 0; i < n; i++)
+        s += a[i];
+    return s;
+}
+
+static unsigned bayt_almashtir_c(unsigned x)
+{
+    return (x >> 24) | ((x >> 8) & 0xFF00u) | ((x << 8) & 0xFF0000u) | (x << 24);
+}
+
+static int tekshir(const char *nom, long asm_natija, long c_natija)
+{
+    int mos = asm_natija == c_natija;
+    printf("  %-34s asm = %-12ld C = %-12ld %s\n", nom, asm_natija, c_natija, mos ? "MOS" : "FARQ!");
+    return mos;
+}
+
+int main(void)
+{
+    int hammasi = 1;
+
+    int a[] = { 5, -3, 100, 7, -250, 42 };
+    int n = (int)(sizeof(a) / sizeof(a[0]));
+    printf("1) yig_massiv:\n");
+    hammasi &= tekshir("yig_massiv({5,-3,100,7,-250,42})", yig_massiv(a, n), yig_massiv_c(a, n));
+    hammasi &= tekshir("yig_massiv(bo'sh massiv)", yig_massiv(a, 0), 0);
+    int katta[1000];
+    for (int i = 0; i < 1000; i++)
+        katta[i] = i * 37 % 101 - 50;
+    hammasi &= tekshir("yig_massiv(1000 ta element)", yig_massiv(katta, 1000), yig_massiv_c(katta, 1000));
+
+    printf("2) satr_uzunligi:\n");
+    const char *satrlar[] = { "", "a", "salom", "Operatsion tizim yadrosi" };
+    for (int i = 0; i < 4; i++) {
+        char nom[64];
+        snprintf(nom, sizeof(nom), "satr_uzunligi(\"%s\")", satrlar[i]);
+        hammasi &= tekshir(nom, satr_uzunligi(satrlar[i]), (long)strlen(satrlar[i]));
+    }
+
+    printf("3) popcount64 (yoniq bitlar):\n");
+    unsigned long sinov[] = { 0, 1, 0x8000, 0xFF, 0xFFFFFFFFFFFFFFFFUL, 0x123456789ABCDEFUL };
+    for (int i = 0; i < 6; i++) {
+        char nom[64];
+        snprintf(nom, sizeof(nom), "popcount64(0x%lX)", sinov[i]);
+        hammasi &= tekshir(nom, popcount64(sinov[i]), __builtin_popcountl(sinov[i]));
+    }
+
+    printf("4) bayt_almashtir32 (endianness):\n");
+    unsigned x = 0x12345678;
+    unsigned r = bayt_almashtir32(x);
+    printf("  0x%08X -> 0x%08X (asm), C versiyasi: 0x%08X, %s\n", x, r, bayt_almashtir_c(x),
+           r == bayt_almashtir_c(x) ? "MOS" : "FARQ!");
+    hammasi &= r == bayt_almashtir_c(x);
+
+    printf("\nHammasi: %s\n", hammasi ? "TO'G'RI" : "XATO bor");
+    return hammasi ? 0 : 1;
+}
+```
+
+Yig'ish ikki bosqichli: avval `nasm` assembly ni **obyekt fayliga** aylantiradi, so'ng `gcc` ikkala `.o` ni **bog'laydi** (22-bobdagi linker):
+
+```console
+$ cd katta_loyiha/tizim/17_asm_lab
+$ nasm -f elf64 asm_funk.asm -o asm_funk.o
+$ gcc -Wall -Wextra -g asm_lab.c asm_funk.o -o asm_lab
+$ ./asm_lab
+1) yig_massiv:
+  yig_massiv({5,-3,100,7,-250,42})   asm = -99          C = -99          MOS
+  yig_massiv(bo'sh massiv)           asm = 0            C = 0            MOS
+  yig_massiv(1000 ta element)        asm = 10           C = 10           MOS
+2) satr_uzunligi:
+  satr_uzunligi("")                  asm = 0            C = 0            MOS
+  satr_uzunligi("a")                 asm = 1            C = 1            MOS
+  satr_uzunligi("salom")             asm = 5            C = 5            MOS
+  satr_uzunligi("Operatsion tizim yadrosi") asm = 24           C = 24           MOS
+3) popcount64 (yoniq bitlar):
+  popcount64(0x0)                    asm = 0            C = 0            MOS
+  popcount64(0x1)                    asm = 1            C = 1            MOS
+  popcount64(0x8000)                 asm = 1            C = 1            MOS
+  popcount64(0xFF)                   asm = 8            C = 8            MOS
+  popcount64(0xFFFFFFFFFFFFFFFF)     asm = 64           C = 64           MOS
+  popcount64(0x123456789ABCDEF)      asm = 32           C = 32           MOS
+4) bayt_almashtir32 (endianness):
+  0x12345678 -> 0x78563412 (asm), C versiyasi: 0x78563412, MOS
+
+Hammasi: TO'G'RI
+```
+
+**Nima ko'rdik:**
+
+- Hamma qatorda **MOS**: qo'lda yozilgan assembly C bilan **bir xil** natija beradi.
+- `yig_massiv` manfiy sonlarni to'g'ri qo'shdi (`-99`) — `movsxd` ishora bilan kengaytirgani uchun. Agar `movsxd` o'rniga oddiy `mov eax, [rdi]` yozsak (ishorasiz), manfiy sonlar xato chiqardi.
+- `bayt_almashtir32(0x12345678)` → `0x78563412`: 16-bob endianness amali bitta buyruq bilan.
+- Bo'sh massiv (`n = 0`) ham to'g'ri ishladi — shuning uchun boshida `test rsi, rsi` / `jle`.
+
+> **Eslab qoling:** C va assembly ni bog'laydigan narsa — **chaqirish qoidasi**: argumentlar `rdi`, `rsi`, `rdx`, `rcx`, natija `rax`. Qo'lda yozgan har funksiyani **C etaloni bilan** solishtiring, **chegaraviy** hollarni (bo'sh, manfiy, nol, hammasi 1) sinang.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `satr_toldir(char *s, char belgi, long n)` yozing (`memset` kabi): `rdi` — manzil, `rsi` — belgi, `rdx` — soni. C tomonda tekshiring.
+2. `gcc -S -O1 yig.c` bilan C ning `yig_massiv_c` uchun **kompilyator yozgan** assemblyni ko'ring va o'zingiznikiga solishtiring: nimasi boshqacha?
+3. `yig_massiv` ga 5 million elementli massiv bering va C versiyasi bilan `time` o'lchang. Kim tezroq? (Maslahat: kompilyator `-O2` da SIMD ishlatishi mumkin.)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Registr** — CPU ichidagi tez "o'zgaruvchi" (16 ta umumiy); CPU hisoblashni faqat registrlarda qiladi. `rip` — joriy buyruq, `rsp` — stek tepasi.

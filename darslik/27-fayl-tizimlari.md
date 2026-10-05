@@ -932,6 +932,270 @@ o'chirgach: `zaxira.txt` hali yashaydi (nomlar soni 1) — fayl yo'qolmadi; `yol
 
 **Sinab ko'ring:** terminalda: `echo salom > a; ln a b; ln -s a c; ls -li a b c` — inode raqamlarini solishtiring. `xavfsiz_saqla` ichida `rename` dan oldin `return -1;` qo'yib, eski kundalik buzilmay qolishini tekshiring.
 
+<!-- katta:boshi -->
+## Katta loyiha: mfs — o'zimizning fayl tizimi (disk tasviri ustida)
+
+**Umumiy fikr.** Disk — shunchaki **bloklar massivi** (har biri 512 yoki 4096 bayt). "Fayl", "papka", "nom" tushunchalari diskda **yo'q**: ularni **fayl tizimi** (ext4, FAT, NTFS) o'ylab topgan va bloklar ichiga **tartibli yozib** qo'ygan. Bu bosqichda mini fayl tizimini noldan yozamiz: u **oddiy fayl ichida** (disk tasviri, `disk.img`) yashaydi, shuning uchun hech narsani buzmaymiz. Yozish, o'qish, o'chirish **va avariyadan keyin tekshirish (`fsck`)** — 27-bobning hammasi.
+
+**Hayotiy o'xshatish:** katta kutubxona. **Mundarija kartochkalari** (inode) har kitob qaysi javonlarda ekanini aytadi; **katalog** — "kitob nomi → kartochka raqami"; **bitmap** — "qaysi javon band" jadvali. Kitob topish uchun avval katalog, keyin kartochka, keyin javonlar.
+
+### Disk tuzilishi
+
+```text
+blok 0       blok 1     bloklar 2..5         blok 6        bloklar 7..255
++-----------+----------+--------------------+-------------+----------------+
+| superblok | bitmap   | inode jadvali      | ildiz       | fayl           |
+| (magik)   | (band?)  | (32 ta inode)      | katalog     | ma'lumotlari   |
++-----------+----------+--------------------+-------------+----------------+
+```
+
+| Element | Vazifasi |
+|---|---|
+| **superblok** | fayl tizimi **sehrli soni** (`MFS1`) va o'lchamlari: bu tasvir haqiqatan mfs ekanini tekshirish |
+| **bitmap** | 1 bit = 1 blok: 1 — band, 0 — bo'sh (16-bob, bitmap) |
+| **inode** (64 bayt) | **fayl haqida hamma narsa** (tur, hajm, **blok raqamlari**) — faqat **nomi** yo'q |
+| **katalog** | `(nom → inode raqami)` juftliklari jadvali |
+| **blok** | 512 bayt: diskka o'qish/yozishning eng kichik birligi |
+
+**Muhim fikr:** fayl nomi **inode ichida emas**, katalogda saqlanadi. Shuning uchun bitta faylga **ikki nom** (hard link) berish mumkin, va `rm` — aslida "katalogdan yozuvni olib tashlash".
+
+**Strukturalar:**
+
+```c
+struct super {                                  /* 0-blok */
+    uint32_t magik, bloklar, inodelar, data_bosh;
+};
+```
+
+```c
+struct inode {                                  /* 64 bayt: 512 / 64 = 8 ta inode bir blokda */
+    uint16_t tur;                               /* 0 - bo'sh, 1 - fayl, 2 - katalog */
+    uint16_t nlink;
+    uint32_t hajm;
+    uint32_t blok[TOGRI];
+    uint8_t to_ldiruvchi[8];
+};
+```
+
+```c
+struct yozuv {                                  /* katalogdagi bitta nom: (nom -> inode raqami), 16 bayt */
+    uint16_t inode;                             /* 0 - bo'sh yozuv (inode 0 - ildiz katalog, nom emas) */
+    char nom[14];
+};
+```
+
+`struct inode` da **12 ta to'g'ridan-to'g'ri blok raqami** bor: fayl eng ko'pi 12 × 512 = 6144 bayt (haqiqiy ext2 da yana bilvosita bloklar bor).
+
+### Qanday ishlaydi: eng past daraja
+
+Hammasi **blok o'qish/yozish** ustiga quriladi: `fseek(n * 512)` + `fread`/`fwrite`. Ko'p baytli inode ni blokdan olish uchun `memcpy` ishlatiladi:
+
+```c
+static void blok_oqi(unsigned n, void *b)
+{
+    fseek(tasvir, (long)n * BLOK, SEEK_SET);
+    if (fread(b, BLOK, 1, tasvir) != 1) {
+        fprintf(stderr, "mfs: blok %u o'qilmadi\n", n);
+        exit(1);
+    }
+}
+```
+
+```c
+static void inode_oqi(unsigned i, struct inode *x)
+{
+    uint8_t b[BLOK];
+    blok_oqi(INODE_BOSH + i / 8, b);
+    memcpy(x, b + (i % 8) * sizeof(*x), sizeof(*x));
+}
+```
+
+### Fayl yozish: tartib muhim!
+
+`put` (fayl qo'shish) **beshta ish** qiladi: (1) bo'sh inode topish, (2) bloklar ajratish, (3) ma'lumotni yozish, (4) inode yozish, (5) katalogga nom qo'shish. Tartib **tasodifiy emas** — kompyuter **istalgan paytda o'chib qolishi** mumkin:
+
+| Tartib | Uzilsa nima bo'ladi |
+|---|---|
+| ma'lumot → bitmap → inode → **katalog (oxirida)** | yarim yozilgan fayl **ko'rinmaydi** (katalogda yo'q). Eng yomoni — **sizib chiqish**: bitmapda band blok, lekin hech kim ishlatmaydi |
+| (teskari) katalog **oldin** → keyin ma'lumot | nom ko'rinadi, ichida esa **axlat** yoki bo'sh |
+
+Mfs shu **xavfsiz tartibni** qo'llaydi: ma'lumot → bitmap → inode → katalog. `rm` esa **teskari**: katalog → inode → bitmap (uzilsa ham faqat sizib chiqish bo'ladi). Bu — **izchillik** (consistency) tamoyili; haqiqiy fayl tizimlarida **jurnal** (journaling) buni yanada ishonchli qiladi.
+
+```c
+static int put(const char *tasvir_yol, const char *manba, const char *nom)
+{
+    FILE *f = fopen(manba, "rb");
+    if (!f) {
+        perror(manba);
+        return 1;
+    }
+    uint8_t data[TOGRI * BLOK];
+    size_t n = fread(data, 1, sizeof(data), f);
+    int katta = fgetc(f) != EOF;                /* 6144 baytdan ortiq qoldimi? */
+    fclose(f);
+    if (katta) {
+        fprintf(stderr, "mfs: %s juda katta (eng ko'pi %d bayt)\n", manba, TOGRI * BLOK);
+        return 1;
+    }
+    och(tasvir_yol, "rb+");
+    yukla();
+    katalog_yukla();
+    if (strlen(nom) >= sizeof(katalog[0].nom) || topish(nom) >= 0) {
+        fprintf(stderr, "mfs: nom noto'g'ri yoki band: %s\n", nom);
+        return 1;
+    }
+
+    int inode_raqam = -1;                       /* bo'sh inode topish */
+    struct inode x;
+    for (unsigned i = 1; i < INODELAR && inode_raqam < 0; i++) {
+        inode_oqi(i, &x);
+        if (x.tur == 0)
+            inode_raqam = (int)i;
+    }
+    int bosh_yozuv = -1;                        /* katalogda bo'sh joy */
+    for (size_t i = 0; i < sizeof(katalog) / sizeof(katalog[0]) && bosh_yozuv < 0; i++)
+        if (katalog[i].inode == 0)
+            bosh_yozuv = (int)i;
+    if (inode_raqam < 0 || bosh_yozuv < 0) {
+        fprintf(stderr, "mfs: joy yo'q (inode yoki katalog yozuvi tugagan)\n");
+        return 1;
+    }
+
+    memset(&x, 0, sizeof(x));
+    x.tur = 1;
+    x.nlink = 1;
+    x.hajm = (uint32_t)n;
+    for (size_t k = 0; k * BLOK < n; k++) {     /* har blokka 512 baytdan */
+        int blok = blok_ajrat();
+        if (blok < 0) {
+            fprintf(stderr, "mfs: disk to'lgan\n");
+            return 1;                           /* (soddalik uchun ajratilgan bloklar qaytarilmaydi: fsck topadi) */
+        }
+        uint8_t b[BLOK] = { 0 };
+        size_t qism = n - k * BLOK < BLOK ? n - k * BLOK : BLOK;
+        memcpy(b, data + k * BLOK, qism);
+        blok_yoz((unsigned)blok, b);
+        x.blok[k] = (uint32_t)blok;
+    }
+    saqla();                                    /* TARTIB (27-bob, izchillik): ma'lumot -> bitmap -> inode -> katalog yozuvi. */
+    inode_yoz((unsigned)inode_raqam, &x);       /* Istalgan joyda uzilsa, eng yomoni "sizib chiqish" (fsck tuzatadi); */
+    katalog[bosh_yozuv].inode = (uint16_t)inode_raqam;      /* ishlatilayotgan blok "bo'sh" ko'rinib qolmaydi. */
+    snprintf(katalog[bosh_yozuv].nom, sizeof(katalog[0].nom), "%s", nom);
+    blok_yoz(katalog_blok, katalog);
+```
+
+### fsck: izchillikni tekshirish
+
+`fsck` hamma inode lar **haqiqatan ishlatayotgan** bloklarni yig'adi va bitmap bilan **solishtiradi**:
+
+| Holat | Ma'nosi | Xavfi |
+|---|---|---|
+| bitmapda **band**, hech kim ishlatmaydi | **SIZIB CHIQISH** (leak) | joy yo'qoladi, xavfsiz |
+| bitmapda **bo'sh**, lekin fayl ishlatadi | **XAVFLI** | blok boshqa faylga berilib, **ma'lumot buziladi** |
+| bitta blokni **ikki** inode ishlatadi | **XATO** | ikki fayl bir-birining ustiga yozadi |
+
+```c
+static int fsck(const char *yol, int tuzatish)
+{
+    och(yol, tuzatish ? "rb+" : "rb");
+    yukla();
+    uint8_t ishlatiladi[BLOKLAR] = { 0 };
+    for (unsigned i = 0; i <= DATA_BOSH - 1; i++)
+        ishlatiladi[i] = 1;                     /* metama'lumot bloklari */
+    for (unsigned i = 0; i < INODELAR; i++) {
+        struct inode x;
+        inode_oqi(i, &x);
+        if (x.tur == 0)
+            continue;
+        size_t blok_soni = (x.hajm + BLOK - 1) / BLOK;           /* fayl necha blokni egallaydi */
+        for (size_t k = 0; k < blok_soni && k < TOGRI; k++) {
+            unsigned bl = x.blok[k];
+            if (bl < DATA_BOSH || bl >= BLOKLAR) {
+                printf("  XATO: inode %u: noto'g'ri blok raqami %u\n", i, bl);
+                continue;
+            }
+            if (ishlatiladi[bl])
+                printf("  XATO: blok %u ikki inode tomonidan ishlatilgan (inode %u)\n", bl, i);
+            ishlatiladi[bl] = 1;
+        }
+    }
+    int muammo = 0;
+    for (unsigned i = DATA_BOSH; i < BLOKLAR; i++) {
+        if (bm_bor(i) && !ishlatiladi[i]) {
+            printf("  SIZIB CHIQISH: blok %u bitmapda band, lekin hech bir inode ishlatmaydi%s\n", i, tuzatish ? " -> bo'shatildi" : "");
+            if (tuzatish)
+                bm_och(i);
+            muammo++;
+        } else if (!bm_bor(i) && ishlatiladi[i]) {
+            printf("  XAVFLI: blok %u ishlatiladi, lekin bitmapda bo'sh (boshqa faylga berilib ketishi mumkin!)%s\n", i, tuzatish ? " -> band qilindi" : "");
+            if (tuzatish)
+                bm_yoq(i);
+            muammo++;
+        }
+    }
+    if (tuzatish && muammo)
+        saqla();
+    printf("fsck: %s\n", muammo == 0 ? "fayl tizimi izchil (muammo yo'q)" : (tuzatish ? "muammolar topildi va TUZATILDI" : "muammolar topildi"));
+    return muammo != 0 && !tuzatish;
+}
+```
+
+Ishga tushiramiz: tasvirni yaratamiz, ikki fayl yozamiz, o'qiymiz, bittasini o'chiramiz, keyin **avariyani modellaymiz** (`hack` bitmapni ataylab buzadi) va `fsck` ni ishlatamiz:
+
+```console
+$ cd katta_loyiha/tizim/27_mfs
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined mfs.c -o mfs
+$ ./mfs mkfs disk.img
+mfs yaratildi: 256 blok x 512 bayt, 32 inode
+$ echo "salom, fayl tizimi" > a.txt
+$ head -c 1500 /dev/zero | tr '\0' 'x' > katta.txt
+$ ./mfs put disk.img a.txt salom
+yozildi: salom (19 bayt, inode 1, 1 blok)
+$ ./mfs put disk.img katta.txt katta
+yozildi: katta (1500 bayt, inode 2, 3 blok)
+$ ./mfs ls disk.img
+  salom          inode 1      19 bayt
+  katta          inode 2    1500 bayt
+2 ta fayl; 11/256 blok band
+$ ./mfs cat disk.img salom
+salom, fayl tizimi
+$ ./mfs fsck disk.img
+fsck: fayl tizimi izchil (muammo yo'q)
+$ ./mfs rm disk.img salom
+o'chirildi: salom
+$ ./mfs ls disk.img
+  katta          inode 2    1500 bayt
+1 ta fayl; 10/256 blok band
+$ ./mfs hack disk.img 100
+bitmap buzildi: blok 100 'band' deb belgilandi
+$ ./mfs fsck disk.img; echo "fsck chiqish kodi: $?"
+  SIZIB CHIQISH: blok 100 bitmapda band, lekin hech bir inode ishlatmaydi
+fsck: muammolar topildi
+fsck chiqish kodi: 1
+$ ./mfs fsck disk.img -t
+  SIZIB CHIQISH: blok 100 bitmapda band, lekin hech bir inode ishlatmaydi -> bo'shatildi
+fsck: muammolar topildi va TUZATILDI
+$ ./mfs fsck disk.img
+fsck: fayl tizimi izchil (muammo yo'q)
+```
+
+**Nima ko'rdik:**
+
+- `salom` — **1 blok** (19 bayt), `katta` — **3 blok** (1500 bayt: 1500/512 → yuqoriga yaxlitlash = 3). Band: **11 / 256** blok = 6 (metama'lumot) + 1 (ildiz katalog) + 1 + 3.
+- `salom` o'chirilgach: 10 blok band — bitmapdagi bit **qaytarildi**.
+- `hack disk.img 100` — blok 100 "band" deb belgilandi, lekin **hech bir inode uni ishlatmaydi**: bu kutilmagan uzilishdan keyingi **sizib chiqish** holatining aynan o'zi.
+- `fsck` (tekshirish rejimi) muammoni **topdi**, lekin **tuzatmadi** (chiqish kodi **1**: skriptlar buni ishlatadi).
+- `fsck -t` (tuzatish rejimi) blokni **bo'shatdi**; keyingi `fsck`: **"izchil"**.
+
+> **Eslab qoling:** fayl tizimi = **bloklar + metama'lumot** (superblok, bitmap, inode, katalog). **Nom — katalogda**, fayl haqida hamma narsa — **inode da**. Diskka yozish **tartibi** uzilishdan keyingi holatni belgilaydi: **ma'lumot oldin, "e'lon qilish" (katalog) oxirida**. `fsck` — metama'lumotlarni **bir-biri bilan solishtirib** buzilishni topadi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. **Hard link:** `mfs ln disk.img salom ikkinchi_nom` — bitta inode ga ikkinchi katalog yozuvi. `nlink` ni oshiring; `rm` da faqat `nlink == 0` bo'lganda bloklarni qaytaring.
+2. `put` ichida tartibni **buzing** (katalogni inode dan **oldin** yozing) va ichida `exit(1)` bilan **uzilishni modellang**: `fsck` nimani topadi?
+3. `fsck` ga yangi tekshiruv qo'shing: katalogda **mavjud bo'lmagan** (tur = 0) inode ga ishora qilgan yozuv — qanday xato nomi bering va uni tuzatish usulini o'ylab toping.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Qurilma registrlar orqali boshqariladi. **Polling** — tinmay so'rash (CPU yonadi), **uzilish** — uxlab, qurilma uyg'otsin, **DMA** — nusxani qurilma qiladi. **Drayver** — qurilmaga xos kod; ustida umumiy blok interfeysi.

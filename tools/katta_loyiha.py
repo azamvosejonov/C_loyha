@@ -2,7 +2,7 @@
 """Katta loyihalarni (darslik/katta_loyiha/<loyiha>/NN_nom/) yig'ib, natijasini kutilgan.txt bilan solishtiradi.
 
 Har bosqich papkasida: manba fayllar, qur.txt (yig'ish buyrug'i), ixtiyoriy ishga.txt (ishga tushirish buyrug'i, sukut: ./ombor),
-ixtiyoriy kirish.txt (stdin) va kutilgan.txt (kutilgan chiqish).
+ixtiyoriy kirish.txt (stdin), ixtiyoriy kerak.txt (kerakli dasturlar: yo'q bo'lsa bosqich o'tkazib yuboriladi) va kutilgan.txt.
 `--yangila` bilan kutilgan.txt hozirgi natijadan qayta yoziladi (faqat natijani ko'zdan kechirgach!).
 `--goster NOM` - papka nomida NOM bo'lgan bosqichlarni ishga tushirib natijani chop etadi (yozish paytida qulay).
 """
@@ -24,6 +24,11 @@ for papka in sorted(glob.glob(os.path.join(ildiz, '*', '[0-9][0-9]_*'))):
         continue
     qur = os.path.join(papka, 'qur.txt')
     if not os.path.exists(qur):
+        continue
+    kerak = os.path.join(papka, 'kerak.txt')             # ixtiyoriy: kerakli dasturlar (nasm, valgrind...)
+    yetishmaydi = [x for x in (open(kerak).read().split() if os.path.exists(kerak) else []) if not shutil.which(x)]
+    if yetishmaydi:
+        print(f"O'TKAZILDI: {nom} ({', '.join(yetishmaydi)} o'rnatilmagan)")
         continue
     soni += 1
     with tempfile.TemporaryDirectory() as wd:
@@ -52,6 +57,9 @@ for papka in sorted(glob.glob(os.path.join(ildiz, '*', '[0-9][0-9]_*'))):
         elif not os.path.exists(kutilgan) or open(kutilgan).read() != r.stdout:
             xato += 1
             print(f'XATO (natija farq qiladi): {nom}')
+            import difflib
+            kut = open(kutilgan).read().splitlines() if os.path.exists(kutilgan) else []
+            print('\n'.join(list(difflib.unified_diff(kut, r.stdout.splitlines(), 'kutilgan', 'hozir', lineterm=''))[:20]))
 
 print(f"katta loyihalar: {soni} ta bosqich, " + ('hammasi OK' if not xato else f'{xato} ta XATO'))
 sys.exit(1 if xato else 0)

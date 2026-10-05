@@ -790,6 +790,269 @@ chiqish kodi: 134
 
 **Qoida:** dastur **signal** bilan o'lsa, chiqish kodi = **128 + signal raqami** (`echo $?` bilan ko'riladi). Sizda `Segmentation fault` yoniga `(core dumped)` ham qo'shilishi mumkin (core fayllar yoqilgan bo'lsa, 29-bob).
 
+<!-- katta:boshi -->
+## Katta loyiha: `viktorina` — o'zingizni sinaydigan test dasturi
+
+**Umumiy fikr.** Oxirgi bobda siz **ingliz tilidagi atamalar** bilan ishlashni o'rgandingiz. Bu bosqichda — butun darslikni **takrorlash** uchun o'z viktorina dasturingizni yozasiz: savollar **matn faylida** turadi, dastur ularni o'qiydi, sizdan javob so'raydi, natijani sanaydi va **qaysi boblarni qayta o'qish kerakligini** aytadi. Eng yaxshisi — o'zingiz **yangi savollar qo'shishingiz** mumkin (dasturni qayta yig'masdan).
+
+**Hayotiy o'xshatish:** o'qituvchi qo'lida **savollar daftari** va **javoblar varag'i** bor. U savolni o'qiydi, siz javob berasiz, u tekshiradi va "senga 25-bobni takrorlash kerak" deydi.
+
+### Ma'lumot formati
+
+`savollar.txt` — **har qator bitta savol**, maydonlar `|` bilan ajratilgan. Bu sodda "CSV" ga o'xshash **matn formati** (13-bobdagi parser g'oyasi: format + tekshirish):
+
+```text
+bob | savol | A | B | C | D | javob(0-3) | izoh
+```
+
+Masalan:
+
+```text
+2|uint8_t ga 255 ga 1 qo'shsak nima chiqadi?|256|0|-1|xato|1|8 bitda 255+1 sig'maydi: 0 ga o'raladi (unsigned wrap)
+```
+
+`#` bilan boshlangan qatorlar — **izoh** (o'tkazib yuboriladi). `javob` — to'g'ri variant raqami (0 = a, 1 = b, 2 = c, 3 = d).
+
+### Dastur
+
+Uch qism: (1) **faylni yuklash va tekshirish**, (2) **savol berish**, (3) **natija va tavsiya**.
+
+**1) Yuklash.** Qatorni `|` bo'yicha bo'lamiz. Nega `strtok` emas? `strtok` ketma-ket ajratgichlarni **bitta deb hisoblaydi** — bo'sh maydon "yo'qoladi". Biz o'z `bol()` funksiyamizni yozdik: u har `|` ni `\0` ga almashtiradi va maydon boshiga ko'rsatkich saqlaydi:
+
+```c
+struct savol {
+    int bob;
+    char matn[160];
+    char variant[4][80];
+    int javob;                      /* 0..3 */
+    char izoh[160];
+};
+```
+
+```c
+static int bol(char *qator, char *maydon[], int maks)
+{
+    int k = 0;
+    maydon[k++] = qator;
+    for (char *p = qator; *p && k < maks; p++)
+        if (*p == '|') {
+            *p = '\0';
+            maydon[k++] = p + 1;
+        }
+    return k;
+}
+```
+
+```c
+static int yukla(const char *yol)
+{
+    FILE *f = fopen(yol, "r");
+    if (!f) {
+        fprintf(stderr, "%s ochilmadi: %s\n", yol, strerror(errno));
+        return -1;
+    }
+    char qator[MAKS_QATOR];
+    int raqam = 0;
+    while (fgets(qator, sizeof(qator), f)) {
+        raqam++;
+        qator[strcspn(qator, "\n")] = '\0';
+        if (qator[0] == '#' || qator[0] == '\0')
+            continue;
+        char *m[8];
+        if (bol(qator, m, 8) != 8 || soni >= MAKS_SAVOL) {
+            fprintf(stderr, "%s:%d: noto'g'ri qator\n", yol, raqam);
+            fclose(f);
+            return -1;
+        }
+        struct savol *s = &baza[soni++];
+        s->bob = atoi(m[0]);
+        snprintf(s->matn, sizeof(s->matn), "%s", m[1]);
+        for (int i = 0; i < 4; i++)
+            snprintf(s->variant[i], sizeof(s->variant[i]), "%s", m[2 + i]);
+        s->javob = atoi(m[6]);
+        snprintf(s->izoh, sizeof(s->izoh), "%s", m[7]);
+        if (s->javob < 0 || s->javob > 3) {
+            fprintf(stderr, "%s:%d: javob 0..3 bo'lishi kerak\n", yol, raqam);
+            fclose(f);
+            return -1;
+        }
+    }
+    fclose(f);
+    return 0;
+}
+```
+
+Yuklashda **hamma narsa tekshiriladi**: maydonlar soni aynan 8 bo'lishi, `javob` 0..3 oralig'ida bo'lishi, savollar soni `MAKS_SAVOL` dan oshmasligi. Xato bo'lsa — **fayl nomi va qator raqami** bilan aniq xabar (`savollar.txt:7: noto'g'ri qator`) — foydalanuvchi muammoni **darrov topadi**. `snprintf` bilan **chegaralangan** nusxa olamiz (bufer chegarasidan chiqmaydi).
+
+**2) Savol berish va hisoblash.**
+
+```c
+int main(int argc, char **argv)
+{
+    if (yukla(argc > 1 ? argv[1] : "savollar.txt") != 0)
+        return 1;
+
+    int togri = 0, xato = 0;
+    int xato_bob[32] = {0};
+    char javob[32];
+
+    for (int i = 0; i < soni; i++) {
+        struct savol *s = &baza[i];
+        printf("\n[%d/%d] (%d-bob) %s\n", i + 1, soni, s->bob, s->matn);
+        for (int v = 0; v < 4; v++)
+            printf("  %c) %s\n", 'a' + v, s->variant[v]);
+        printf("javob (a-d): ");
+        fflush(stdout);
+        int tanlov = -1;
+        if (fgets(javob, sizeof(javob), stdin))
+            tanlov = harf_raqam(javob);
+        else
+            printf("\n");
+        if (tanlov == s->javob) {
+            printf("TO'G'RI\n");
+            togri++;
+        } else {
+            printf("XATO. To'g'ri javob: %c) %s\n  izoh: %s\n", 'a' + s->javob, s->variant[s->javob], s->izoh);
+            xato++;
+            if (s->bob >= 0 && s->bob < 32)
+                xato_bob[s->bob]++;
+        }
+    }
+
+    printf("\n===== NATIJA =====\nto'g'ri: %d, xato: %d, ball: %d%%\n", togri, xato, soni ? togri * 100 / soni : 0);
+    if (xato) {
+        printf("qayta o'qing:");
+        for (int b = 0; b < 32; b++)
+            if (xato_bob[b])
+                printf(" %d-bob", b);
+        printf("\n");
+    } else {
+        printf("hammasi to'g'ri - zo'r!\n");
+    }
+    return 0;
+}
+```
+
+| Qism | Ma'nosi |
+|---|---|
+| `harf_raqam("b")` | `'a'..'d'` harfini 0..3 ga aylantiradi; yaroqsiz kirish → -1 (xato hisoblanadi) |
+| `fgets(javob, ...)` | foydalanuvchi javobini **bufer chegarasi bilan** o'qiydi |
+| `xato_bob[s->bob]++` | har bob bo'yicha **xatolar hisobi** — tavsiya shu asosida |
+| `fflush(stdout)` | "javob (a-d): " **savoldan keyin darrov** ko'rinsin (satr oxirida `\n` yo'q) |
+| oxirida | to'g'ri/xato soni, **foiz**, va **xato qilingan boblar** ro'yxati |
+
+Kirish — haqiqiy klaviatura o'rniga fayl (`kirish.txt`): bir javob — bir qator. Oxirgi (10-chi) savolga ataylab **xato** javob berilgan:
+
+```console
+$ cd katta_loyiha/tizim/31_viktorina
+$ cat savollar.txt | head -4
+# format: bob|savol|A|B|C|D|javob(0-3)|izoh
+1|Kompilyator qaysi bosqichda .o fayl yaratadi?|preprotsessor|kompilyatsiya+assembler|linker|loader|1|.c -> .o: kompilyator va assembler; linker .o larni birlashtiradi
+2|uint8_t ga 255 ga 1 qo'shsak nima chiqadi?|256|0|-1|xato|1|8 bitda 255+1 sig'maydi: 0 ga o'raladi (unsigned wrap)
+7|int *p = NULL; *p = 5; nima bo'ladi?|5 yoziladi|0 yoziladi|segmentation fault|hech narsa|2|NULL manzil xaritalanmagan: yadro SIGSEGV yuboradi
+$ cat kirish.txt | tr '\n' ' '; echo
+b b c b c a b b b d b 
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined viktorina.c -o viktorina
+$ ./viktorina savollar.txt < kirish.txt
+
+[1/11] (1-bob) Kompilyator qaysi bosqichda .o fayl yaratadi?
+  a) preprotsessor
+  b) kompilyatsiya+assembler
+  c) linker
+  d) loader
+javob (a-d): TO'G'RI
+
+[2/11] (2-bob) uint8_t ga 255 ga 1 qo'shsak nima chiqadi?
+  a) 256
+  b) 0
+  c) -1
+  d) xato
+javob (a-d): TO'G'RI
+
+[3/11] (7-bob) int *p = NULL; *p = 5; nima bo'ladi?
+  a) 5 yoziladi
+  b) 0 yoziladi
+  c) segmentation fault
+  d) hech narsa
+javob (a-d): TO'G'RI
+
+[4/11] (8-bob) free(p) ni ikki marta chaqirish...
+  a) zararsiz
+  b) double free (UB)
+  c) xotirani 2 barobar bo'shatadi
+  d) kompilyator xatosi
+javob (a-d): TO'G'RI
+
+[5/11] (14-bob) fork() muvaffaqiyatli bo'lsa, bolada nima qaytadi?
+  a) bolaning pid si
+  b) -1
+  c) 0
+  d) ota pid si
+javob (a-d): TO'G'RI
+
+[6/11] (15-bob) Ma'lumot poygasi (data race) nima?
+  a) ikki oqim bir xotiraga, kamida biri yozadi, sinxronlashsiz
+  b) ikkita jarayon
+  c) deadlock
+  d) xotira sizishi
+javob (a-d): TO'G'RI
+
+[7/11] (20-bob) IEEE 754 da 0.1 + 0.2 == 0.3 ?
+  a) ha, har doim
+  b) yo'q, 0.1 aniq saqlanmaydi
+  c) faqat double da
+  d) faqat float da
+javob (a-d): TO'G'RI
+
+[8/11] (21-bob) Qaysi aylanish tezroq (C massiv, satr bo'yicha)?
+  a) ustun bo'yicha
+  b) satr bo'yicha
+  c) farqi yo'q
+  d) tasodifiy
+javob (a-d): TO'G'RI
+
+[9/11] (24-bob) Page fault har doim xatomi?
+  a) ha
+  b) yo'q, ko'pi oddiy (sahifani yuklash/COW)
+  c) faqat NULL da
+  d) faqat swap da
+javob (a-d): TO'G'RI
+
+[10/11] (25-bob) Guard page nimaga kerak?
+  a) tezlik uchun
+  b) chegaradan chiqishni zudlik bilan ushlash uchun
+  c) shifrlash
+  d) keshlash
+javob (a-d): XATO. To'g'ri javob: b) chegaradan chiqishni zudlik bilan ushlash uchun
+  izoh: ruxsatsiz sahifa: tegilsa darrov SIGSEGV
+
+[11/11] (27-bob) Inode nimani saqlaydi?
+  a) fayl nomini
+  b) fayl metama'lumoti va bloklar ro'yxatini
+  c) faqat hajmini
+  d) parolini
+javob (a-d): TO'G'RI
+
+===== NATIJA =====
+to'g'ri: 10, xato: 1, ball: 90%
+qayta o'qing: 25-bob
+```
+
+**Nima ko'rdik:**
+
+- 11 ta savol, javoblar o'qildi, har savolga **TO'G'RI** yoki **XATO** + izoh (xatoda to'g'ri javob va **nega** shunday ekani ko'rsatiladi: o'rganish aynan shu yerda).
+- Natija: `to'g'ri: 10, xato: 1, ball: 90%` va **`qayta o'qing: 25-bob`** — dastur savol raqamidan **bob raqamini** olib, qaysi mavzuni takrorlashni **o'zi** aytdi.
+- Bu dastur **ma'lumot bilan kod ajratilgan** modelning kichik namunasi: savol qo'shish — faqat `savollar.txt` ga **bitta qator**. Dasturni qayta yig'ish shart emas.
+
+> **Eslab qoling:** ma'lumot **formatini** o'ylab toping (maydonlar, ajratgich, izoh), o'qishda **hamma narsani tekshiring** (maydonlar soni, qiymat chegarasi), xatoda **qaysi fayl va qaysi qator** ekanini ayting. Bu — konfiguratsiya fayllari, jurnallar, tarmoq protokollari bilan ishlashning umumiy andozasi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `savollar.txt` ga **o'zingiz 10 ta yangi savol** qo'shing (kitobning o'zingiz qiynalgan joylaridan!). Eng yaxshi o'rganish usuli — savol **yaratish**.
+2. **Tasodifiy tartib**: savollarni har safar boshqacha tartibda bering (Fisher–Yates aralashtirish: oxiridan boshlab har element bilan tasodifiy oldingi elementni almashtiring; `rand()` + `srand(time(NULL))`).
+3. Faqat **bitta bob** bo'yicha viktorina: `./viktorina savollar.txt 25` — argumentda bob raqami berilsa, faqat shu bobning savollarini so'rang. Natijani **faylga** (`natijalar.txt`) qo'shib yozib boring (`fopen(..., "a")`) — progressingizni ko'ring!
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Ko'pgina inglizcha atamalar oddiy so'zlardan olingan (kernel — yong'oq mag'zi, bug — qo'ng'iz, fork — ayri). **Asl ma'nosini bilsangiz atama yodda qoladi.**

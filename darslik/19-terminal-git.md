@@ -524,6 +524,128 @@ saqlaysiz, tajriba qilasiz, xato bo'lsa qaytasiz, buzilganda qachon buzilganini 
 
 **Sinab ko'ring:** skriptdagi buyruqlarni o'z papkangizda birma-bir qo'lda yozing. `git log --oneline` bilan tarixni ko'ring va `git show HEAD~1` bilan 1-kundagi saqlash nuqtasini oching.
 
+<!-- katta:boshi -->
+## Katta loyiha: veb-server jurnalini terminal bilan tahlil qilish
+
+**Umumiy fikr.** Haqiqiy ishda dasturchi doim **jurnallar** (log) bilan ishlaydi: "server nega qulab tushdi?", "kim ko'p so'rov yubordi?", "qaysi sahifa 404 beryapti?". Buning uchun katta dastur yozilmaydi: **kichik buyruqlar** (`cut`, `sort`, `uniq`, `awk`, `grep`, `head`) **quvur** (`|`) bilan ulanadi. 19-bob (terminal) aynan shu mahoratni o'rgatadi, bu bosqichda esa uni **haqiqiy katta fayl** (3000 qator) ustida qo'llaymiz.
+
+**Hayotiy o'xshatish:** konveyer. Birinchi ishchi faqat kerakli ustunni kesib oladi, ikkinchisi tartiblaydi, uchinchisi sanaydi, to'rtinchisi eng ko'pini tanlaydi. Har biri **bitta** ish qiladi, lekin birga — kuchli.
+
+### Bu bosqichda nima qilamiz
+
+Ikkita skript:
+
+| Fayl | Vazifasi |
+|---|---|
+| `log_yarat.sh` | sinov uchun 3000 qatorli **veb-server jurnali** yaratadi (har safar **bir xil** natija: o'z tasodif generatorimiz) |
+| `tahlil.sh` | jurnalni 9 ta hisobot bilan tahlil qiladi, har hisobot — buyruqlar zanjiri |
+
+Jurnal qatori (nginx/apache "access log" formati):
+
+```text
+198.51.100.77 - - [05/Oct/2026:15:20:00 +0500] "GET / HTTP/1.1" 500 231
+ IP manzil           vaqt                        so'rov            kod  hajm
+```
+
+`awk` maydonlari bo'sh joy bo'yicha: `$1` — IP, `$7` — sahifa (yo'l), `$(NF-1)` — holat kodi (oxiridan ikkinchi), `$NF` — hajm (oxirgi). `NF` — maydonlar soni.
+
+**Skriptning eng muhim zanjirlari (har birini o'qiymiz):**
+
+**«Eng faol 3 IP»:**
+
+```bash
+cut -d' ' -f1 "$LOG" | sort | uniq -c | sort -rn | head -3
+```
+
+| Bosqich | Nima qiladi |
+|---|---|
+| `cut -d' ' -f1` | har qatordan **1-ustunni** (IP) kesib oladi (ajratgich: bo'sh joy) |
+| `sort` | tartiblaydi (bir xil IP lar **yonma-yon** keladi) |
+| `uniq -c` | ketma-ket bir xil qatorlarni **sanaydi** (`uniq` faqat qo'shni takrorlarni topadi — shuning uchun oldin `sort`!) |
+| `sort -rn` | sonlar bo'yicha (`-n`) **kamayish** tartibida (`-r`) |
+| `head -3` | birinchi 3 qator |
+
+Bu — eng ko'p uchraydigan **«eng ko'pi» andozasi**: `... | sort | uniq -c | sort -rn | head`.
+
+**«Xatolar ulushi»** — `awk` o'zi hisoblaydi:
+
+```bash
+awk '{ k = $(NF-1); jami++; if (k >= 400) xato++ }
+     END { printf "%d / %d = %.1f%%\n", xato, jami, 100 * xato / jami }' "$LOG"
+```
+
+`END { ... }` bloki **hamma qator o'qilgandan keyin** bir marta ishlaydi.
+
+Hammasini ishga tushiramiz (avval jurnalni yaratamiz, boshini ko'ramiz):
+
+```console
+$ cd katta_loyiha/tizim/19_log_tahlil
+$ chmod +x log_yarat.sh tahlil.sh
+$ ./log_yarat.sh 3000 > access.log
+$ head -3 access.log
+198.51.100.77 - - [05/Oct/2026:15:20:00 +0500] "GET / HTTP/1.1" 500 231
+192.168.1.20 - - [05/Oct/2026:14:48:01 +0500] "POST /api/ombor HTTP/1.1" 200 7861
+203.0.113.50 - - [05/Oct/2026:21:04:02 +0500] "GET /login HTTP/1.1" 200 8049
+$ ./tahlil.sh access.log
+=== 1. Umumiy ===
+so'rovlar soni: 3000
+noyob IP lar:   8
+=== 2. Eng faol 3 IP ===
+    403 10.0.0.9
+    384 198.51.100.77
+    379 172.16.4.8
+=== 3. Holat kodlari ===
+   2392 200
+    152 301
+     57 403
+    307 404
+     92 500
+=== 4. Xatolar (4xx va 5xx) ulushi ===
+456 / 3000 = 15.2%
+=== 5. Eng ko'p so'ralgan 3 sahifa ===
+    405 /login
+    384 /
+    381 /yordam
+=== 6. Faqat 404 bo'lgan sahifalar (noyob) ===
+/ /admin /api/narx /api/ombor /index.html /login /rasm/logo.png /yordam 
+=== 7. Soatlar bo'yicha so'rovlar (kunning birinchi 6 soati) ===
+00:00  ################################### 140
+01:00  ############################### 127
+02:00  ################################## 137
+03:00  ############################### 126
+04:00  ############################# 118
+05:00  ################################## 138
+=== 8. Uzatilgan ma'lumot (faqat 200) ===
+11937387 bayt = 11.4 MB
+=== 9. 500 xatosi bergan IP lar ===
+     22 203.0.113.50
+     16 198.51.100.77
+     12 172.16.4.8
+```
+
+**Nima ko'rdik (hisobotlar bo'yicha):**
+
+| Hisobot | Natija | Fikr |
+|---|---|---|
+| 1 | 3000 so'rov, 8 ta noyob IP | `sort -u` — noyob qiymatlar |
+| 2 | eng faol: `10.0.0.9` (403 ta) | bitta IP boshqalardan sezilarli ko'p so'rov yuborsa — shubhali (botmi?) |
+| 3 | 200: 2392, 404: 307, 500: 92 ... | taxminan 80% muvaffaqiyatli |
+| 4 | `456 / 3000 = 15.2%` | xatolar ulushi (4xx + 5xx) |
+| 5 | eng ko'p: `/login` (405) | qaysi sahifaga yuk tushmoqda |
+| 6 | 404 bergan 8 ta sahifa | mavjud sahifalar ham 404 bergan — tarmoq/sozlash muammosi belgisi |
+| 7 | soatlar bo'yicha `#` grafigi | **matnli** diagramma: `substr("####...", 1, son/4)` |
+| 8 | 11.4 MB | faqat `200` javoblar hajmi |
+| 9 | 500 bergan IP lar | server xatosi qaysi mijozlarda ko'proq |
+
+> **Eslab qoling:** terminalda **kichik, bir ishni qiladigan** buyruqlarni **quvur** bilan ulang. Eng ko'p ishlatiladigan andoza: `kes → tartibla → sana → tartibla (teskari) → bosh N`. `uniq` dan **oldin doim `sort`**. Murakkab hisob kerak bo'lsa — `awk`. Jurnalni **eng oldin** `head`/`wc -l`/`grep` bilan ko'zdan kechiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. Hisobot qo'shing: **har IP bo'yicha jami uzatilgan bayt** (maslahat: `awk` da `bayt[$1] += $NF`, `END` da `for (ip in bayt)`).
+2. Ulushi **10% dan oshgan** soatni toping (404 va 500 lar soat bo'yicha). `awk -F'[:[]'` nima uchun ishlaydi? Ajratgich qanday?
+3. `./log_yarat.sh 3000 | ./tahlil.sh /dev/stdin` — shu ishlaydimi? Nega `wc -l < "$LOG"` bilan `wc -l "$LOG"` farq qiladi (fayl nomi chiqadimi)?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Terminal — aniq buyruqlar; `pwd`, `ls`, `cd` (`..`, `~`, `-`), `*` va `?` — yurish va fayllarni tanlash. `rm` — **qaytarib bo'lmaydi**.

@@ -1138,6 +1138,221 @@ BFS Chilonzordan Toshkentgacha ikki yo'lni ko'rdi: Yunus Rajabiy orqali va Oybek
 
 **Sinab ko'ring:** `ula(9, 6);` ni o'chiring — endi yo'l qaysi bekatlar orqali o'tadi? Bekatlar soni `B` ni 1000 ga oshirsak, qo'shnilik matritsasi necha bayt egallaydi? Nega katta graflarda qo'shnilar ro'yxati ishlatiladi?
 
+<!-- katta:boshi -->
+## Katta loyiha: metro xaritasi (graf, Dijkstra, Kruskal, trie)
+
+**Umumiy fikr.** Metro xaritasi — **graf**: **tugunlar** (bekatlar) va **qirralar** (bekatlar orasidagi yo'l; har yo'lning **vazni** — daqiqalari). Savollar: (1) **A dan B ga eng tez yo'l qaysi?** (Dijkstra) (2) Hamma bekatni bog'laydigan **eng arzon tarmoq** qanday? (Kruskal) (3) **"a" harfi bilan boshlanuvchi** bekatlarni qanday tez topamiz? (trie). 28-bobdagi uch algoritm bitta dasturda.
+
+**Hayotiy o'xshatish:** navigator. Siz "uydan ishga" desangiz, u **eng tez** yo'lni topadi (Dijkstra). Shahar hokimiyati "hamma mahallani eng kam asfalt bilan ulash" masalasini yechadi (Kruskal). Qidiruv qatoriga "ch..." yozsangiz, takliflar chiqadi (trie).
+
+### Kirish ma'lumoti
+
+`metro.txt` — har qator: **bekat1 bekat2 daqiqa** (ikki tomonlama):
+
+```text
+chilonzor novza 3
+novza mustaqillik 2
+mustaqillik amir_temur 3
+amir_temur paxtakor 2
+paxtakor alisher_navoiy 4
+alisher_navoiy oybek 3
+amir_temur yunus_rajabiy 5
+oybek kosmonavtlar 3
+kosmonavtlar toshkent 6
+yunus_rajabiy toshkent 4
+paxtakor toshkent 9
+```
+
+Har qator — bitta yo'l. Masalan `amir_temur yunus_rajabiy 5`: Amir Temur va Yunus Rajabiy bekatlari orasi 5 daqiqa (ikkala yo'nalishda ham).
+
+### 1) Dijkstra — eng tez yo'l
+
+**G'oya (umumiy):** boshlang'ich bekatdan **eng yaqin** hali ko'rilmagan bekatni tanlaymiz; unga yetib borish vaqti **aniq** (chunki manfiy vazn yo'q — undan qisqaroq yo'l bo'lishi mumkin emas). Uning qo'shnilari uchun **"bo'shashtirish"** qilamiz: "mana shu bekat orqali borsam, qisqaroq bo'ladimi?" — shunda yangi, qisqaroq masofani yozamiz va **oldingi** bekatni eslab qolamiz. Oxirida `oldingi[]` zanjiri **yo'lni** tiklaydi.
+
+```c
+static void yol_top(int dan, int ga)
+{
+    int masofa[MAKS], oldingi[MAKS], tayyor[MAKS];
+    for (int i = 0; i < n; i++) {
+        masofa[i] = INF;
+        oldingi[i] = -1;
+        tayyor[i] = 0;
+    }
+    masofa[dan] = 0;
+    for (int qadam = 0; qadam < n; qadam++) {
+        int u = -1;
+        for (int i = 0; i < n; i++)             /* hali ko'rilmaganlar ichida eng yaqini */
+            if (!tayyor[i] && (u < 0 || masofa[i] < masofa[u]))
+                u = i;
+        if (u < 0 || masofa[u] == INF)
+            break;                              /* qolganlariga yetib bo'lmaydi */
+        tayyor[u] = 1;
+        for (int v = 0; v < n; v++)             /* "bo'shashtirish" (relaxation): u orqali yo'l qisqaroqmi? */
+            if (vazn[u][v] < INF && masofa[u] + vazn[u][v] < masofa[v]) {
+                masofa[v] = masofa[u] + vazn[u][v];
+                oldingi[v] = u;
+            }
+    }
+    if (masofa[ga] == INF) {
+        printf("%s -> %s: yo'l yo'q\n", nom[dan], nom[ga]);
+        return;
+    }
+    int yol[MAKS], k = 0;
+    for (int v = ga; v >= 0; v = oldingi[v])    /* oxiridan boshiga qarab tiklaymiz */
+        yol[k++] = v;
+    printf("%s -> %s: %d daqiqa, %d ta bekat\n  ", nom[dan], nom[ga], masofa[ga], k);
+    while (k--)
+        printf("%s%s", nom[yol[k]], k ? " -> " : "\n");
+}
+```
+
+| O'zgaruvchi | Ma'nosi |
+|---|---|
+| `masofa[i]` | boshlang'ichdan `i` gacha **hozircha topilgan** eng qisqa vaqt (`INF` — hali yetib bo'lmaydi) |
+| `tayyor[i]` | `i` ning masofasi **aniq** (qaytib o'zgarmaydi) |
+| `oldingi[i]` | `i` ga eng qisqa yo'lda **undan oldingi** bekat |
+
+Murakkabligi **O(n²)** — ~30 bekatli xarita uchun yetarli (katta graflarda ustuvorlik navbati/heap ishlatiladi).
+
+### 2) Kruskal — eng arzon tarmoq
+
+**G'oya:** qirralarni **arzonidan qimmatiga** saralaymiz. Har qirrani olamiz: agar u **ikki turli guruhni** bog'lasa — tanlaymiz; agar ikkalasi allaqachon bog'langan bo'lsa — **sikl** hosil bo'ladi, o'tkazib yuboramiz. Guruhlarni tez tekshirish uchun **union-find** (ajratilgan to'plamlar):
+
+```c
+static int ildiz(int x)
+{
+    while (ota[x] != x) {
+        ota[x] = ota[ota[x]];                   /* yo'lni qisqartirish: keyingi qidiruv tezroq */
+        x = ota[x];
+    }
+    return x;
+}
+```
+
+```c
+static void daraxt_top(void)
+{
+    qsort(qirralar, (size_t)qirra_soni, sizeof(qirralar[0]), solishtir);   /* eng arzonidan boshlab */
+    for (int i = 0; i < n; i++)
+        ota[i] = i;
+    int jami = 0, tanlandi = 0;
+    printf("Eng arzon tarmoq (barcha bekatlarni bog'lovchi):\n");
+    for (int i = 0; i < qirra_soni && tanlandi < n - 1; i++) {
+        int ra = ildiz(qirralar[i].a), rb = ildiz(qirralar[i].b);
+        if (ra == rb)
+            continue;                           /* ikkalasi allaqachon bog'langan: bu qirra sikl hosil qiladi, o'tkazib yuboramiz */
+        ota[ra] = rb;
+        jami += qirralar[i].vazn;
+        tanlandi++;
+        printf("  %-16s - %-16s %d\n", nom[qirralar[i].a], nom[qirralar[i].b], qirralar[i].vazn);
+    }
+    printf("  tanlangan %d ta yo'l, jami %d daqiqa (hamma %d ta yo'ldan)\n", tanlandi, jami, qirra_soni);
+}
+```
+
+`ildiz(x)` — `x` qaysi guruhga tegishli (guruh "boshlig'i"). **Yo'lni qisqartirish** (`ota[x] = ota[ota[x]]`) keyingi qidiruvlarni tezlashtiradi. Hamma `n` bekatni bog'lash uchun **aniq `n − 1`** yo'l kerak (daraxt!): 10 bekat → 9 yo'l.
+
+### 3) Trie — prefiks bo'yicha qidirish
+
+**G'oya:** nomlarni **harf-harf** daraxt qilib saqlaymiz: har tugunning har belgi uchun bolasi bor. `"alisher_navoiy"` va `"amir_temur"` **umumiy `a`** dan boshlanadi. Prefiksni topish uchun faqat **prefiks uzunligicha** qadam yuramiz — nomlar **soniga bog'liq emas** (matritsa/ro'yxatda esa hamma nomni solishtirish kerak):
+
+```c
+static void trie_qosh(const char *s)
+{
+    int t = 0;
+    for (; *s; s++) {
+        int c = (unsigned char)*s & 127;
+        if (!trie[t].bola[c])
+            trie[t].bola[c] = trie_soni++;
+        t = trie[t].bola[c];
+    }
+    trie[t].oxirgi = 1;
+}
+```
+
+```c
+static void qidir(const char *prefiks)
+{
+    int t = 0;
+    for (const char *s = prefiks; *s; s++) {
+        t = trie[t].bola[(unsigned char)*s & 127];
+        if (!t) {
+            printf("  '%s' bilan boshlanuvchi bekat yo'q\n", prefiks);
+            return;
+        }
+    }
+    char bufer[64];
+    snprintf(bufer, sizeof(bufer), "%s", prefiks);
+    printf("'%s' bilan boshlanuvchi bekatlar:\n", prefiks);
+    trie_chiqar(t, bufer, (int)strlen(prefiks));
+}
+```
+
+Ishga tushiramiz. Kirish — buyruqlar (`kirish.txt`): `yol A B`, `daraxt`, `qidir prefiks`:
+
+```console
+$ cd katta_loyiha/tizim/28_metro
+$ cat kirish.txt
+yol chilonzor toshkent
+yol chilonzor yunus_rajabiy
+yol oybek paxtakor
+yol toshkent chilonzor
+yol chilonzor yoq_bekat
+daraxt
+qidir a
+qidir k
+qidir z
+sakra
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined metro.c -o metro
+$ ./metro metro.txt < kirish.txt
+10 ta bekat, 11 ta yo'l o'qildi
+
+chilonzor -> toshkent: 17 daqiqa, 6 ta bekat
+  chilonzor -> novza -> mustaqillik -> amir_temur -> yunus_rajabiy -> toshkent
+chilonzor -> yunus_rajabiy: 13 daqiqa, 5 ta bekat
+  chilonzor -> novza -> mustaqillik -> amir_temur -> yunus_rajabiy
+oybek -> paxtakor: 7 daqiqa, 3 ta bekat
+  oybek -> alisher_navoiy -> paxtakor
+toshkent -> chilonzor: 17 daqiqa, 6 ta bekat
+  toshkent -> yunus_rajabiy -> amir_temur -> mustaqillik -> novza -> chilonzor
+yol chilonzor yoq_bekat: bunday bekat yo'q
+Eng arzon tarmoq (barcha bekatlarni bog'lovchi):
+  novza            - mustaqillik      2
+  amir_temur       - paxtakor         2
+  chilonzor        - novza            3
+  mustaqillik      - amir_temur       3
+  alisher_navoiy   - oybek            3
+  oybek            - kosmonavtlar     3
+  paxtakor         - alisher_navoiy   4
+  yunus_rajabiy    - toshkent         4
+  amir_temur       - yunus_rajabiy    5
+  tanlangan 9 ta yo'l, jami 29 daqiqa (hamma 11 ta yo'ldan)
+'a' bilan boshlanuvchi bekatlar:
+  alisher_navoiy
+  amir_temur
+'k' bilan boshlanuvchi bekatlar:
+  kosmonavtlar
+  'z' bilan boshlanuvchi bekat yo'q
+noma'lum buyruq: sakra
+```
+
+**Nima ko'rdik:**
+
+- **Dijkstra:** `chilonzor → toshkent` — **17 daqiqa**: `chilonzor → novza → mustaqillik → amir_temur → yunus_rajabiy → toshkent` (3+2+3+5+4). Boshqa yo'l (`oybek` orqali) 26 daqiqa — **uzoqroq**, shuning uchun tanlanmadi. `toshkent → chilonzor` — **teskari yo'l, bir xil vaqt** (graf ikki tomonlama).
+- **Mavjud bo'lmagan bekat** (`yoq_bekat`) — dastur **xabar beradi**, qulamaydi.
+- **Kruskal:** 9 ta yo'l, jami **29 daqiqa**; 11 yo'ldan 2 tasi (`kosmonavtlar-toshkent 6`, `paxtakor-toshkent 9`) **tashlandi**: ular **sikl** hosil qilardi, chunki bekatlar allaqachon boshqa yo'l bilan bog'langan.
+- **Trie:** `a` → 2 ta bekat, `k` → 1 ta, `z` → hech biri. Natijalar **alifbo tartibida** (DFS har belgi uchun 0..127 bo'yicha yuradi).
+- Noma'lum buyruq (`sakra`) — dastur xabar chiqaradi va davom etadi.
+
+> **Eslab qoling:** graf = **tugunlar + qirralar (vaznli)**. **Dijkstra** — "bir manbadan eng qisqa yo'l" (manfiy vazn **bo'lmasa**). **Kruskal** — "hammani eng arzon bog'lash" (saralash + union-find). **Trie** — "prefiks bo'yicha qidirish" (nomlar soniga bog'liq emas). Algoritmni tanlash — **savolni to'g'ri qo'yishdan** boshlanadi: "eng qisqa yo'l" va "eng arzon tarmoq" **turli masalalar**.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `metro.txt` ga yangi yo'l qo'shing (masalan `chilonzor oybek 5`): `chilonzor → toshkent` yo'li o'zgaradimi? Dijkstra va Kruskal natijalari qanday o'zgardi?
+2. Dijkstra da **eng qisqa yo'l bo'yicha emas, eng kam bekat** bo'yicha qidiring: vaznlarni hammasini 1 deb oling. Bu qaysi algoritmga aylanadi? (Maslahat: BFS.)
+3. Trie ga `uchrashuv` rejimi qo'shing: `qidir` natijasini **nechta** bekat ekanini ham chiqaring (`qidir a` → "2 ta"). Bunda trie tugunlarida **hisoblagich** saqlash kerak.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **O-belgi:** n ko'paysa ish qanday o'sadi. O(1) ≪ O(log n) ≪ O(n) ≪ O(n log n) ≪ O(n²). Yadroda sekin algoritm butun tizimni to'xtatadi.

@@ -27,9 +27,11 @@
 **Boblar qanday yozilgan:** har bo'lim "Oddiy qilib aytganda → Hayotdan misol → Qadam-baqadam → Kod (har qatori tushuntirilgan, qiymatlar
 jadvali bilan) → Nega shunday? → **Eslab qoling**" tartibida. Har bir kod blokining natijasi **haqiqatan ishga tushirib** olingan.
 
-## Katta loyiha: Ombor
+## Katta loyihalar: Ombor (0–12) va tizim dasturlari (13–31)
 
 Boblarni bitta **o'sib boradigan dastur** bog'laydi: **Ombor** (mahsulotlar ombori). Har bobning oxirida (0–12) "**Katta loyiha: Ombor — N-bosqich**" bo'limi bor: yangi tushuncha oldingi versiyadagi muammoni hal qiladi. To'liq tavsif va tayyor kodlar — [katta_loyiha/](katta_loyiha/README.md).
+
+13–31-boblarning har birida ham o'zining **katta loyihasi** bor (fuzzer, shell, fayl tizimi, mini-yadro, `malloc` kuzatuvchisi va h.k. — jadval: [katta_loyiha/README.md](katta_loyiha/README.md)). Har bobda: **umumiy fikr → kod → haqiqiy chiqish → tushuntirish → o'zingiz qo'shing (yechimsiz)**.
 
 ## Mundarija
 

@@ -420,6 +420,146 @@ Birinchi holatda xotiradan **8 barobar ko'p bayt** olib kelinadi (64 vs 8 bayt/n
 
 **Sinab ko'ring:** `char nom[40]` ni `char nom[8]` qiling (struct 32 bayt bo'ladi) — farq qanday o'zgaradi? `perf stat -e cache-misses ./ombor` bilan kesh xatolarini sanang (29-bob).
 
+<!-- katta:boshi -->
+## Katta loyiha: kesh laboratoriyasi — xotiraga qanday kirish tezlikni belgilaydi
+
+**Umumiy fikr.** Protsessor operativ xotiradan (RAM) **juda sekin** o'qiydi: bitta kirish ~100 ta buyruq bajarish vaqtiga teng. Shuning uchun protsessor ichida **kesh** — kichik, lekin juda tez xotira bor. Kesh xotirani **bayt-bayt emas, 64 baytlik qatorlar** (cache line) bilan oladi. 21-bob shu haqida: agar siz **qo'shni** xotiraga ketma-ket murojaat qilsangiz, bitta qator yuklanishi **16 ta int** uchun yetadi; sakrab yursangiz — har kirishda yangi qator.
+
+**Hayotiy o'xshatish:** kutubxonadan kitob olish. **Ketma-ket** o'qisangiz — bir marta borib, 16 ta kitobni savatga solib kelasiz. **Sakrab** o'qisangiz — har kitob uchun alohida yuborasiz.
+
+### Bu bosqichda nima qilamiz
+
+Bitta massivni **ikki xil tartibda** aylanamiz, matritsa ko'paytirishning **ikki xil tartibini** solishtiramiz. Natijani **vaqt** bilan emas, **kesh xatolari soni** bilan o'lchaymiz: bu uchun **cachegrind** (valgrind ichidagi kesh simulyatori) ishlatamiz. Valgrind protsessorni **emulyatsiya** qiladi, shuning uchun natijalar har safar **aniq bir xil** (vaqt o'lchash esa har gal o'zgaradi).
+
+```c
+/* xotira_yurish.c - bitta massivni turlicha aylanish: kesh xatolari soni valgrind (cachegrind) bilan o'lchanadi */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define N 512                                   /* N x N int = 1 MB: 32 KB li D1 keshga sig'maydi */
+#define M 128                                   /* matritsa ko'paytirish uchun kichikroq (3 ta M x M massiv) */
+
+static int a[N][N];
+static int p[M][M], q[M][M], r[M][M];
+
+static long satr_boyicha(void)                  /* a[i][0], a[i][1], ...: xotirada KETMA-KET */
+{
+    long s = 0;
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            s += a[i][j];
+    return s;
+}
+
+static long ustun_boyicha(void)                 /* a[0][j], a[1][j], ...: har qadam N*4 = 2048 bayt SAKRAYDI */
+{
+    long s = 0;
+    for (int j = 0; j < N; j++)
+        for (int i = 0; i < N; i++)
+            s += a[i][j];
+    return s;
+}
+
+static long kopaytir_ijk(void)                  /* klassik tartib: q[k][j] ustun bo'ylab o'qiladi */
+{
+    memset(r, 0, sizeof(r));
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < M; j++)
+            for (int k = 0; k < M; k++)
+                r[i][j] += p[i][k] * q[k][j];
+    return r[M - 1][M - 1];
+}
+
+static long kopaytir_ikj(void)                  /* j ichkarida: q[k][*] va r[i][*] qator bo'ylab o'qiladi */
+{
+    memset(r, 0, sizeof(r));
+    for (int i = 0; i < M; i++)
+        for (int k = 0; k < M; k++) {
+            int pik = p[i][k];
+            for (int j = 0; j < M; j++)
+                r[i][j] += pik * q[k][j];
+        }
+    return r[M - 1][M - 1];
+}
+
+int main(int argc, char **argv)
+{
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            a[i][j] = (i + j) % 7;
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < M; j++) {
+            p[i][j] = (i * 3 + j) % 5;
+            q[i][j] = (i + j * 2) % 5;
+        }
+
+    const char *rejim = argc > 1 ? argv[1] : "satr";
+    long natija;
+    if (strcmp(rejim, "satr") == 0)
+        natija = satr_boyicha();
+    else if (strcmp(rejim, "ustun") == 0)
+        natija = ustun_boyicha();
+    else if (strcmp(rejim, "ijk") == 0)
+        natija = kopaytir_ijk();
+    else if (strcmp(rejim, "ikj") == 0)
+        natija = kopaytir_ikj();
+    else
+        return 2;
+    printf("%s: natija %ld\n", rejim, natija);
+    return 0;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Rejim | Kod | Xotira yurishi |
+|---|---|---|
+| `satr` | `a[i][j]`, `j` ichkarida | `a[i][0]`, `a[i][1]`, ... — **ketma-ket** (C massivlari satr bo'yicha saqlanadi) |
+| `ustun` | `a[i][j]`, `i` ichkarida | har qadam **2048 bayt** (512 ta int) sakraydi — har kirish **yangi** kesh qatoriga |
+| `ijk` | klassik: `r[i][j] += p[i][k] * q[k][j]` | `q[k][j]` — `k` o'zgarganda **ustun bo'ylab** yuradi |
+| `ikj` | `k` o'rtada, `j` ichkarida | `q[k][*]` va `r[i][*]` **qator bo'ylab** yuradi |
+
+Ikkala matritsa ko'paytirish usuli **bir xil natija** beradi va **bir xil sondagi** amal bajaradi — farqi faqat **tartibda**.
+
+O'lchov skripti (`olchov.sh`) har rejimni cachegrind ostida ishga tushirib, `D1` (birinchi daraja ma'lumot keshi, 32 KB, 8 yo'lli, 64 baytli qator) bo'yicha **xatolar** (miss) sonini (mingta) va foizini jadvalga chiqaradi. Natija **ataylab yaxlitlangan**: muhit o'zgaruvchilari hajmi hisobni bir necha o'nga o'zgartirishi mumkin, farq esa **bir necha barobar**:
+
+```bash
+valgrind --tool=cachegrind --cache-sim=yes --D1=32768,8,64 --cachegrind-out-file=/dev/null ./xotira_yurish "$rejim"
+```
+
+```console
+$ cd katta_loyiha/tizim/21_kesh_lab
+$ gcc -Wall -Wextra -O1 -g xotira_yurish.c -o xotira_yurish
+$ chmod +x olchov.sh
+$ ./olchov.sh
+rejim     D1 xatolar (ming)     xato %
+satr                     37         6%
+ustun                   282        46%
+ijk                    2153        46%
+ikj                     154         3%
+```
+
+**Nima ko'rdik:**
+
+| Rejim | D1 xato % | Tushuntirish |
+|---|---|---|
+| `satr` | **≈6%** | 64 bayt = 16 ta `int`; ketma-ket o'qishda **16 kirishdan 1 tasi** yangi qator yuklaydi: 1/16 = 6.25% — deyarli shu |
+| `ustun` | **≈46%** | har kirish **boshqa qatorga**: deyarli har safar xato. Kirishlar soni **bir xil** (taxminan 0,6 mln), lekin xatolar **~8 barobar** ko'p (37 ming ↔ 282 ming) |
+| `ijk` | **≈46%** | `q[k][j]` ustun bo'ylab o'qiladi — yuqoridagi `ustun` holati |
+| `ikj` | **≈3%** | hamma massiv **qator bo'ylab** — eng yaxshi. `ijk` ga nisbatan xatolar **14 barobar** kam |
+
+Haqiqiy vaqtda bu farq ham seziladi: katta massivlarda `ikj` `ijk` dan odatda **bir necha barobar tez**. Dasturingiz ishlashi **algoritm murakkabligi** (O(n³)) bilan emas, **xotiraga kirish tartibi** bilan ham belgilanadi.
+
+> **Eslab qoling:** protsessor xotirani **64 baytlik qatorlar** bilan oladi. **Ketma-ket** murojaat — arzon, **sakrash** — qimmat. C da ikki o'lchamli massivda **ichki sikl — oxirgi indeks** bo'lsin (`a[i][j]` da `j`). Optimallashtirishdan oldin **o'lchang** (cachegrind, `perf`), taxmin qilmang.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `N` ni 512 dan **64** ga tushiring (massiv = 16 KB, keshga **sig'adi**). `satr` va `ustun` farqi qolyaptimi? Nega?
+2. `--D1=32768,8,64` ni `--D1=8192,8,64` (8 KB kesh) ga o'zgartiring: jadval qanday o'zgardi?
+3. **Blokli** (tiling) matritsa ko'paytirish yozing: `M×M` ni `8×8` bloklarga bo'lib hisoblang va `ikj` bilan xatolarni solishtiring.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Tezlik pog'onalari: registr → L1 → L2/L3 → RAM → SSD → HDD; har pog'ona ~10–100× sekinroq. **Kesh** — sekinroq xotira nusxasini saqlovchi kichik tez xotira.

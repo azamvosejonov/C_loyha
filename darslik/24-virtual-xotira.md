@@ -614,6 +614,154 @@ Yuqorida ko'rgan real o'lchovlar (talab bo'yicha sahifalash, COW, `mmap`, almash
 
 **Sinab ko'ring:** `SAHIFA_HAJMI` ni 4096 qiling (haqiqiy x86) va `SAHIFALAR` ni 16 — manzillar qanday bo'linadi? Sahifa jadvalining o'lchami nega muammo ekanini hisoblang: 48 bitli manzil va 4 KB sahifada nechta yozuv kerak (24.3)?
 
+<!-- katta:boshi -->
+## Katta loyiha: sahifa xatolari laboratoriyasi (demand paging, COW)
+
+**Umumiy fikr.** `malloc(1 MB)` yoki `mmap(1 MB)` qilganingizda yadro **darrov 1 MB RAM bermaydi**. U shunchaki "bu manzillar sizniki" deb yozib qo'yadi (*virtual xotira*). Haqiqiy RAM sahifasi **birinchi tegilganda** beriladi: protsessor "bu manzilga RAM ulanmagan" deb **page fault** (sahifa xatosi) hosil qiladi, yadro sahifani ulaydi va dastur **bilmay** davom etadi. 24-bob shu haqda. Bu bosqichda page faultlarni **o'zimiz sanaymiz** — `getrusage()` yadroning haqiqiy hisoblagichini beradi.
+
+**Hayotiy o'xshatish:** mehmonxona. Siz 256 xonali **bron** qildingiz (mmap), lekin xonalar **kirib borganingizda** tayyorlanadi: birinchi kirishda ma'mur kalitni beradi (page fault), keyingi kirishlarda kalit allaqachon sizda.
+
+**Muhim:** page fault ≠ xato. Ko'pchiligi **oddiy ish** (*minor fault* — diskka murojaatsiz). Faqat noto'g'ri manzilga murojaat `SIGSEGV` bilan tugaydi.
+
+### Dastur
+
+Uchta tajriba: (1) demand paging, (2) `madvise` bilan sahifa qaytarish, (3) `fork` + **copy-on-write**:
+
+```c
+/* fault_lab.c - sahifa xatolarini (page fault) HAQIQIY yadro bilan o'lchash: demand paging, takroriy murojaat, fork va COW, madvise */
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#define SAHIFALAR 256                           /* 256 x 4 KB = 1 MB (2 MB li "katta sahifa"ga yetmaydi: oddiy 4 KB sahifalar) */
+
+static long xatolar(void)                       /* shu jarayonning "kichik" page fault'lari soni (diskka murojaatsiz) */
+{
+    struct rusage r;
+    getrusage(RUSAGE_SELF, &r);
+    return r.ru_minflt;
+}
+
+static long sahifa_hajm;
+
+/* bo'lakning har sahifasiga bittadan bayt yozadi */
+static void tegib_chiq(char *p, int sahifalar)
+{
+    for (int i = 0; i < sahifalar; i++)
+        p[(long)i * sahifa_hajm] = 1;
+}
+
+static void chiqar(const char *nom, long xato, int sahifalar)
+{
+    double nisbat = (double)xato / sahifalar;
+    const char *baho = nisbat < 0.05 ? "deyarli yo'q" : (nisbat > 0.9 && nisbat < 1.2 ? "~1 sahifaga 1 ta" : "boshqacha");
+    printf("  %-44s %4ld xato  (%.2f / sahifa: %s)\n", nom, xato, nisbat, baho);
+}
+
+int main(void)
+{
+    sahifa_hajm = sysconf(_SC_PAGESIZE);
+    printf("sahifa hajmi: %ld bayt, bo'lak: %d sahifa\n\n", sahifa_hajm, SAHIFALAR);
+
+    printf("1) Demand paging: mmap xotirani 'va'da qiladi', sahifa haqiqatda tegilganda beriladi\n");
+    long a0 = xatolar();
+    char *p = mmap(NULL, (size_t)SAHIFALAR * (size_t)sahifa_hajm, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (p == MAP_FAILED) {
+        perror("mmap");
+        return 1;
+    }
+    chiqar("mmap qilingandan keyin (hali tegilmadi)", xatolar() - a0, SAHIFALAR);
+
+    long a1 = xatolar();
+    tegib_chiq(p, SAHIFALAR);
+    chiqar("1-marta har sahifaga yozdik", xatolar() - a1, SAHIFALAR);
+
+    long a2 = xatolar();
+    tegib_chiq(p, SAHIFALAR);
+    chiqar("2-marta (sahifalar allaqachon xotirada)", xatolar() - a2, SAHIFALAR);
+
+    printf("\n2) madvise(DONTNEED): sahifalarni yadroga qaytaramiz\n");
+    madvise(p, (size_t)SAHIFALAR * (size_t)sahifa_hajm, MADV_DONTNEED);
+    long a3 = xatolar();
+    tegib_chiq(p, SAHIFALAR);
+    chiqar("qaytargandan keyin yana yozdik", xatolar() - a3, SAHIFALAR);
+
+    printf("\n3) fork + copy-on-write: bola ota xotirasini 'baham ko'radi', yozganda nusxalaydi\n");
+    fflush(stdout);
+    pid_t pid = fork();
+    if (pid == 0) {
+        long b0 = xatolar();
+        long yig = 0;
+        for (int i = 0; i < SAHIFALAR; i++)
+            yig += p[(long)i * sahifa_hajm];    /* faqat O'QIYMIZ */
+        chiqar("bola: faqat o'qidi (ota bilan umumiy sahifalar)", xatolar() - b0, SAHIFALAR);
+        long b1 = xatolar();
+        tegib_chiq(p, SAHIFALAR);               /* endi YOZAMIZ: har sahifa uchun nusxa kerak */
+        chiqar("bola: har sahifaga yozdi (COW nusxalari)", xatolar() - b1, SAHIFALAR);
+        fflush(stdout);
+        _exit(yig == SAHIFALAR ? 0 : 1);
+    }
+    int holat;
+    waitpid(pid, &holat, 0);
+    printf("  bola tugadi, ota esa sahifalarini o'z holicha saqladi: p[0] = %d\n", p[0]);
+
+    munmap(p, (size_t)SAHIFALAR * (size_t)sahifa_hajm);
+    return 0;
+}
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `getrusage(RUSAGE_SELF, &r)` → `r.ru_minflt` | yadro hisobi: shu jarayonning **minor** page fault soni |
+| `mmap(NULL, hajm, ..., MAP_PRIVATE \| MAP_ANONYMOUS, -1, 0)` | fayl bilan bog'lanmagan **xususiy** xotira so'raydi |
+| `tegib_chiq(p, n)` | har sahifaga **bittadan bayt** yozadi (har sahifaning boshiga tegamiz — shu yetarli) |
+| `madvise(..., MADV_DONTNEED)` | "bu sahifalar kerak emas" — yadro RAM ni qaytarib oladi |
+| `fork()` | bola jarayon yaratadi; xotira **nusxalanmaydi**, ota-bola **bir xil sahifalarni** baham ko'radi |
+
+```console
+$ cd katta_loyiha/tizim/24_fault_lab
+$ gcc -Wall -Wextra -O1 -g fault_lab.c -o fault_lab
+$ ./fault_lab
+sahifa hajmi: 4096 bayt, bo'lak: 256 sahifa
+
+1) Demand paging: mmap xotirani 'va'da qiladi', sahifa haqiqatda tegilganda beriladi
+  mmap qilingandan keyin (hali tegilmadi)         0 xato  (0.00 / sahifa: deyarli yo'q)
+  1-marta har sahifaga yozdik                   256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+  2-marta (sahifalar allaqachon xotirada)         0 xato  (0.00 / sahifa: deyarli yo'q)
+
+2) madvise(DONTNEED): sahifalarni yadroga qaytaramiz
+  qaytargandan keyin yana yozdik                256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+
+3) fork + copy-on-write: bola ota xotirasini 'baham ko'radi', yozganda nusxalaydi
+  bola: faqat o'qidi (ota bilan umumiy sahifalar)    0 xato  (0.00 / sahifa: deyarli yo'q)
+  bola: har sahifaga yozdi (COW nusxalari)      256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+  bola tugadi, ota esa sahifalarini o'z holicha saqladi: p[0] = 1
+```
+
+**Nima ko'rdik:**
+
+1. **Demand paging.** `mmap` dan keyin — **0 xato**: hali hech narsa tegilmadi. 1-marta yozganda — **256 xato = har sahifaga 1 ta**. 2-marta — yana **0**: sahifalar allaqachon ulangan. Demak, RAM **faqat haqiqatda ishlatilgan** sahifalar uchun sarflanadi.
+2. **`madvise(DONTNEED)`.** Sahifalarni qaytargach, yana yozsak — **yana 256 xato**: yadro ularni qaytadan (nollangan holda) ulashi kerak. Shuning uchun `malloc`/`free` kutubxonalari xotirani **yadroga qaytarishda ehtiyot bo'ladi**.
+3. **fork + COW.** Bola faqat **o'qiganda** — **0 xato**: ota bilan **bir xil fizik sahifalar**, nusxa yo'q. Bola **yozganda** — har sahifa uchun **1 xato**: yadro sahifani **nusxalaydi** (copy-on-write). Ota `p[0] = 1` ni saqlab qoldi — bola o'z nusxasini o'zgartirgan, ota sahifasi esa daxlsiz.
+
+**Nega bu muhim?** `fork` 1 GB li jarayonni **mikrosekundlarda** nusxalaydi (hech narsa ko'chirilmaydi). Shell har buyruqda `fork` + `exec` qiladi — COW bo'lmasa, har buyruq GB larni nusxalardi.
+
+> **Eslab qoling:** xotira **virtual**: `mmap`/`malloc` — va'da, haqiqiy sahifa **birinchi tegilganda** beriladi (page fault). Page fault — odatiy hodisa, **xato emas**. `fork` — **copy-on-write**: sahifa **yozilganda** nusxalanadi. Dastur xotirasini **o'lchash** uchun `getrusage`, `/proc/self/status`, `perf stat -e page-faults` dan foydalaning.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `tegib_chiq` ni **faqat har ikkinchi** sahifaga tegadigan qilib o'zgartiring. Nechta xato kutasiz? Tekshiring.
+2. `mmap` o'rniga `calloc(SAHIFALAR, sahifa_hajm)` ishlating (katta bo'lak) — natija qanday? (Maslahat: `calloc` katta bo'laklar uchun `mmap` ishlatadi va **nollash shart emas**.)
+3. Bola jarayon yozgandan keyin **ota** `p[0]` ni o'qisin: xato sonini o'lchang. Ota-bola sahifalaridan qaysi biri **nusxalandi**?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Virtual xotira:** har jarayon o'z manzil maydonini ko'radi; MMU virtual → fizik tarjima qiladi, jadvalni yadro boshqaradi → **himoya**, qulay joylashtirish, "xotiradan ko'p" ishlatish.

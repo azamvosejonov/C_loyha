@@ -612,6 +612,225 @@ $ strace -f -e trace=fork,clone,pipe2,pipe,wait4 ./oila 2>&1 | grep -c "clone\|f
 **Sinab ko'ring:** `close(quvur[1]);` (otadagi) ni o'chiring — dastur nega abadiy kutib qoladi? (Ctrl+C bilan to'xtating.) `while (wait(...))` siklini o'chirib, dastur ishlayotganda boshqa terminalda
 `ps aux | grep defunct` ni bajaring.
 
+<!-- katta:boshi -->
+## Katta loyiha: msh — o'z shellingizni yozing
+
+**Umumiy fikr.** Terminalda `ls | wc -l` yozganda **nima bo'ladi**? Shell (`bash`) ham oddiy C dasturi: qatorni o'qiydi, so'zlarga bo'ladi, `fork` qilib bola jarayon yaratadi, bolada `exec` bilan kerakli dasturni ishga tushiradi, ota esa `wait` bilan kutadi. 14-bobdagi hamma chaqiruvlar (`fork`, `execvp`, `waitpid`, `pipe`, `dup2`, `open`) bu yerda **bitta dasturda** birlashadi.
+
+**Hayotiy o'xshatish:** shell — **dispetcher**. O'zi ishlamaydi: ishchilarni (bola jarayonlarni) chaqiradi, ularning **kirish va chiqish simlarini** ulaydi (`|`, `<`, `>`) va tugashini kutadi.
+
+### Bu bosqichda nima qilamiz
+
+`msh` — mini shell. Nima qila oladi:
+
+| Imkoniyat | Misol | Qanday ishlaydi |
+|---|---|---|
+| oddiy buyruq | `echo salom` | `fork` + `execvp` + `waitpid` |
+| quvur | `echo a \| tr a-z A-Z` | `pipe` + `dup2`: bir jarayon chiqishi — ikkinchisi kirishi |
+| yo'naltirish | `echo x > f`, `cat < f`, `>> f` | `open` + `dup2` |
+| ichki buyruqlar | `cd`, `pwd`, `exit`, `durum` | shell **o'zi** bajaradi (bola emas) |
+| xato kodi | `durum` | oxirgi buyruqning chiqish kodi |
+
+**Nega `cd` ichki buyruq?** `cd` **jarayonning** joriy papkasini o'zgartiradi. Agar uni bola jarayon bajarsa, papka faqat **bolada** o'zgaradi va bola o'lgach yo'qoladi. Shuning uchun `cd` (va `exit`) shellning **o'zida** bajarilishi shart.
+
+**Birinchi qadam — qatorni tahlil qilish.** `tahlil()` qatorni so'zlarga bo'ladi, `|` bo'yicha buyruqlarga ajratadi, `<`, `>`, `>>` dan keyingi fayl nomini alohida saqlaydi:
+
+```c
+struct buyruq {
+    char *argv[MAKS_ARG + 1];                   /* execvp uchun: oxiri NULL */
+    char *kirish;                               /* < fayl */
+    char *chiqish;                              /* > yoki >> fayl */
+    int qoshib;                                 /* 1 - >>, 0 - > */
+};
+```
+
+```c
+/* qatorni bo'sh joylar bo'yicha so'zlarga ajratadi va "|" bo'yicha buyruqlarga bo'ladi.
+   Qaytaradi: buyruqlar soni, xato bo'lsa -1. Qatorni o'zgartiradi (so'zlar uning ichida qoladi). */
+static int tahlil(char *qator, struct buyruq *b)
+{
+    int n = 0;
+    memset(&b[0], 0, sizeof(b[0]));
+    int arg = 0;
+    char *saqla, *so_z = strtok_r(qator, " \t\n", &saqla);
+    while (so_z) {
+        if (strcmp(so_z, "|") == 0) {
+            if (arg == 0 || ++n == MAKS_BUYRUQ)
+                return -1;                      /* bo'sh buyruq yoki juda ko'p quvur */
+            memset(&b[n], 0, sizeof(b[n]));
+            arg = 0;
+        } else if (strcmp(so_z, "<") == 0 || strcmp(so_z, ">") == 0 || strcmp(so_z, ">>") == 0) {
+            char *fayl = strtok_r(NULL, " \t\n", &saqla);
+            if (!fayl)
+                return -1;                      /* yo'naltirishdan keyin fayl nomi kerak */
+            if (so_z[0] == '<') {
+                b[n].kirish = fayl;
+            } else {
+                b[n].chiqish = fayl;
+                b[n].qoshib = so_z[1] == '>';
+            }
+        } else {
+            if (arg == MAKS_ARG)
+                return -1;
+            b[n].argv[arg++] = so_z;
+            b[n].argv[arg] = NULL;
+        }
+        so_z = strtok_r(NULL, " \t\n", &saqla);
+    }
+    if (arg == 0)
+        return n == 0 ? 0 : -1;                 /* butunlay bo'sh qator OK, "a |" - xato */
+    return n + 1;
+}
+```
+
+Qismlar: `argv[]` — `execvp` kutadigan massiv (oxiri `NULL`); `strtok_r` — qatorni so'zlarga ajratadi (`_r` — takroriy chaqirish uchun xavfsiz variant); `n` — nechanchi buyruqdamiz. `a |` yoki `| a` kabi bo'sh buyruq — **sintaksis xatosi** (`-1`).
+
+**Ikkinchi qadam — bola jarayon.** Bola avval **simlarni ulaydi** (`dup2`), keyin `execvp` bilan o'zini boshqa dasturga **almashtiradi**:
+
+```c
+/* bola jarayon ichida: yo'naltirishlarni o'rnatib, buyruqni ishga tushiradi */
+static void bola(struct buyruq *b, int kirish_fd, int chiqish_fd)
+{
+    signal(SIGINT, SIG_DFL);                    /* shell Ctrl-C ni e'tiborsiz qoldirdi, bola esa emas */
+    if (kirish_fd != 0) {
+        dup2(kirish_fd, 0);
+        close(kirish_fd);
+    }
+    if (chiqish_fd != 1) {
+        dup2(chiqish_fd, 1);
+        close(chiqish_fd);
+    }
+    if (b->kirish) {
+        int fd = open(b->kirish, O_RDONLY);
+        if (fd < 0) {
+            fprintf(stderr, "msh: %s: %s\n", b->kirish, strerror(errno));
+            _exit(1);
+        }
+        dup2(fd, 0);
+        close(fd);
+    }
+    if (b->chiqish) {
+        int fd = open(b->chiqish, O_WRONLY | O_CREAT | (b->qoshib ? O_APPEND : O_TRUNC), 0644);
+        if (fd < 0) {
+            fprintf(stderr, "msh: %s: %s\n", b->chiqish, strerror(errno));
+            _exit(1);
+        }
+        dup2(fd, 1);
+        close(fd);
+    }
+    execvp(b->argv[0], b->argv);
+    fprintf(stderr, "msh: %s: %s\n", b->argv[0], errno == ENOENT ? "topilmadi" : strerror(errno));
+    _exit(127);                                 /* exec muvaffaqiyatsiz: odatiy kod 127 */
+}
+```
+
+`dup2(fd, 0)` — "0-fayl deskriptor (stdin) endi `fd` ga qarasin". Shuning uchun `cat` o'zi hech narsani bilmaydi: u oddiygina stdin dan o'qiydi, stdin esa quvur yoki fayl bo'lib chiqadi. `execvp` **qaytmaydi** (muvaffaqiyatli bo'lsa); agar qaytdi — demak xato: dastur topilmadi, kod **127**.
+
+**Uchinchi qadam — quvur zanjiri.** `bajar()` har buyruq uchun `pipe` + `fork` qiladi:
+
+```c
+static void bajar(struct buyruq *b, int n)
+{
+    if (n == 1 && ichki(&b[0]))
+        return;
+
+    pid_t pid[MAKS_BUYRUQ];
+    int oldingi_oqim = 0;                       /* oldingi buyruqning chiqishi - bu buyruqning kirishi */
+    for (int i = 0; i < n; i++) {
+        int quvur[2] = { 0, 1 };
+        if (i < n - 1 && pipe(quvur) != 0) {
+            perror("msh: pipe");
+            return;
+        }
+        pid[i] = fork();
+        if (pid[i] < 0) {
+            perror("msh: fork");
+            return;
+        }
+        if (pid[i] == 0) {
+            if (i < n - 1)
+                close(quvur[0]);                /* bola quvurning o'qish uchini ishlatmaydi */
+            bola(&b[i], oldingi_oqim, quvur[1]);
+        }
+        if (oldingi_oqim != 0)
+            close(oldingi_oqim);                /* ota: ishlatib bo'lingan uchlarni yopamiz */
+        if (i < n - 1) {
+            close(quvur[1]);
+            oldingi_oqim = quvur[0];
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        int holat;
+        waitpid(pid[i], &holat, 0);
+        if (i == n - 1)                         /* quvurning holati - oxirgi buyruqniki */
+            oxirgi_holat = WIFEXITED(holat) ? WEXITSTATUS(holat) : 128 + WTERMSIG(holat);
+    }
+}
+```
+
+Qoida: **ota** ishlatib bo'lingan quvur uchlarini yopishi shart. Aks holda quvurning yozish uchi ochiq qoladi va `wc` kabi dasturlar **hech qachon "fayl tugadi" (EOF) ni ko'rmaydi** — abadiy kutadi.
+
+Ishga tushiramiz. Kirish — haqiqiy klaviatura o'rniga fayl (`kirish.txt`):
+
+```console
+$ cd katta_loyiha/tizim/14_msh
+$ cat kirish.txt
+echo salom dunyo
+echo salom | tr a-z A-Z
+echo banan | tr a o | tr b B
+echo matn > chiqish.txt
+cat < chiqish.txt
+echo ikkinchi >> chiqish.txt
+cat chiqish.txt | wc -l
+yoq_buyruq
+durum
+ls | | wc
+cd /tmp
+pwd
+cd /yoq_papka
+durum
+exit 3
+$ gcc -Wall -Wextra -g msh.c -o msh
+$ ./msh < kirish.txt 2>&1; echo "msh chiqish kodi: $?"
+salom dunyo
+SALOM
+Bonon
+matn
+2
+msh: yoq_buyruq: topilmadi
+127
+msh: sintaksis xatosi
+/tmp
+msh: cd: /yoq_papka: No such file or directory
+1
+msh chiqish kodi: 3
+```
+
+**Nima ko'rdik (qator bo'yicha):**
+
+| Kirish | Natija | Nega |
+|---|---|---|
+| `echo salom dunyo` | `salom dunyo` | oddiy buyruq |
+| `echo salom \| tr a-z A-Z` | `SALOM` | `echo` chiqishi `tr` kirishiga ulandi |
+| `echo banan \| tr a o \| tr b B` | `Bonon` | **uch** buyruqli zanjir: `banan` → `bonon` → `Bonon` |
+| `echo matn > chiqish.txt`, `cat < chiqish.txt` | `matn` | yozdik, so'ng fayldan o'qidik |
+| `echo ikkinchi >> ...`, `cat ... \| wc -l` | `2` | `>>` **qo'shib** yozdi: fayl endi 2 qatorli |
+| `yoq_buyruq` | `msh: yoq_buyruq: topilmadi` | `execvp` xato qaytardi |
+| `durum` | `127` | topilmagan buyruqning kodi |
+| `ls \| \| wc` | `msh: sintaksis xatosi` | quvur orasida buyruq yo'q |
+| `cd /tmp`, `pwd` | `/tmp` | `cd` shellning **o'zida** — papka haqiqatan o'zgardi |
+| `cd /yoq_papka`, `durum` | xato, `1` | `chdir` muvaffaqiyatsiz |
+| `exit 3` | `msh chiqish kodi: 3` | shell chiqdi, `$?` = 3 |
+
+> **Eslab qoling:** shell = **o'qi → tahlil qil → `fork` → bolada `dup2` + `exec` → otada `wait`**. `|`, `<`, `>` — shunchaki **fayl deskriptorlarini almashtirish** (`dup2`); `cd` va `exit` ichki, chunki ular **shell jarayonining o'ziga** ta'sir qilishi kerak.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `2>` ni qo'shing (xatolarni faylga yo'naltirish): bolada qaysi fayl deskriptorini (`dup2` ning ikkinchi argumenti) almashtirish kerak?
+2. `&` bilan **fon** rejimini qo'shing (`sleep 5 &`): ota nimani **kutmasligi** kerak? Zombi jarayonlar qolmasligi uchun nima qilish kerak?
+3. Quvurdagi `close` qatorlaridan birini oling (`close(quvur[1])`) va `echo a | wc -l` ni sinang: nega dastur "qotib" qoladi? (Maslahat: EOF qachon keladi?)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Syscall** — dasturning yadrodan so'rovi (`write`, `open`, `fork`...); dastur apparatga o'zi tega olmaydi. Xato — manfiy/−1 + `errno`.
