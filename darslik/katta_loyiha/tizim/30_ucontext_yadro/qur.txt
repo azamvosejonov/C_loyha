@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g mini_yadro.c -o mini_yadro

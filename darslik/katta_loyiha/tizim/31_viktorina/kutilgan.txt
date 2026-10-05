@@ -1,0 +1,82 @@
+
+[1/11] (1-bob) Kompilyator qaysi bosqichda .o fayl yaratadi?
+  a) preprotsessor
+  b) kompilyatsiya+assembler
+  c) linker
+  d) loader
+javob (a-d): TO'G'RI
+
+[2/11] (2-bob) uint8_t ga 255 ga 1 qo'shsak nima chiqadi?
+  a) 256
+  b) 0
+  c) -1
+  d) xato
+javob (a-d): TO'G'RI
+
+[3/11] (7-bob) int *p = NULL; *p = 5; nima bo'ladi?
+  a) 5 yoziladi
+  b) 0 yoziladi
+  c) segmentation fault
+  d) hech narsa
+javob (a-d): TO'G'RI
+
+[4/11] (8-bob) free(p) ni ikki marta chaqirish...
+  a) zararsiz
+  b) double free (UB)
+  c) xotirani 2 barobar bo'shatadi
+  d) kompilyator xatosi
+javob (a-d): TO'G'RI
+
+[5/11] (14-bob) fork() muvaffaqiyatli bo'lsa, bolada nima qaytadi?
+  a) bolaning pid si
+  b) -1
+  c) 0
+  d) ota pid si
+javob (a-d): TO'G'RI
+
+[6/11] (15-bob) Ma'lumot poygasi (data race) nima?
+  a) ikki oqim bir xotiraga, kamida biri yozadi, sinxronlashsiz
+  b) ikkita jarayon
+  c) deadlock
+  d) xotira sizishi
+javob (a-d): TO'G'RI
+
+[7/11] (20-bob) IEEE 754 da 0.1 + 0.2 == 0.3 ?
+  a) ha, har doim
+  b) yo'q, 0.1 aniq saqlanmaydi
+  c) faqat double da
+  d) faqat float da
+javob (a-d): TO'G'RI
+
+[8/11] (21-bob) Qaysi aylanish tezroq (C massiv, satr bo'yicha)?
+  a) ustun bo'yicha
+  b) satr bo'yicha
+  c) farqi yo'q
+  d) tasodifiy
+javob (a-d): TO'G'RI
+
+[9/11] (24-bob) Page fault har doim xatomi?
+  a) ha
+  b) yo'q, ko'pi oddiy (sahifani yuklash/COW)
+  c) faqat NULL da
+  d) faqat swap da
+javob (a-d): TO'G'RI
+
+[10/11] (25-bob) Guard page nimaga kerak?
+  a) tezlik uchun
+  b) chegaradan chiqishni zudlik bilan ushlash uchun
+  c) shifrlash
+  d) keshlash
+javob (a-d): XATO. To'g'ri javob: b) chegaradan chiqishni zudlik bilan ushlash uchun
+  izoh: ruxsatsiz sahifa: tegilsa darrov SIGSEGV
+
+[11/11] (27-bob) Inode nimani saqlaydi?
+  a) fayl nomini
+  b) fayl metama'lumoti va bloklar ro'yxatini
+  c) faqat hajmini
+  d) parolini
+javob (a-d): TO'G'RI
+
+===== NATIJA =====
+to'g'ri: 10, xato: 1, ball: 90%
+qayta o'qing: 25-bob

@@ -1,0 +1,1 @@
+chmod +x log_yarat.sh tahlil.sh

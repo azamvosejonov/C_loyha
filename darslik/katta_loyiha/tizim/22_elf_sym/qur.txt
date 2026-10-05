@@ -1,0 +1,1 @@
+as demo.s -o demo.o && gcc -Wall -Wextra -g -fsanitize=address,undefined elf_sym.c -o elf_sym

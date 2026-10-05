@@ -1,0 +1,23 @@
+Paket 1 (40 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 40
+  id 0x1C46, bayroqlar: DF, bo'lak siljishi 0
+  TTL 64, protokol 6 (TCP)
+  jo'natuvchi    192.168.1.10
+  qabul qiluvchi 93.184.216.34
+  nazorat yig'indisi: 0x26FD -> TO'G'RI
+  TCP: 51234 -> 80, ketma-ketlik raqami 4096, bayroqlar: SYN, oyna 64240
+Paket 2 (33 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 33
+  id 0x0001, bayroqlar: yo'q, bo'lak siljishi 0
+  TTL 255, protokol 17 (UDP)
+  jo'natuvchi    10.0.0.5
+  qabul qiluvchi 224.0.0.251
+  nazorat yig'indisi: 0xD0CA -> TO'G'RI
+  UDP: 5353 -> 5353, uzunlik 13, ma'lumot: "salom"
+Paket 3 (40 bayt):
+  versiya 4, sarlavha 20 bayt, umumiy uzunlik 40
+  id 0x1C46, bayroqlar: DF, bo'lak siljishi 0
+  TTL 63, protokol 6 (TCP)
+  jo'natuvchi    192.168.1.10
+  qabul qiluvchi 93.184.216.34
+  nazorat yig'indisi: 0x26FD -> NOTO'G'RI (paket buzilgan)

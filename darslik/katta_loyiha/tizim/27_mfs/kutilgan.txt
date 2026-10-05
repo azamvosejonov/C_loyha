@@ -1,0 +1,19 @@
+mfs yaratildi: 256 blok x 512 bayt, 32 inode
+yozildi: salom (19 bayt, inode 1, 1 blok)
+yozildi: katta (1500 bayt, inode 2, 3 blok)
+  salom          inode 1      19 bayt
+  katta          inode 2    1500 bayt
+2 ta fayl; 11/256 blok band
+salom, fayl tizimi
+fsck: fayl tizimi izchil (muammo yo'q)
+o'chirildi: salom
+  katta          inode 2    1500 bayt
+1 ta fayl; 10/256 blok band
+--- avariya: bitmap buzildi ---
+bitmap buzildi: blok 100 'band' deb belgilandi
+  SIZIB CHIQISH: blok 100 bitmapda band, lekin hech bir inode ishlatmaydi
+fsck: muammolar topildi
+fsck chiqish kodi: 1
+  SIZIB CHIQISH: blok 100 bitmapda band, lekin hech bir inode ishlatmaydi -> bo'shatildi
+fsck: muammolar topildi va TUZATILDI
+fsck: fayl tizimi izchil (muammo yo'q)

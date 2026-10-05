@@ -1,0 +1,30 @@
+1) float bitlari: ishora | daraja(8) | mantissa(23)
+  1              0x3F800000  0 01111111 00000000000000000000000  oddiy, 2^0 * 1.000000(hex)
+  0.5            0x3F000000  0 01111110 00000000000000000000000  oddiy, 2^-1 * 1.000000(hex)
+  -2.5           0xC0200000  1 10000000 01000000000000000000000  oddiy, 2^1 * 1.400000(hex)
+  0.1            0x3DCCCCCD  0 01111011 10011001100110011001101  oddiy, 2^-4 * 1.99999A(hex)
+  1.67772e+07    0x4B800000  0 10010111 00000000000000000000000  oddiy, 2^24 * 1.000000(hex)
+  9.99995e-41    0x000116C2  0 00000000 00000010001011011000010  denormal (juda kichik)
+  inf            0x7F800000  0 11111111 00000000000000000000000  +cheksizlik
+  nan            0x7FC00000  0 11111111 10000000000000000000000  NaN (son emas)
+
+2) 0.1 aniq saqlanmaydi:
+  0.1f           = 0.10000000149011611938
+  0.1  (double)  = 0.10000000000000000555
+  0.1 + 0.2      = 0.30000000000000004441
+  0.3            = 0.29999999999999998890
+  0.1 + 0.2 == 0.3 ? YO'Q
+  |farq| < 1e-9 ?    ha   (to'g'ri taqqoslash: epsilon bilan)
+
+3) katta sonlarda butun sonlar ham yo'qoladi (float 24 bit mantissa):
+  16777216 + 1 = 16777216 (float'da 1 qo'shilmadi!)
+  16777216 + 2 = 16777218
+
+4) ULP: qo'shni float'lar orasidagi masofa
+  1.0f dan keyingi float: 1.0000001192 (nextafterf), ULP farqi: 1
+  1.0f va 1.000001f orasida 7 ta float bor
+  float epsilon (1.0 dan keyingi qadam): 1.19209e-07
+
+5) 0.1 ni 10 million marta qo'shish (to'g'ri javob: 1000000):
+  oddiy yig'ish: 1087937.0   (xato: -87937.0)
+  Kahan yig'ish: 1000000.0   (xato: 0.0)

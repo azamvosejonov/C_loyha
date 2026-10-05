@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O2 -pthread matmul.c -o matmul && gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread poyga_misol.c -o poyga_misol_tsan && gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread matmul.c -o matmul_tsan

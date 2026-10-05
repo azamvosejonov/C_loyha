@@ -1,0 +1,8 @@
+ketma-ket: nazorat yig'indisi = 2324938752, c[0][0] = 3000, c[239][239] = 7320
+1 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+2 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+4 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+8 oqim:     nazorat yig'indisi = 2324938752 (ketma-ket bilan MOS)
+TSan matmul: poyga topilmadi
+SUMMARY: ThreadSanitizer: data race poyga_misol.c:13 in ishchi
+WARNING: ThreadSanitizer: data race (pid=N)

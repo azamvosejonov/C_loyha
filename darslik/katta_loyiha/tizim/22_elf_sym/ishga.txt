@@ -1,0 +1,10 @@
+./elf_sym demo.o
+echo "--- manzil qidirish ---"
+./elf_sym demo.o 0
+./elf_sym demo.o 5
+./elf_sym demo.o 6
+./elf_sym demo.o 9
+./elf_sym demo.o 100; echo "chiqish kodi: $?"
+echo "--- nm bilan solishtirish ---"
+echo "bizning FUNC belgilar: $(./elf_sym demo.o | awk '$4 == "FUNC"' | wc -l)"
+echo "nm ning T/t belgilari: $(nm demo.o | awk '$2 == "T" || $2 == "t"' | wc -l)"

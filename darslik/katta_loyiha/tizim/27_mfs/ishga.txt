@@ -1,0 +1,15 @@
+./mfs mkfs disk.img
+echo "salom, fayl tizimi" > a.txt
+head -c 1500 /dev/zero | tr '\0' 'x' > katta.txt
+./mfs put disk.img a.txt salom
+./mfs put disk.img katta.txt katta
+./mfs ls disk.img
+./mfs cat disk.img salom
+./mfs fsck disk.img
+./mfs rm disk.img salom
+./mfs ls disk.img
+echo "--- avariya: bitmap buzildi ---"
+./mfs hack disk.img 100
+./mfs fsck disk.img; echo "fsck chiqish kodi: $?"
+./mfs fsck disk.img -t
+./mfs fsck disk.img

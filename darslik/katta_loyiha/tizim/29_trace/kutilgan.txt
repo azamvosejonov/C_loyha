@@ -1,0 +1,10 @@
+a = "birinchi"
+dastur tugadi
+
+=== [trace] malloc hisoboti ===
+ajratishlar: 8, bo'shatishlar: 3, jami: 16428 bayt, eng ko'pi bir vaqtda: 12268 bayt
+  SIZIB CHIQDI:   100 bayt, ajratgan funksiya: yaratish_a()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  SIZIB CHIQDI:    24 bayt, ajratgan funksiya: yaratish_b()
+  JAMI: 4 ta blok, 172 bayt sizib chiqdi

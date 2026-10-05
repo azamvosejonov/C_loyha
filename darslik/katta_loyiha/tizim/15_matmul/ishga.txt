@@ -1,0 +1,1 @@
+./matmul && ./matmul_tsan > /dev/null && echo "TSan matmul: poyga topilmadi"; ./poyga_misol_tsan 2>&1 | grep -E "WARNING|SUMMARY" | sort -u | sed "s#[^ ]*/##; s/pid=[0-9]*/pid=N/"

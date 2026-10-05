@@ -1,0 +1,19 @@
+#   qiymat   hajm  tur     bog'    bo'lim    nom
+0   00000000 0     NOTYPE  LOCAL   UND       
+1   0000000a 3     FUNC    LOCAL   .text     yordamchi
+2   00000000 64    OBJECT  LOCAL   .bss      bufer
+3   00000000 4     FUNC    GLOBAL  .text     qosh
+4   00000004 6     FUNC    GLOBAL  .text     kopaytir
+5   0000000d 14    FUNC    GLOBAL  .text     tashqi_chaqir
+6   00000000 0     NOTYPE  GLOBAL  UND       puts
+7   00000000 4     OBJECT  GLOBAL  .data     hisoblagich
+--- manzil qidirish ---
+0x0: qosh + 0
+0x5: kopaytir + 1
+0x6: kopaytir + 2
+0x9: kopaytir + 5
+0x100: hech qaysi funksiyaga tegishli emas
+chiqish kodi: 1
+--- nm bilan solishtirish ---
+bizning FUNC belgilar: 4
+nm ning T/t belgilari: 4

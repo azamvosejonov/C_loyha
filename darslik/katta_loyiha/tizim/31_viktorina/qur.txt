@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g -fsanitize=address,undefined viktorina.c -o viktorina

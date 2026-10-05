@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g msh.c -o msh

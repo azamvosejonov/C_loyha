@@ -1,0 +1,1 @@
+LD_PRELOAD=./libtrace.so ./sinov_dastur 2>&1

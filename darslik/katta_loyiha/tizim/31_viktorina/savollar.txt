@@ -1,0 +1,12 @@
+# format: bob|savol|A|B|C|D|javob(0-3)|izoh
+1|Kompilyator qaysi bosqichda .o fayl yaratadi?|preprotsessor|kompilyatsiya+assembler|linker|loader|1|.c -> .o: kompilyator va assembler; linker .o larni birlashtiradi
+2|uint8_t ga 255 ga 1 qo'shsak nima chiqadi?|256|0|-1|xato|1|8 bitda 255+1 sig'maydi: 0 ga o'raladi (unsigned wrap)
+7|int *p = NULL; *p = 5; nima bo'ladi?|5 yoziladi|0 yoziladi|segmentation fault|hech narsa|2|NULL manzil xaritalanmagan: yadro SIGSEGV yuboradi
+8|free(p) ni ikki marta chaqirish...|zararsiz|double free (UB)|xotirani 2 barobar bo'shatadi|kompilyator xatosi|1|ikkinchi free allaqachon bo'sh blokni buzadi: UB
+14|fork() muvaffaqiyatli bo'lsa, bolada nima qaytadi?|bolaning pid si|-1|0|ota pid si|2|bolada 0, otada bolaning pid si
+15|Ma'lumot poygasi (data race) nima?|ikki oqim bir xotiraga, kamida biri yozadi, sinxronlashsiz|ikkita jarayon|deadlock|xotira sizishi|0|sinxronlashsiz parallel yozish = UB; mutex yoki atomic kerak
+20|IEEE 754 da 0.1 + 0.2 == 0.3 ?|ha, har doim|yo'q, 0.1 aniq saqlanmaydi|faqat double da|faqat float da|1|0.1 ikkilikda cheksiz kasr: yaxlitlash xatosi
+21|Qaysi aylanish tezroq (C massiv, satr bo'yicha)?|ustun bo'yicha|satr bo'yicha|farqi yo'q|tasodifiy|1|C da satrlar ketma-ket joylashgan: kesh satri to'liq ishlatiladi
+24|Page fault har doim xatomi?|ha|yo'q, ko'pi oddiy (sahifani yuklash/COW)|faqat NULL da|faqat swap da|1|minor fault: yadro sahifani jimgina ulaydi
+25|Guard page nimaga kerak?|tezlik uchun|chegaradan chiqishni zudlik bilan ushlash uchun|shifrlash|keshlash|1|ruxsatsiz sahifa: tegilsa darrov SIGSEGV
+27|Inode nimani saqlaydi?|fayl nomini|fayl metama'lumoti va bloklar ro'yxatini|faqat hajmini|parolini|1|nom katalog yozuvida, inode da emas

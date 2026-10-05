@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Katta loyihalarni (darslik/katta_loyiha/<loyiha>/NN_nom/) yig'ib, natijasini kutilgan.txt bilan solishtiradi.
 
-Har bosqich papkasida: manba fayllar, qur.txt (yig'ish buyrug'i), ixtiyoriy kirish.txt (stdin) va kutilgan.txt (kutilgan chiqish).
+Har bosqich papkasida: manba fayllar, qur.txt (yig'ish buyrug'i), ixtiyoriy ishga.txt (ishga tushirish buyrug'i, sukut: ./ombor),
+ixtiyoriy kirish.txt (stdin) va kutilgan.txt (kutilgan chiqish).
 `--yangila` bilan kutilgan.txt hozirgi natijadan qayta yoziladi (faqat natijani ko'zdan kechirgach!).
+`--goster NOM` - papka nomida NOM bo'lgan bosqichlarni ishga tushirib natijani chop etadi (yozish paytida qulay).
 """
 import glob
 import os
@@ -13,10 +15,13 @@ import tempfile
 
 ildiz = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'darslik', 'katta_loyiha')
 yangila = '--yangila' in sys.argv
+goster = sys.argv[sys.argv.index('--goster') + 1] if '--goster' in sys.argv else None
 xato = soni = 0
 
 for papka in sorted(glob.glob(os.path.join(ildiz, '*', '[0-9][0-9]_*'))):
     nom = os.path.relpath(papka, ildiz)
+    if goster and goster not in nom:
+        continue
     qur = os.path.join(papka, 'qur.txt')
     if not os.path.exists(qur):
         continue
@@ -31,7 +36,12 @@ for papka in sorted(glob.glob(os.path.join(ildiz, '*', '[0-9][0-9]_*'))):
             continue
         kirish = os.path.join(wd, 'kirish.txt')
         stdin = open(kirish) if os.path.exists(kirish) else subprocess.DEVNULL
-        r = subprocess.run(['./ombor'], cwd=wd, stdin=stdin, capture_output=True, text=True, timeout=30)
+        ishga = os.path.join(wd, 'ishga.txt')
+        buyruq = open(ishga).read().strip() if os.path.exists(ishga) else './ombor'
+        r = subprocess.run(['bash', '-c', buyruq], cwd=wd, stdin=stdin, capture_output=True, text=True, timeout=120)
+        if goster:
+            print(f'===== {nom}\n{r.stdout}{r.stderr}')
+            continue
         if r.returncode != 0 or r.stderr:
             xato += 1
             print(f'XATO (ishga tushirish, kod {r.returncode}): {nom}\n{r.stderr[:500]}')

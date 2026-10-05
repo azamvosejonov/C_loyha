@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O1 -g xotira_yurish.c -o xotira_yurish && chmod +x olchov.sh

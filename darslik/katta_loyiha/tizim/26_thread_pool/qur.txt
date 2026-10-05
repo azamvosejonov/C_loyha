@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O2 -pthread main.c pool.c -o pul && gcc -Wall -Wextra -g -O1 -pthread -fsanitize=thread main.c pool.c -o pul_tsan

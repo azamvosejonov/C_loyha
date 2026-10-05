@@ -1,0 +1,3 @@
+libk.o ning tashqi (libc) bog'liqliklari: 0 ta
+kbit_bor kbit_bosh_top kbit_och kbit_yoq kmemcmp kmemcpy kmemmove kmemset kring_band kring_boshla kring_oqi kring_yoz kstrcmp kstrlcpy kstrlen kutoa 
+libk sinovi: hammasi to'g'ri (5 ta guruh, ~200000 tekshiruv)

@@ -1,0 +1,1 @@
+nasm -f elf64 asm_funk.asm -o asm_funk.o && gcc -Wall -Wextra -g asm_lab.c asm_funk.o -o asm_lab

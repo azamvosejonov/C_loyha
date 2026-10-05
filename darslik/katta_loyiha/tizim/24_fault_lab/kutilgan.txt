@@ -1,0 +1,14 @@
+sahifa hajmi: 4096 bayt, bo'lak: 256 sahifa
+
+1) Demand paging: mmap xotirani 'va'da qiladi', sahifa haqiqatda tegilganda beriladi
+  mmap qilingandan keyin (hali tegilmadi)         0 xato  (0.00 / sahifa: deyarli yo'q)
+  1-marta har sahifaga yozdik                   256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+  2-marta (sahifalar allaqachon xotirada)         0 xato  (0.00 / sahifa: deyarli yo'q)
+
+2) madvise(DONTNEED): sahifalarni yadroga qaytaramiz
+  qaytargandan keyin yana yozdik                256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+
+3) fork + copy-on-write: bola ota xotirasini 'baham ko'radi', yozganda nusxalaydi
+  bola: faqat o'qidi (ota bilan umumiy sahifalar)    0 xato  (0.00 / sahifa: deyarli yo'q)
+  bola: har sahifaga yozdi (COW nusxalari)      256 xato  (1.00 / sahifa: ~1 sahifaga 1 ta)
+  bola tugadi, ota esa sahifalarini o'z holicha saqladi: p[0] = 1

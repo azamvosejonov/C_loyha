@@ -1,0 +1,20 @@
+1) yig_massiv:
+  yig_massiv({5,-3,100,7,-250,42})   asm = -99          C = -99          MOS
+  yig_massiv(bo'sh massiv)           asm = 0            C = 0            MOS
+  yig_massiv(1000 ta element)        asm = 10           C = 10           MOS
+2) satr_uzunligi:
+  satr_uzunligi("")                  asm = 0            C = 0            MOS
+  satr_uzunligi("a")                 asm = 1            C = 1            MOS
+  satr_uzunligi("salom")             asm = 5            C = 5            MOS
+  satr_uzunligi("Operatsion tizim yadrosi") asm = 24           C = 24           MOS
+3) popcount64 (yoniq bitlar):
+  popcount64(0x0)                    asm = 0            C = 0            MOS
+  popcount64(0x1)                    asm = 1            C = 1            MOS
+  popcount64(0x8000)                 asm = 1            C = 1            MOS
+  popcount64(0xFF)                   asm = 8            C = 8            MOS
+  popcount64(0xFFFFFFFFFFFFFFFF)     asm = 64           C = 64           MOS
+  popcount64(0x123456789ABCDEF)      asm = 32           C = 32           MOS
+4) bayt_almashtir32 (endianness):
+  0x12345678 -> 0x78563412 (asm), C versiyasi: 0x78563412, MOS
+
+Hammasi: TO'G'RI

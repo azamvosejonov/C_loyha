@@ -1,0 +1,12 @@
+salom dunyo
+SALOM
+Bonon
+matn
+2
+msh: yoq_buyruq: topilmadi
+127
+msh: sintaksis xatosi
+/tmp
+msh: cd: /yoq_papka: No such file or directory
+1
+msh chiqish kodi: 3

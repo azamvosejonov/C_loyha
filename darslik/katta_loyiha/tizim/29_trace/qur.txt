@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O1 -fPIC -shared trace.c -o libtrace.so -ldl && gcc -Wall -Wextra -O0 -fno-inline -rdynamic -g sinov_dastur.c -o sinov_dastur

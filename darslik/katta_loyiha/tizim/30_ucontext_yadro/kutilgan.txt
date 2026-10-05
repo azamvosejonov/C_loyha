@@ -1,0 +1,11 @@
+[tik  1] init : init ishga tushdi, bolalar yaratilyapti
+[tik  3] A    : qadam 1, 4 tik uxlayman
+[tik  6] B    : hisoblayapman 1/4 (yield)
+[tik 11] A    : qadam 2, 4 tik uxlayman
+[tik 12] B    : hisoblayapman 2/4 (yield)
+[tik 15] B    : hisoblayapman 3/4 (yield)
+[tik 17] B    : hisoblayapman 4/4 (yield)
+[tik 18] A    : qadam 3, 4 tik uxlayman
+[tik 20] C    : uyg'ondim, ish qildim
+[tik 29] init : hammasi tugadi: chiqish kodlari A=10 B=20 C=30
+yadro to'xtadi: jami 30 tik

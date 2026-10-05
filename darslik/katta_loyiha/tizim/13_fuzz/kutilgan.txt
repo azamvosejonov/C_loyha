@@ -1,0 +1,2 @@
+toshish sinovi: yozuvlar_jami() = -1 (toshish aniqlandi)
+urug 12345, 200000 ta kirish: 80734 ta to'g'ri o'qildi, 119266 ta rad etildi, 0 ta yig'indi toshdi (aniqlandi)

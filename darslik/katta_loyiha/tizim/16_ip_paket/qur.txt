@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g -fsanitize=address,undefined ip_paket.c -o ip_paket

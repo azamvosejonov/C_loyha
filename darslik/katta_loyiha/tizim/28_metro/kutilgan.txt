@@ -1,0 +1,29 @@
+10 ta bekat, 11 ta yo'l o'qildi
+
+chilonzor -> toshkent: 17 daqiqa, 6 ta bekat
+  chilonzor -> novza -> mustaqillik -> amir_temur -> yunus_rajabiy -> toshkent
+chilonzor -> yunus_rajabiy: 13 daqiqa, 5 ta bekat
+  chilonzor -> novza -> mustaqillik -> amir_temur -> yunus_rajabiy
+oybek -> paxtakor: 7 daqiqa, 3 ta bekat
+  oybek -> alisher_navoiy -> paxtakor
+toshkent -> chilonzor: 17 daqiqa, 6 ta bekat
+  toshkent -> yunus_rajabiy -> amir_temur -> mustaqillik -> novza -> chilonzor
+yol chilonzor yoq_bekat: bunday bekat yo'q
+Eng arzon tarmoq (barcha bekatlarni bog'lovchi):
+  novza            - mustaqillik      2
+  amir_temur       - paxtakor         2
+  chilonzor        - novza            3
+  mustaqillik      - amir_temur       3
+  alisher_navoiy   - oybek            3
+  oybek            - kosmonavtlar     3
+  paxtakor         - alisher_navoiy   4
+  yunus_rajabiy    - toshkent         4
+  amir_temur       - yunus_rajabiy    5
+  tanlangan 9 ta yo'l, jami 29 daqiqa (hamma 11 ta yo'ldan)
+'a' bilan boshlanuvchi bekatlar:
+  alisher_navoiy
+  amir_temur
+'k' bilan boshlanuvchi bekatlar:
+  kosmonavtlar
+  'z' bilan boshlanuvchi bekat yo'q
+noma'lum buyruq: sakra

@@ -1,0 +1,1 @@
+./msh < kirish.txt 2>&1; echo "msh chiqish kodi: $?"

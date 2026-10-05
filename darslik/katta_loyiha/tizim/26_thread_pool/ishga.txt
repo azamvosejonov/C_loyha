@@ -1,0 +1,1 @@
+./pul && echo "--- ThreadSanitizer bilan ---" && ./pul_tsan 2>&1 | tail -1

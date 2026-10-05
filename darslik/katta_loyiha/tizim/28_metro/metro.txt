@@ -1,0 +1,11 @@
+chilonzor novza 3
+novza mustaqillik 2
+mustaqillik amir_temur 3
+amir_temur paxtakor 2
+paxtakor alisher_navoiy 4
+alisher_navoiy oybek 3
+amir_temur yunus_rajabiy 5
+oybek kosmonavtlar 3
+kosmonavtlar toshkent 6
+yunus_rajabiy toshkent 4
+paxtakor toshkent 9

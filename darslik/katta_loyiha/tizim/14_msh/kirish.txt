@@ -1,0 +1,15 @@
+echo salom dunyo
+echo salom | tr a-z A-Z
+echo banan | tr a o | tr b B
+echo matn > chiqish.txt
+cat < chiqish.txt
+echo ikkinchi >> chiqish.txt
+cat chiqish.txt | wc -l
+yoq_buyruq
+durum
+ls | | wc
+cd /tmp
+pwd
+cd /yoq_papka
+durum
+exit 3

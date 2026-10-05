@@ -1,0 +1,8 @@
+Har sinov alohida jarayonda (xato bo'lsa faqat o'sha jarayon o'ladi):
+  to'g'ri ishlatish                    xatosiz tugadi (to'g'ri)
+  overflow +1 bayt (oxiri rejimi)      USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  underflow -1 bayt (oxiri rejimi)     ushlanmadi (xato bor, lekin dastur xatosiz tugagandek ko'rindi!)
+  underflow -1 bayt (boshi rejimi)     USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  free dan keyin yozish                USHLANDI: SIGSEGV (darhol, xato yuz bergan qatorda)
+  ikki marta free                      USHLANDI: ajratuvchi xatoni o'zi aniqladi
+  oddiy malloc: overflow +1 bayt       ushlanmadi (xato bor, lekin dastur xatosiz tugagandek ko'rindi!)

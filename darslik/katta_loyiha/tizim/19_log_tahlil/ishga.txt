@@ -1,0 +1,1 @@
+./log_yarat.sh 3000 > access.log && head -3 access.log && ./tahlil.sh access.log

@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O0 -g sinov.c guard.c -o sinov

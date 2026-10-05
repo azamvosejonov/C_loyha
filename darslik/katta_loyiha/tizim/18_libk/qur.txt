@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -O2 -ffreestanding -fno-builtin -fno-tree-loop-distribute-patterns -fno-stack-protector -mno-red-zone -fno-pic -c libk.c -o libk.o && ar rcs libk.a libk.o && gcc -Wall -Wextra -g -fsanitize=address,undefined sinov.c libk.c -o sinov
