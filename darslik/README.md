@@ -169,11 +169,14 @@ Qisqa javob va batafsil tushuntirish qaysi bobda ekani.
 ## Darslikdan keyin
 
 ```text
-darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ + MyOS kodi → labs → noldan yadro
+darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ + MyOS kodi → labs → virtual_kompyuter → noldan yadro
 ```
 
 - [mashqlar/README.md](../mashqlar/README.md) — 48 ta mashq, avtomatik tekshiruv bilan.
 - [QOLLANMA.md](../QOLLANMA.md) — loyihaning to'liq qo'llanmasi va noldan yadro yozish rejasi.
 - [labs/README.md](../labs/README.md) — yadro ichidagi 22 ta laboratoriya.
 - [YAKUNIY.md](../YAKUNIY.md) — haqiqiy kompyuterda ishlatish va tizimni kengaytirish.
+- [virtual_kompyuter/](../virtual_kompyuter/README.md) — **eng chuqur loyiha**: RISC-V kompyuterni (protsessor, MMU,
+  uzilishlar, firmware) o'zingiz yozib, unda haqiqiy Linux'ni yuklaysiz. O'z kitobi (12 bob) va 22 ta mashq bilan.
+  Kerak: 16-bob (bitlar), 17 (assembly), 24 (virtual xotira).
 - [REJA.md](../REJA.md) — 6 oylik kunma-kun reja.

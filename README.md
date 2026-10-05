@@ -89,6 +89,14 @@ Loyiha ikki bosqichda o'sgan. **v0.1** (`git checkout e5906bb`) — kichik, o'qi
 | Shell va utilitalar | `user/bin/*` | `|` `>` `<` `&&` `$?` glob, job control, tarix, Tab; `edit` muharriri; 44 ta dastur | 12, 14, 15 |
 | Sifat | `kernel/tests/*`, `tools/test.sh`, CI | 100 ta yadro testi + 41 ta integratsion test (BIOS/IDE + UEFI/AHCI), e2fsck | 08 |
 
+## Ikkinchi katta loyiha: RISC-V virtual kompyuter (Linux yuklanadi)
+
+[virtual_kompyuter/](virtual_kompyuter/README.md) — C tilida noldan yozilgan RISC-V kompyuter emulyatori:
+RV32IMAC protsessor (M/S/U rejimlar, Sv32 MMU, TLB), CLINT, PLIC, 16550 UART, disk, DTB va o'z SBI firmware'imiz.
+Uning ustida **haqiqiy Linux 6.6** yuklanadi, shell ochadi va jarayon yaratadi. Yonida o'zbekcha **kitob**
+(12 bob) va **22 ta mashq**: dekoder, ALU, trap va delegatsiya, sahifa jadvali bo'ylab yurish, PLIC, DTB,
+firmware taymeri — eng muhim joylarni o'zingiz yozasiz, testlar har birini aniq xabar bilan tekshiradi.
+
 ## Qanday o'rganish kerak
 
 1. [docs/00-kirish.md](docs/00-kirish.md) dan boshlang va hujjatlarni **tartib bilan** o'qing (01 → 08).
@@ -127,6 +135,7 @@ user/
   bin/       sh va utilitalar -> diskdagi /bin
 rootfs/      /etc/rc, /etc/motd, /README.txt -> initrd.tar ga qo'shiladi
 docs/        har bir qatlam bo'yicha batafsil tushuntirish
+virtual_kompyuter/  RISC-V emulyatori + firmware + Linux yuklash + kitob (alohida loyiha)
 tools/       test.sh, mkdisk.py (MBR + ext2 disk), gdbinit, psf2c.py (shrift), screenshot.sh
 ```
 
