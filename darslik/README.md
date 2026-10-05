@@ -35,7 +35,7 @@ Boblarni bitta **o'sib boradigan dastur** bog'laydi: **Ombor** (mahsulotlar ombo
 
 ## Birlashtiruvchi loyihalar
 
-Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashtiruvchi/README.md). Birinchisi — **Maosh hisobchisi** (0–2-boblar).
+Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashtiruvchi/README.md). Birinchisi — **Maosh hisobchisi** (0–2-boblar), ikkinchisi — **Kadrlar tizimi** (40 fayllik katta loyiha, 14 ta funksiyani o'zingiz yozasiz).
 
 ## Mundarija
 

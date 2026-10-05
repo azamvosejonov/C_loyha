@@ -1,0 +1,16 @@
+xodimlar: 4 ta yuklandi, 5 ta rad etildi
+davomat: 9 ta yozuv qabul qilindi, 3 ta rad etildi
+=== MAOSH VARAQASI ===
+Xodim:                        Aziza
+ID:                       1042-3
+Toifa:                   Mutaxassis
+Oddiy ish:                   24.00 soat
+Qo'shimcha ish:               1.50 soat
+Soatlik tarif:             25000.50 so'm
+Asosiy ish haqi:          600012.00 so'm
+Ustama (x1.5):             56251.12 so'm
+Toifa bonusi:              30000.60 so'm
+Brutto:                   686263.72 so'm
+Soliq (progressiv):        82351.65 so'm
+Kasaba (1%):                6862.64 so'm
+Qo'lga tegadi:            597049.43 so'm

@@ -1,0 +1,16 @@
+xodimlar: 4 ta yuklandi, 5 ta rad etildi
+davomat: 9 ta yozuv qabul qilindi, 3 ta rad etildi
+=== MAOSH VARAQASI ===
+Xodim:                       Sardor
+ID:                       9999-6
+Toifa:                       Rahbar
+Oddiy ish:                   16.00 soat
+Qo'shimcha ish:               3.00 soat
+Soatlik tarif:          12500000.75 so'm
+Asosiy ish haqi:       200000012.00 so'm
+Ustama (x1.5):          56250003.37 so'm
+Toifa bonusi:           40000002.40 so'm
+Brutto:                296250017.77 so'm
+Soliq (progressiv):     58760003.55 so'm
+Kasaba (1%):             2962500.18 so'm
+Qo'lga tegadi:         234527514.04 so'm

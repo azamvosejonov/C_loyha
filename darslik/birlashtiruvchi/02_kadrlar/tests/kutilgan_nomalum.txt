@@ -1,0 +1,3 @@
+xodimlar: 4 ta yuklandi, 5 ta rad etildi
+davomat: 9 ta yozuv qabul qilindi, 3 ta rad etildi
+noma'lum buyruq: yoq

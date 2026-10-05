@@ -1,0 +1,10 @@
+xodimlar: 4 ta yuklandi, 5 ta rad etildi
+davomat: 9 ta yozuv qabul qilindi, 3 ta rad etildi
+=== JAMI (4 xodim) ===
+Asosiy:                201353781.50 so'm
+Ustama:                 56362505.99 so'm
+Bonus:                  40058128.75 so'm
+Brutto:                297774416.24 so'm
+Soliq:                  58942931.37 so'm
+Kasaba:                  2977744.17 so'm
+Qo'lga tegadi:         235853740.70 so'm

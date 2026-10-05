@@ -1,0 +1,8 @@
+xodimlar: 4 ta yuklandi, 5 ta rad etildi
+davomat: 9 ta yozuv qabul qilindi, 3 ta rad etildi
+ID    Ism        Toifa             Brutto         Soliq        Qo'lga
+1042  Aziza      Mutaxassis     686263.72      82351.65     597049.43
+2087  Bobur      Boshlovchi     472500.00      56700.00     411075.00
+3150  Dilnoza    Yetakchi       365634.75      43876.17     318102.23
+9999  Sardor     Rahbar      296250017.77   58760003.55  234527514.04
+Jami xodim: 4

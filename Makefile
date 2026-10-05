@@ -334,6 +334,7 @@ lab-check:
 	@tools/mashq.py selfcheck
 	@sh darslik/misollar/tekshir.sh
 	@tools/katta_loyiha.py
+	@tools/birlashtiruvchi.sh
 	@tools/darslik_kod.py
 
 clean:
