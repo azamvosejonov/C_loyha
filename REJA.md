@@ -5,7 +5,7 @@
 >
 > Hamma material shu loyiha ichida: [darslik](darslik/README.md) (32 bob: I qism — C tili, II qism —
 > kompyuter tizimlari va OS nazariyasi, lug'at bilan), [mashqlar](mashqlar/README.md) (48 ta, avtomatik
-> tekshiruv bilan), `docs/` (MyOS yadrosi), [labs](labs/README.md) (22 ta),
+> tekshiruv bilan), `docs/` (MyOS yadrosi), [labs](labs/README.md) (19 ta),
 > [QOLLANMA.md](QOLLANMA.md), [YAKUNIY.md](YAKUNIY.md). Internetdan qidirish shart emas.
 >
 > Darslikning **har bir bobi oxirida** kichik loyiha va mustaqil loyiha bor ([darslik/loyihalar](darslik/loyihalar/README.md)) —
@@ -83,7 +83,7 @@ deadlock'ning 4 shartini va ularni qanday buzishni og'zaki tushuntiring.
 | 13 | Darslik 27 (fayl tizimlari), 28 (algoritmlar) | 37 (ext2), 42 (LRU), 46 (heap), 47 (AVL) |
 | 14 | Darslik 29 (debug vositalari), 30 (yadro arxitekturasi), 31 (lug'at — takrorlash uchun) | 40 (mini shell); `tools/mashq.py hammasi` → **48/48** |
 | 15 | README, QOLLANMA 0–7-bo'limlar; `docs/00`–`05` (v0.1: `git checkout e5906bb`) | `make run`, `make debug` + gdb bilan yuklanishni kuzatish; "Sinab ko'ring" bo'limlari |
-| 16 | `docs/06`–`08` + kod | Lab'lar 1–2-daraja: `strlen`, `memmove`, `strtok_r`, `strtoul`, `emit_number`, `gmtime_r`, `glob_match`, `malloc`, `insert_free`, `path_normalize`, `pipe` |
+| 16 | `docs/06`–`08` + kod | Lab'lar 1–2-daraja: `strlen`, `memmove`, `strtok_r`, `strtoul`, `gmtime_r`, `glob_match`, `path_normalize`, `pipe`; darslik 32-bob: M1–M4 (`printf`, `malloc`) |
 
 Nazariya (II qism) MyOS'ni o'qishni ancha tezlashtiradi: `docs/` dagi tushunchalarning ko'pi sizga allaqachon tanish bo'ladi.
 

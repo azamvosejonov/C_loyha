@@ -985,7 +985,7 @@ Uch oltin qoida (ularni buzish haqiqiy apparatda qotishga olib keladi):
 
 ## 31. Yo'l xaritasi: bu loyihadan keyin
 
-1. **MyOS'ni tugating:** 22 ta lab → 26-bo'limdagi loyihalardan kamida uchtasi (tavsiya: `/proc`, NVMe yoki xHCI, tarmoq ping'gacha).
+1. **MyOS'ni tugating:** 19 ta lab + darslikdagi M1–M4 → 26-bo'limdagi loyihalardan kamida uchtasi (tavsiya: `/proc`, NVMe yoki xHCI, tarmoq ping'gacha).
 2. **Noldan yozing:** [QOLLANMA.md](QOLLANMA.md), 11-bo'lim — 19 qadamli reja. Kodga qaramasdan. Bu sizning imtihoningiz.
 3. **Linux'ga o'ting:** Linux yadrosini yig'ing, QEMU'da ishga tushiring, oddiy modul yozing (`hello.ko`), keyin `drivers/staging` dagi kichik tuzatishlar. kernelnewbies.org — "birinchi patch" qo'llanmasi. Birinchi qabul qilingan patch — rezyumedagi eng kuchli qator.
 4. **Mutaxassislik tanlang:** xotira boshqaruvi, fayl tizimlari, tarmoq, drayverlar, virtualizatsiya (KVM), xavfsizlik. Birida chuqur bo'ling, qolganlarini umumiy biling.

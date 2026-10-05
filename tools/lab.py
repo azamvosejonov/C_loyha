@@ -36,16 +36,15 @@ STUB_DIR = os.path.join(ROOT, 'labs', 'stubs')
 
 # Har bir laboratoriya: (nom, daraja, hududlar [(fayl, hudud)], test natijasidagi kalit satrlar)
 # Tartib - tavsiya etilgan o'rganish tartibi (oddiydan murakkabga).
+# printf (emit_number) va malloc/insert_free endi DOIMIY mashqlar: kod repoda bo'sh (TODO),
+# darslik/32-printf-malloc.md va tools/myos_mashq.sh - shu yerda emas.
 LABS = [
     ('strlen', 1, [('user/libc/string.c', 'strlen')], ['libctest']),
     ('memmove', 1, [('user/libc/string.c', 'memmove')], ['libctest']),
     ('strtok_r', 2, [('user/libc/string.c', 'strtok_r')], ['libctest']),
     ('strtoul', 2, [('user/libc/stdlib.c', 'strtoul')], ['libctest']),
-    ('emit_number', 2, [('user/libc/printf.c', 'emit_number')], ['libctest', 'echo']),
     ('gmtime_r', 2, [('user/libc/time.c', 'gmtime_r')], ['libctest', 'date']),
     ('glob_match', 2, [('user/bin/sh.c', 'glob_match')], ['glob']),
-    ('malloc', 3, [('user/libc/malloc.c', 'malloc')], ['malloc', 'libctest']),
-    ('insert_free', 3, [('user/libc/malloc.c', 'insert_free')], ['malloc', 'libctest']),
     ('path_normalize', 2, [('kernel/fs/vfs.c', 'path_normalize')], ['mkdir -p', 'VFS']),
     ('pipe', 3, [('kernel/fs/pipe.c', 'pipe_read'), ('kernel/fs/pipe.c', 'pipe_write')],
      ['pipe', 'VFS', 'signallar']),

@@ -24,6 +24,15 @@ MODE=${1:-bios}                     # bios | uefi
 LOG=build/test-output-$MODE.log
 OVMF=${OVMF:-/usr/share/OVMF/OVMF_CODE_4M.fd}
 
+# Darslikdagi doimiy mashqlar (M1-M4: printf, kprintf, malloc) hali yozilmagan bo'lsa - ogohlantiramiz:
+# vaqtinchalik variantlar bilan tizim ishlaydi, lekin sonlarga va xotira qayta ishlatilishiga bog'liq
+# tekshiruvlar yiqiladi. Bu xato emas - mashqlar kutilmoqda (darslik/32-printf-malloc.md).
+OCHIQ=$(grep -o "TODO(M[1-4])" user/libc/printf.c user/libc/malloc.c kernel/lib/kprintf.c 2>/dev/null | sed 's/.*TODO(\(M[1-4]\))/\1/' | sort -u | tr '\n' ' ')
+if [ -n "$OCHIQ" ]; then
+    echo "==> DIQQAT: ochiq mashqlar: $OCHIQ- sonlar '?' bo'lib chiqadi, malloc xotirani qayta ishlatmaydi."
+    echo "    Ularga bog'liq tekshiruvlar yiqiladi. Avval: tools/myos_mashq.sh (darslik/32-printf-malloc.md)"
+fi
+
 # Yadro buyruq qatorida "selftest" bo'lgan ISO ni yig'amiz.
 make -s APPEND=selftest || exit 1
 

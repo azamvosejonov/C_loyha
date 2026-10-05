@@ -330,6 +330,7 @@ test:
 # CI ham shuni ishga tushiradi.
 lab-check:
 	@tools/host_libctest.sh
+	@tools/myos_mashq.sh --ci
 	@tools/lab.py selfcheck
 	@tools/mashq.py selfcheck
 	@sh darslik/misollar/tekshir.sh

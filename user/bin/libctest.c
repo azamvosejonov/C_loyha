@@ -150,6 +150,12 @@ static void test_malloc(void)
 
 static void test_snprintf(void)
 {
+#ifdef MASHQ_M1_OCHIQ
+    /* Host testi: printf.c dagi emit_number (M1) hali yozilmagan - sonli formatlar bu yerda tekshirilmaydi,
+     * ular uchun aniq test: tools/myos_mashq.sh. (Tizim ichidagi libctest esa ularni har doim tekshiradi.) */
+    printf("  [TODO] snprintf: M1 mashqi hali yozilmagan - tools/myos_mashq.sh\n");
+    return;
+#endif
     char b[64];
     snprintf(b, sizeof(b), "[%5d|%-5d|%05d]", 42, 42, 42);
     CHECK(strcmp(b, "[   42|42   |00042]") == 0, "snprintf kenglik");

@@ -81,30 +81,24 @@ static int format_core(emit_fn emit, void *ctx, const char *fmt, va_list ap)
         }
         fmt++;                          /* '%' dan keyingi belgiga o'tamiz */
 
-        /* --- Bayroqlar --- */
+        /* --- Bayroqlar, kenglik, aniqlik: "%-08.3s" dagi "-08.3" qismi --- */
         bool left = false, zero_pad = false;
-        for (;; fmt++) {
-            if (*fmt == '-')
-                left = true;
-            else if (*fmt == '0')
-                zero_pad = true;
-            else
-                break;
-        }
-
-        /* --- Kenglik --- */
-        int width = 0;
-        while (*fmt >= '0' && *fmt <= '9')
-            width = width * 10 + (*fmt++ - '0');
-
-        /* --- Aniqlik (faqat %s uchun: "%.4s" - ko'pi bilan 4 belgi) --- */
-        int precision = -1;
-        if (*fmt == '.') {
-            fmt++;
-            precision = 0;
-            while (*fmt >= '0' && *fmt <= '9')
-                precision = precision * 10 + (*fmt++ - '0');
-        }
+        int width = 0;                  /* minimal kenglik (0 - cheklovsiz) */
+        int precision = -1;             /* faqat %s uchun: ko'pi bilan nechta belgi (-1 - cheklovsiz) */
+        /*
+         * TODO(M2) - O'ZINGIZ YOZING (darslik/32-printf-malloc.md, 32.4):
+         *   fmt hozir '%' dan keyingi belgida. Quyidagilarni o'qib, fmt ni o'tkazib boring:
+         *   1) bayroqlar (istalgan tartibda, takrorlanishi mumkin): '-' -> left = true; '0' -> zero_pad = true
+         *   2) kenglik: o'nlik raqamlar ketma-ketligi -> width ("%12lx" -> 12). Raqamni yig'ish:
+         *      width = width * 10 + (*fmt - '0')
+         *   3) aniqlik: '.' bo'lsa -> precision = 0, keyin raqamlar xuddi kenglikdagidek ("%.4s" -> 4)
+         *   DIQQAT: "%08x" da '0' - bayroq, '8' - kenglik; "%10d" da '1' va '0' - ikkalasi kenglik!
+         *   Uzunlik (l, z) va konversiya (d, s, ...) quyida tayyor.
+         *   Tekshirish: tools/myos_mashq.sh  (M2 qatori)
+         *   Yozib bo'lgach: quyidagi VAQTINCHALIK tsiklni o'chiring.
+         */
+        while (*fmt == '-' || *fmt == '.' || (*fmt >= '0' && *fmt <= '9'))
+            fmt++;                      /* VAQTINCHALIK: hammasini o'tkazib yuboramiz - to'ldirish yo'q */
 
         /* --- Uzunlik modifikatori --- */
         int longness = 0;               /* 0 = int, 1 = long, 2 = long long */

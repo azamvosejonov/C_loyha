@@ -1,6 +1,6 @@
 # LABORATORIYALAR — kodni yopib, o'zingiz yozish
 
-Bu yerda yadro va libc'ning **22 ta muhim funksiyasi** bor. Har birini o'chirib, o'zingiz qayta yozasiz,
+Bu yerda yadro va libc'ning **19 ta muhim funksiyasi** bor. Har birini o'chirib, o'zingiz qayta yozasiz,
 avtomatik testlar esa natija to'g'ri yoki noto'g'ri ekanini aytadi. Bu — o'qigan narsani **o'zlashtirilgan**
 bilimga aylantirishning yagona yo'li.
 
@@ -51,11 +51,11 @@ Belgilarni **o'chirmang**: `tools/lab.py` ular bo'yicha ishlaydi.
 | 2 | `memmove` | * | ustma-ust xotira, nusxalash yo'nalishi | QOLLANMA 5.2 |
 | 3 | `strtok_r` | ** | holatni saqlash, qayta kiriluvchanlik | 12 |
 | 4 | `strtoul` | ** | parsing, chegaraviy holatlar, to'lish | 12 |
-| 5 | `emit_number` | ** | printf ichki qismi: kenglik, to'ldirish | 02 |
+| 5 | ~~`emit_number`~~ | ** | → **darslik 32-bob, M1** (doimiy mashq, kod repoda bo'sh) | 02 |
 | 6 | `gmtime_r` | ** | algoritm: kalendar arifmetikasi | 12 |
 | 7 | `glob_match` | ** | rekursiya, backtracking | 12 |
-| 8 | `malloc` | *** | free list, bo'lish (split), tekislash | 05, 07 |
-| 9 | `insert_free` | *** | tartiblangan ro'yxat, birlashtirish (coalescing) | 05 |
+| 8 | ~~`malloc`~~ | *** | → **darslik 32-bob, M3** (doimiy mashq, kod repoda bo'sh) | 05, 07 |
+| 9 | ~~`insert_free`~~ | *** | → **darslik 32-bob, M4** (doimiy mashq, kod repoda bo'sh) | 05 |
 | 10 | `path_normalize` | ** | `.` va `..`, stek g'oyasi | 12 |
 | 11 | `pipe` | *** | halqa bufer, uxlash/uyg'otish, EOF, SIGPIPE | 12 |
 | 12 | `spinlock` | *** | atomar amallar, xotira tartibi | 10 |
@@ -129,17 +129,10 @@ ko'rsatadi.
 
 ## 5. `emit_number` — `user/libc/printf.c`
 
-**Vazifa:** `v` sonini `base` asosida `emit(c, ctx)` orqali chiqaring. Har bir chiqarilgan belgi uchun
-`(*count)++`.
-- Raqamlar teskari tartibda hosil bo'ladi (`v % base`), shuning uchun avval vaqtinchalik massivga yozing.
-- Ishora belgisi: `neg` → `'-'`, aks holda `sp->plus` → `'+'`, `sp->space` → `' '`.
-- `sp->prec >= 0`: kamida shuncha raqam chiqariladi (oldidan nollar). **`prec == 0` va `v == 0`** bo'lsa,
-  hech narsa chiqmaydi.
-- `sp->width`: umumiy kenglik. `sp->left` bo'lsa, bo'shliqlar o'ngga qo'yiladi. `sp->zero` bo'lsa (va
-  `left` hamda `prec` bo'lmasa), ishoradan **keyin** nollar qo'yiladi: `-0042`.
-- `upper` — `A-F` yoki `a-f`. Yordamchi funksiya: `pad(emit, ctx, belgi, n, count)`.
-
-**Test:** `snprintf("[%5d|%-5d|%05d]", 42, 42, 42)` → `[   42|42   |00042]`.
+> **Bu vazifa darslikka ko'chirildi.** `printf` va `malloc` endi **doimiy mashqlar**: ularning kodi repoda
+> umuman yo'q (TODO + vaqtinchalik variant), `tools/lab.py` bilan yashirish kerak emas. To'liq tushuntirish,
+> qadamlar va testlar: [darslik/32-printf-malloc.md](../darslik/32-printf-malloc.md) (mashq **M1**),
+> tekshirish: `tools/myos_mashq.sh`.
 
 ## 6. `gmtime_r` — `user/libc/time.c`
 
@@ -166,31 +159,17 @@ ko'rsatadi.
 
 ## 8. `malloc` — `user/libc/malloc.c`
 
-**Ma'lumot tuzilmasi:** har bir blok oldida 16 baytli sarlavha `struct block { size_t size; struct block
-*next; }` turadi. Bo'sh bloklar `free_list` da **manzil bo'yicha tartiblangan**. Band blokda
-`next == USED_MAGIC` bo'ladi.
-
-**Vazifa:**
-1. `size == 0` yoki haddan tashqari katta → `NULL`. `size` ni 16 ga yaxlitlang (`ALIGN16`).
-2. `free_list` dan `size` sig'adigan birinchi blokni toping (first-fit).
-3. Qoldiq `>= size + MIN_SPLIT` bo'lsa, blokni **bo'ling**: qoldiqdan yangi bo'sh blok yasang.
-4. Blokni ro'yxatdan chiqaring (oldingisini to'g'ri ulashni unutmang — `prev == NULL` holati!), belgilang
-   (`next = USED_MAGIC`), statistikani yangilang (`used_bytes`, `used_blocks`).
-5. **Sarlavhadan keyingi** manzilni qaytaring: `b + 1`.
-6. Hech narsa topilmasa: `grow(size)`, keyin qayta urinish; `grow` 0 qaytarsa → `NULL`.
-
-**Xato manbai:** qaytarilgan manzil 16 ga tekislanishi shart (`malloc` standarti; SSE ishlatadigan kod
-aks holda qulaydi). `libctest` buni tekshiradi.
+> **Bu vazifa darslikka ko'chirildi.** `printf` va `malloc` endi **doimiy mashqlar**: ularning kodi repoda
+> umuman yo'q (TODO + vaqtinchalik variant), `tools/lab.py` bilan yashirish kerak emas. To'liq tushuntirish,
+> qadamlar va testlar: [darslik/32-printf-malloc.md](../darslik/32-printf-malloc.md) (mashq **M3**),
+> tekshirish: `tools/myos_mashq.sh`.
 
 ## 9. `insert_free` — `user/libc/malloc.c`
 
-**Vazifa:** `b` blokini `free_list` ga **manzil tartibida** qo'shing, keyin qo'shnilari bilan birlashtiring:
-- o'ng qo'shni: `(char *)b + HDR + b->size == (char *)cur` bo'lsa, `b` `cur` ni "yutadi";
-- chap qo'shni: `(char *)prev + HDR + prev->size == (char *)b` bo'lsa, `prev` `b` ni "yutadi".
-
-**Nega tartib muhim:** birlashtirish uchun qo'shnini tez topish kerak. Birlashtirish bo'lmasa, xotira
-maydalanib ketadi (fragmentatsiya): jami bo'sh joy ko'p, lekin katta blok uchun joy topilmaydi.
-`memtest` buni tekshiradi.
+> **Bu vazifa darslikka ko'chirildi.** `printf` va `malloc` endi **doimiy mashqlar**: ularning kodi repoda
+> umuman yo'q (TODO + vaqtinchalik variant), `tools/lab.py` bilan yashirish kerak emas. To'liq tushuntirish,
+> qadamlar va testlar: [darslik/32-printf-malloc.md](../darslik/32-printf-malloc.md) (mashq **M4**),
+> tekshirish: `tools/myos_mashq.sh`.
 
 ## 10. `path_normalize` — `kernel/fs/vfs.c`
 
@@ -403,5 +382,5 @@ yadrolarda aynan shunday zaifliklar bo'lgan.
 
 ## Keyingi qadam
 
-22 ta lab'ni tugatganingizdan keyin `QOLLANMA.md` ning 11-bo'limiga o'ting va butun yadroni yangi papkada
+19 ta lab'ni (va darslikdagi M1–M4 ni) tugatganingizdan keyin `QOLLANMA.md` ning 11-bo'limiga o'ting va butun yadroni yangi papkada
 **noldan** yozing. Endi har bir qatlamning eng qiyin qismini qo'lingiz o'zi biladi.

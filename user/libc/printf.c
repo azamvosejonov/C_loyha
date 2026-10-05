@@ -35,37 +35,47 @@ static void pad(emit_fn emit, void *ctx, char c, int n, int *count)
         emit(c, ctx);
 }
 
+/* VAQTINCHALIK (M1 yozilguncha): son o'rniga '?' chiqaradi. Tizim ishlayveradi (satrlar, belgilar to'g'ri),
+ * faqat raqamlar ko'rinmaydi: "pid ?", "? bayt". M1 ni yozgach bu funksiyani O'CHIRING. */
+static void emit_number_vaqtinchalik(emit_fn emit, void *ctx, int *count)
+{
+    emit('?', ctx);
+    (*count)++;
+}
+
+/*
+ * emit_number - sonni matnga aylantirib, format talablari bilan chiqarish. Masalan "%-8.3d" va 7:
+ *     "007     "  (aniqlik 3 -> kamida 3 raqam; kenglik 8; '-' -> chapga tekislangan)
+ *
+ *   v        - sonning MODULI (ishorasiz). Manfiy son bo'lsa neg = true (modul __format da hisoblangan:
+ *              INT64_MIN ni musbatga aylantirib bo'lmaydi, shuning uchun ishorasiz turda)
+ *   base     - 10, 16 yoki 8;  upper - 16 likda katta harflar (%X)
+ *   sp       - bayroqlar: left ('-'), zero ('0'), plus ('+'), space (' '), width, prec (-1 = berilmagan)
+ *   *count   - har chiqarilgan belgi uchun 1 ga oshiring (printf qaytaradigan son)
+ */
 static void emit_number(emit_fn emit, void *ctx, uint64_t v, bool neg, unsigned base,
                         bool upper, const struct spec *sp, int *count)
 {
-    /* >>> LAB emit_number - vazifa: labs/README.md */
-    const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
-    char tmp[24];
-    int len = 0;
-    if (v || sp->prec != 0) {           /* printf("%.0d", 0) - hech narsa chiqarmaydi (C standarti) */
-        do {
-            tmp[len++] = digits[v % base];
-            v /= base;
-        } while (v);
-    }
-    char sign = neg ? '-' : sp->plus ? '+' : sp->space ? ' ' : 0;
-    int zeros = sp->prec > len ? sp->prec - len : 0;
-    int total = len + zeros + (sign ? 1 : 0);
-    int padn = sp->width > total ? sp->width - total : 0;
-    bool zero_pad = sp->zero && !sp->left && sp->prec < 0;
-
-    if (!sp->left && !zero_pad)
-        pad(emit, ctx, ' ', padn, count);
-    if (sign)
-        emit(sign, ctx), (*count)++;
-    if (zero_pad)
-        pad(emit, ctx, '0', padn, count);
-    pad(emit, ctx, '0', zeros, count);
-    while (len)
-        emit(tmp[--len], ctx), (*count)++;
-    if (sp->left)
-        pad(emit, ctx, ' ', padn, count);
-    /* <<< LAB emit_number */
+    /*
+     * TODO(M1) - O'ZINGIZ YOZING (darslik/32-printf-malloc.md, 32.3):
+     *   1) raqamlar: v % base -> belgi ("0123456789abcdef" yoki katta harflar), v /= base. Ular TESKARI
+     *      tartibda chiqadi (1234 -> 4,3,2,1) - vaqtinchalik massivga yig'ing (2^64 = 20 raqam).
+     *      DIQQAT: v == 0 bo'lsa ham bitta '0' kerak; LEKIN prec == 0 va v == 0 bo'lsa - hech qanday raqam
+     *      yo'q (C standarti: printf("%.0d", 0) -> "").
+     *   2) ishora belgisi: neg -> '-', aks holda sp->plus -> '+', sp->space -> ' ', aks holda yo'q.
+     *   3) aniqlik: raqamlar soni prec dan kam bo'lsa - oldiga nollar (prec - len ta).
+     *   4) kenglik: jami (ishora + aniqlik nollari + raqamlar) width dan kam bo'lsa - to'ldirish (width - jami ta).
+     *      Qayerga va nima bilan:
+     *        sp->left              -> OXIRIGA bo'shliqlar
+     *        sp->zero (va prec<0)  -> ISHORADAN KEYIN nollar   ("-0042")
+     *        aks holda             -> ISHORADAN OLDIN bo'shliqlar ("  -42")
+     *      (aniqlik berilsa '0' bayrog'i e'tiborsiz - C standarti)
+     *   Yordamchi: pad(emit, ctx, belgi, n, count) - n ta belgi chiqaradi va count ni oshiradi.
+     *   Tekshirish: tools/myos_mashq.sh  (M1 qatori: har xato uchun format, sizning va kutilgan natija)
+     *   Yozib bo'lgach: quyidagi qatorni va emit_number_vaqtinchalik funksiyasini o'chiring.
+     */
+    (void)v, (void)neg, (void)base, (void)upper, (void)sp;
+    emit_number_vaqtinchalik(emit, ctx, count);
 }
 
 int __format(emit_fn emit, void *ctx, const char *fmt, va_list ap)

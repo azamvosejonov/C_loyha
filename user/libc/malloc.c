@@ -88,30 +88,20 @@ static void trim_top(void)
 /* Blokni tartiblangan bo'sh ro'yxatga qo'shish va qo'shnilar bilan birlashtirish. */
 static void insert_free(struct block *b)
 {
-    /* >>> LAB insert_free - vazifa: labs/README.md */
-    /* Tartiblangan ro'yxatdagi joyini topamiz: prev < b < cur */
-    struct block *prev = NULL, *cur = free_list;
-    while (cur && cur < b) {
-        prev = cur;
-        cur = cur->next;
-    }
-    b->next = cur;
-    if (prev)
-        prev->next = b;
-    else
-        free_list = b;
-
-    /* O'ngdagi qo'shni bilan birlashtirish: b ning oxiri == cur ning boshi? */
-    if (cur && (char *)b + HDR + b->size == (char *)cur) {
-        b->size += HDR + cur->size;
-        b->next = cur->next;
-    }
-    /* Chapdagi qo'shni bilan birlashtirish. */
-    if (prev && (char *)prev + HDR + prev->size == (char *)b) {
-        prev->size += HDR + b->size;
-        prev->next = b->next;
-    }
-    /* <<< LAB insert_free */
+    /*
+     * TODO(M4) - O'ZINGIZ YOZING (darslik/32-printf-malloc.md, 32.7):
+     *   1) JOYINI TOPING: free_list manzil bo'yicha o'sib boradi. prev < b < cur bo'ladigan joyni toping
+     *      (ko'rsatkichlarni < bilan solishtirish mumkin - ular bitta heap ichida).
+     *   2) ULANG: b->next = cur; prev bo'lsa prev->next = b, aks holda free_list = b.
+     *   3) O'NG QO'SHNI: b ning oxiri ((char *)b + HDR + b->size) == cur bo'lsa - birlashtiring:
+     *      b->size += HDR + cur->size;  b->next = cur->next.
+     *   4) CHAP QO'SHNI: prev ning oxiri == b bo'lsa - prev ni kattalashtiring (xuddi shunday).
+     *      Tartib muhim: avval o'ng, keyin chap (aks holda b "yo'qolgan" bo'lishi mumkin).
+     *   Tekshirish: tools/myos_mashq.sh  (M4 qatori; M4 testlari M3 ga tayanadi)
+     *   Yozib bo'lgach: quyidagi VAQTINCHALIK 2 qatorni o'chiring.
+     */
+    b->next = free_list;                /* VAQTINCHALIK: ro'yxat BOSHIGA - tartib ham, birlashtirish ham yo'q */
+    free_list = b;                      /*   (xotira "parchalanadi", trim_top ishlamaydi) */
 }
 
 void free(void *ptr)
@@ -149,44 +139,43 @@ static int grow(size_t need)
     return 1;
 }
 
-void *malloc(size_t size)
+/* VAQTINCHALIK (M3 yozilguncha): "bump" ajratuvchi - har so'rovga sbrk() dan YANGI joy, bo'shatilgan
+ * xotira QAYTA ISHLATILMAYDI (free() uni ro'yxatga qo'yadi, lekin bu malloc ro'yxatga qaramaydi).
+ * Tizim ishlayveradi, faqat xotira "oqadi". M3 ni yozgach bu funksiyani O'CHIRING. */
+static void *malloc_vaqtinchalik(size_t size)
 {
-    /* >>> LAB malloc - vazifa: labs/README.md */
     if (size == 0 || size > (1UL << 30))
         return NULL;
     size = ALIGN16(size);
+    struct block *b = sbrk((long)(HDR + size));
+    if (b == (void *)-1)
+        return NULL;
+    heap_bytes += HDR + size;
+    b->size = size;
+    b->next = USED_MAGIC;
+    used_bytes += size;
+    used_blocks++;
+    return b + 1;
+}
 
-    for (;;) {
-        struct block *prev = NULL;
-        for (struct block *b = free_list; b; prev = b, b = b->next) {
-            if (b->size < size)
-                continue;               /* sig'maydi - keyingisi */
-
-            struct block *replacement;
-            if (b->size >= size + MIN_SPLIT) {
-                /* SPLIT: blok boshini beramiz, qolganidan yangi bo'sh blok. */
-                struct block *rest = (struct block *)((char *)b + HDR + size);
-                rest->size = b->size - size - HDR;
-                rest->next = b->next;
-                b->size = size;
-                replacement = rest;
-            } else {
-                replacement = b->next;  /* butun blokni beramiz */
-            }
-            if (prev)
-                prev->next = replacement;
-            else
-                free_list = replacement;
-
-            b->next = USED_MAGIC;
-            used_bytes += b->size;
-            used_blocks++;
-            return b + 1;               /* sarlavhadan keyingi manzil */
-        }
-        if (!grow(size))
-            return NULL;
-    }
-    /* <<< LAB malloc */
+void *malloc(size_t size)
+{
+    /*
+     * TODO(M3) - O'ZINGIZ YOZING (darslik/32-printf-malloc.md, 32.6):
+     *   1) size == 0 yoki juda katta (> 1 GB) -> NULL. size = ALIGN16(size).
+     *   2) FIRST FIT: free_list bo'ylab yuring (prev ni ham eslab qoling); b->size >= size bo'lgan
+     *      BIRINCHI blokni oling.
+     *   3) SPLIT: b->size >= size + MIN_SPLIT bo'lsa - blokni bo'ling: b dan (HDR + size) bayt keyin
+     *      yangi sarlavha (rest): rest->size = b->size - size - HDR; rest->next = b->next; b->size = size.
+     *      Ro'yxatda b o'rniga rest turadi. Aks holda butun blokni beramiz: ro'yxatda b o'rniga b->next.
+     *   4) b ni ro'yxatdan chiqaring (prev->next yoki free_list), b->next = USED_MAGIC (band belgisi),
+     *      used_bytes += b->size; used_blocks++; return b + 1 (sarlavhadan KEYINGI manzil).
+     *   5) Mos blok topilmasa: grow(size) - yadrodan joy oling va qaytadan qidiring; grow 0 qaytarsa -> NULL.
+     *   Tekshirish: tools/myos_mashq.sh  (M3 qatori)
+     *   Yozib bo'lgach: quyidagi qatorni va malloc_vaqtinchalik funksiyasini o'chiring.
+     */
+    (void)grow;
+    return malloc_vaqtinchalik(size);
 }
 
 void *calloc(size_t count, size_t size)

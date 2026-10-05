@@ -80,6 +80,12 @@ Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashti
 | [30](30-yadro-arxitekturasi.md) | **Yadro arxitekturasi**: monolit/mikroyadro, Linux xaritasi, modul, patch | — |
 | [31](31-lugat.md) | **Lug'at**: ingliz atamalari, koddagi qisqartmalar, xato xabarlari tarjimasi | — |
 
+### III qism: amaliyot — MyOS kodini o'zingiz yozasiz
+
+| Bob | Mavzu | Mashqlar |
+|---|---|---|
+| [32](32-printf-malloc.md) | **`printf` va `malloc` ni yozish**: format dvigateli, `kprintf`, heap, free list, split, coalescing — kod repoda bo'sh, testlar tayyor | M1–M4 |
+
 ### Bu darslik qaysi kitoblar o'rnini bosadi
 
 Bu darslik quyidagi mashhur (ingliz tilidagi) kitoblarning **asosiy mavzularini** o'zbek tilida, o'z
@@ -174,7 +180,7 @@ darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ 
 
 - [mashqlar/README.md](../mashqlar/README.md) — 48 ta mashq, avtomatik tekshiruv bilan.
 - [QOLLANMA.md](../QOLLANMA.md) — loyihaning to'liq qo'llanmasi va noldan yadro yozish rejasi.
-- [labs/README.md](../labs/README.md) — yadro ichidagi 22 ta laboratoriya.
+- [labs/README.md](../labs/README.md) — yadro ichidagi 19 ta laboratoriya.
 - [YAKUNIY.md](../YAKUNIY.md) — haqiqiy kompyuterda ishlatish va tizimni kengaytirish.
 - [virtual_kompyuter/](../virtual_kompyuter/README.md) — **eng chuqur loyiha**: RISC-V kompyuterni (protsessor, MMU,
   uzilishlar, firmware) o'zingiz yozib, unda haqiqiy Linux'ni yuklaysiz. O'z kitobi (12 bob) va 22 ta mashq bilan.

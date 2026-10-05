@@ -1,0 +1,6 @@
+MyOS mashqlari (darslik/32-printf-malloc.md):
+  [ OK ] M1 printf: emit_number (user/libc/printf.c): 28/28
+  [ OK ] M2 kprintf: bayroqlar/kenglik/aniqlik (kernel/lib/kprintf.c): 15/15
+  [ OK ] M3 malloc: first fit, split, qayta ishlatish (user/libc/malloc.c): 13/13
+  [ OK ] M4 insert_free: tartib va birlashtirish (user/libc/malloc.c): 7/7
+  hammasi o'tdi. Endi butun tizim: make test

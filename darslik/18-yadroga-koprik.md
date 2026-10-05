@@ -368,7 +368,7 @@ mashqlar 31-40                      yadro mexanizmlari ODDIY DASTUR sifatida:
       ↓
 docs/00-15 + MyOS kodi              haqiqiy yadroni o'qish
       ↓
-labs (22 ta)                        yadro ICHIDA funksiyalarni qayta yozish
+labs (19 ta)                        yadro ICHIDA funksiyalarni qayta yozish
       ↓
 QOLLANMA.md 11-bo'lim               yadroni NOLDAN yozish
       ↓

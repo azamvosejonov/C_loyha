@@ -19,7 +19,10 @@ for f in string stdlib time printf; do
     objcopy --prefix-symbols=lab_ $OUT/$f.o $OUT/lab_$f.o
 done
 # Test o'zi: bizning sarlavhalar + prefiks makrolari; printf/puts - glibc'niki.
-gcc -c -O1 -g -ffreestanding -fno-builtin -include tests/host/lab_prefix.h $INC user/bin/libctest.c -o $OUT/libctest.o
+# M1 (printf.c dagi emit_number) hali TODO bo'lsa - snprintf tekshiruvlari tools/myos_mashq.sh ga qoldiriladi.
+M1=""
+grep -q "TODO(M1)" user/libc/printf.c && M1="-DMASHQ_M1_OCHIQ"
+gcc -c -O1 -g -ffreestanding -fno-builtin -include tests/host/lab_prefix.h $M1 $INC user/bin/libctest.c -o $OUT/libctest.o
 gcc -c -O1 tests/host/shim.c -o $OUT/shim.o
 # Bizning obyektlar ishlatmaydigan, lekin eslatib o'tgan belgilar (lab_write, lab_exit ...)
 # test davomida chaqirilmaydi - ularni hal qilmaymiz.

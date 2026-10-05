@@ -17,7 +17,8 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 >    xatolarini ham ushlaydi): C asoslaridan sahifa jadvali, buddy, slab, ext2, LRU, AVL va mini shell'gacha.
 > 3. [QOLLANMA.md](QOLLANMA.md) — loyihaning to'liq qo'llanmasi: o'qish tartibi, texnologiyalar, xatolar
 >    tarixi, noldan yadro yozish rejasi. Keyin `docs/` — yadroning har bir qatlami.
-> 4. [labs/](labs/README.md) — 22 ta laboratoriya: yadro funksiyasini yopib, o'zingiz yozasiz (`tools/lab.py`).
+> 4. [labs/](labs/README.md) — 19 ta laboratoriya: yadro funksiyasini yopib, o'zingiz yozasiz (`tools/lab.py`).
+>    `printf` va `malloc` esa repoda **bo'sh** — o'zingiz yozasiz: [darslik/32-printf-malloc.md](darslik/32-printf-malloc.md).
 > 5. [YAKUNIY.md](YAKUNIY.md) — haqiqiy kompyuterga o'rnatish va tizimni kengaytirish ("Endi o'zing davom et").
 
 ```

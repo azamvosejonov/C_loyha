@@ -728,10 +728,10 @@ dasturchisisiz. 15–19 bosqichlar esa sizni kuchli yadro dasturchisiga aylantir
 **Tavsiya etilgan sur'at** (kuniga 2–3 soat): 1–7 bosqichlar — 2–3 hafta, 8–14 — 1–2 oy, 15–19 — yana
 1–2 oy. Shoshilmang: 4-, 9- va 11-bosqichlarni **ikki marta** yozing.
 
-**Laboratoriyalar — noldan yozishdan OLDIN:** [labs/README.md](labs/README.md) da 22 ta laboratoriya
+**Laboratoriyalar — noldan yozishdan OLDIN:** [labs/README.md](labs/README.md) da 19 ta laboratoriya
 bor: `strlen` dan `sigreturn` gacha. `tools/lab.py boshla <nom>` asl kodni yashiradi, siz funksiyani
 qayta yozasiz, `tools/lab.py tekshir <nom>` esa natijani tekshiradi (libc uchun 1 soniyada, yadro uchun
-QEMU'da ~1 daqiqada). Tavsiya: 11-bo'limdagi rejaga o'tishdan oldin 22 ta lab'ning hammasini bajaring.
+QEMU'da ~1 daqiqada). Tavsiya: 11-bo'limdagi rejaga o'tishdan oldin 19 ta lab'ning hammasini (va darslikdagi M1–M4 ni) bajaring.
 
 ---
 
