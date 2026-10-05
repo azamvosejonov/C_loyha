@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** kompyuter ichida nima bo'lishini, C tili nimaligini va nega yadrolar
 > aynan C'da yozilishini bilib olasiz. Birinchi dasturingizni yozib, ishga tushirasiz va u **har bir
 > belgisi nima qilishini** tushunasiz.
-> **Oldindan nima kerak:** hech narsa. Faqat Python'dagi oddiy tajriba kifoya.
+> **Oldindan nima kerak:** hech narsa. Faqat Python'dagi oddiy tajriba kifoya. Bit, bayt va `0x...` yozuvi sizga notanish bo'lsa — avval [Asos bob](asos-kompyuter-ichi.md).
 > **Vaqt:** 2–3 soat (dastur yozish bilan).
 
 > **To'liq ishlaydigan misol:** [misollar/00_salom.c](misollar/00_salom.c) — yig'ib ishga tushiring, fayl boshidagi

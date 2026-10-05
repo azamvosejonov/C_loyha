@@ -39,7 +39,7 @@ def tekshir(bob, nom, bolim):
                         print(f'XATO: {os.path.basename(bob)} [{nom}]: {buyruq}\n{chiqish}')
 
 
-for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
+for bob in sorted(glob.glob(os.path.join(ildiz, 'asos-*.md'))) + sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
     matn = open(bob).read()
     m = re.search(re.escape(B) + '(.*?)' + re.escape(E), matn, re.S)
     asosiy = matn.replace(m.group(0), '') if m else matn

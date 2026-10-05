@@ -31,6 +31,7 @@ jadvali bilan) → Nega shunday? → **Eslab qoling**" tartibida. Har bir kod bl
 
 | Bob | Mavzu | Mashqlar |
 |---|---|---|
+| [Asos](asos-kompyuter-ichi.md) | **Kompyuter ichi (0-bobdan OLDIN o'qing)**: bit, bayt, ikkilik, o'n oltilik (`0x`, `0b`), oldidagi nollar, toshish, ma'no va tur, matn, xotira, qo'shish kalitlar bilan, jismoniy saqlash; katta loyiha — `konv` | — |
 | [00](00-kirish.md) | **Kirish**: C nima, o'rnatish, birinchi dastur — har bir belgi (`#include`, `main`, `void`, `{}`, `;`, `return`) | — |
 | [01](01-kompilyatsiya.md) | **Kompilyatsiya**: preprotsessor → kompilyator → assembler → linker; e'lon va ta'rif; gdb | 01 |
 | [02](02-turlar.md) | **Turlar**: `int`, `char`, `size_t`, `uint32_t`, signed/unsigned, toshish, cast | 01–03 |
