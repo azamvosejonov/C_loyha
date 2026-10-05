@@ -1,0 +1,62 @@
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: limonad (ichimlik)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  XATO: toifa 0, 1 yoki 2 bo'lishi kerak
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 3 dona sovun. Qoldi: 0 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+sovun      uy-ro'zg'or     3000.00      0 [yangi] [TUGAYAPTI]
+---------------------------------------
+Jami qiymat:                1344000.00
+QQS stavkasi:               12%
+QQS summasi:                161280.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+  oziq-ovqat   624000.00 so'm
+  ichimlik     720000.00 so'm
+  uy-ro'zg'or  0.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+
+Xayr!

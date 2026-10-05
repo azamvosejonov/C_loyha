@@ -598,6 +598,110 @@ Dasturni qadam-baqadam tushuntiramiz:
 **Sinab ko'ring:** `tugilgan_yil` ni o'zingiznikiga o'zgartiring. `return 0;` ni `return 3;` qilib, `echo $?` nima
 ko'rsatishini tekshiring. Ataylab `;` lardan birini o'chirib, kompilyator xabarini o'qing.
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 0-bosqich: ro'yxatni chiroyli chiqarish
+
+**Katta loyiha haqida (bir marta o'qing).** Boblar alohida-alohida mashqlardan iborat bo'lib qolmasligi uchun, bu darslikning har bobida (0 dan 12 gacha) **bitta dastur birgalikda o'sib boradi**: **Ombor** — mahsulotlar ombori boshqaruvi.
+Har bobda yangi tushuncha o'rganasiz va uni **shu dasturga** qo'llaysiz. Shunda har bir yangi narsa "nega kerak ekani" aniq bo'ladi: oldingi versiyadagi muammoni yangi vosita hal qiladi. 12-bobda sizda ko'p fayldan iborat, `Makefile` bilan yig'iladigan, faylga saqlaydigan, xotira xatolarisiz haqiqiy dastur bo'ladi.
+
+| Bosqich | Bob | Nima qo'shiladi | Tayyor papka |
+|---|---|---|---|
+| 0 | 0-bob | `printf` bilan chiroyli jadval | `00_salom` |
+| 1 | 1-bob | chiqarishni alohida faylga (`.h` + `.c`) ajratish | `01_fayllar` |
+| 2 | 2-bob | aniq turlar, pul tiyinda, toshishdan himoya | `02_turlar` |
+| 3 | 3-bob | chegirma, bit bayroqlari bilan mahsulot holati | `03_operatorlar` |
+| 4 | 4-bob | menyu (sikl) va tanlov (`switch`), tekshiruvlar | `04_boshqaruv` |
+| 5 | 5-bob | funksiyalar, xato kodlari | `05_funksiyalar` |
+| 6 | 6-bob | massivlar va satrlar, nom bo'yicha qidirish | `06_massivlar` |
+| 7 | 7-bob | ko'rsatkichlar: saralash, eng qimmatni topish | `07_korsatkichlar` |
+| 8 | 8-bob | `malloc`/`realloc`: o'zi kengayadigan ombor | `08_xotira` |
+| 9 | 9-bob | `struct`, `enum`, `typedef` | `09_struct` |
+| 10 | 10-bob | makrolar, `-DDEBUG` izlari | `10_makrolar` |
+| 11 | 11-bob | ko'p fayl va `Makefile` | `11_kop_fayl` |
+| 12 | 12-bob | faylga saqlash, `qsort`, `errno`, `assert` | `12_stdlib` |
+
+**Qanday ishlash kerak (tavsiya):**
+
+1. Bosqich kodini **o'qing** va nima qilayotganini jadvaldan tushuning.
+2. O'zingizga papka oching (`mkdir ~/ombor`) va kodni **o'zingiz yozing** — ko'chirmang. Qo'l bilan yozish — o'rganishning eng yaxshi usuli: xato qilasiz, kompilyator xabarini o'qiysiz, tuzatasiz.
+3. Tayyor variant `darslik/katta_loyiha/ombor/<papka>/` da turibdi — o'zingiznikini u bilan solishtiring.
+4. Bosqich oxiridagi **"O'zingiz qo'shing"** topshiriqlarini bajaring (yechimlari yo'q — faqat maslahat; urinib ko'rish o'rganishning o'zi).
+
+Quyidagi buyruqlar `darslik` papkasidan boshlanadi (`cd` — papkaga o'tish).
+
+### Bu bosqichda nima qilamiz
+
+Eng kichik "ombor": uchta mahsulot (non, sut, guruch) — narxi va soni o'zgaruvchilarda — chiroyli **jadval** bo'lib chiqadi, pastida jami qiymat va QQS (qo'shilgan qiymat solig'i) hisoblanadi. Hali menyu ham, fayl ham yo'q: maqsad `printf` ni va butun sonlar bilan hisoblashni mustahkamlash.
+
+**Nega aynan jadvaldan boshlaymiz?** Chunki ombor dasturining **ko'rinadigan** natijasi — shu jadval. Keyingi barcha bosqichlar (menyu, saralash, saqlash) ma'lumotni boshqaradi, jadval esa uni **ko'rsatadi**.
+
+```c
+/* ombor.c - Ombor, 0-bosqich: mahsulotlar ro'yxatini chiroyli chiqarish */
+#include <stdio.h>
+
+int main(void)
+{
+    int non_narx = 4000, non_soni = 120;            /* narx so'mda */
+    int sut_narx = 12000, sut_soni = 45;
+    int guruch_narx = 18000, guruch_soni = 8;
+
+    int jami = non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni;
+
+    printf("============== OMBOR ===============\n");
+    printf("%-10s %8s %6s %12s\n", "Mahsulot", "Narx", "Soni", "Summa");
+    printf("------------------------------------\n");
+    printf("%-10s %8d %6d %12d\n", "Non", non_narx, non_soni, non_narx * non_soni);
+    printf("%-10s %8d %6d %12d\n", "Sut", sut_narx, sut_soni, sut_narx * sut_soni);
+    printf("%-10s %8d %6d %12d\n", "Guruch", guruch_narx, guruch_soni, guruch_narx * guruch_soni);
+    printf("------------------------------------\n");
+    printf("%-24s %11d\n", "Jami qiymat:", jami);
+    printf("%-24s %10d%%\n", "QQS stavkasi:", 12);
+    printf("%-24s %11d\n", "QQS summasi:", jami * 12 / 100);
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/00_salom
+$ gcc -Wall -Wextra ombor.c -o ombor
+$ ./ombor
+============== OMBOR ===============
+Mahsulot       Narx   Soni        Summa
+------------------------------------
+Non            4000    120       480000
+Sut           12000     45       540000
+Guruch        18000      8       144000
+------------------------------------
+Jami qiymat:                 1164000
+QQS stavkasi:                    12%
+QQS summasi:                  139680
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `#include <stdio.h>` | `printf` ning e'lonini olib keladi (0-bob) |
+| `int non_narx = 4000, non_soni = 120;` | ikkita o'zgaruvchi bir qatorda: narx (so'mda) va soni |
+| `jami = ... * ... + ...` | uch mahsulotning `narx × soni` yig'indisi |
+| `%-10s` | matnni 10 belgilik joyda **chapdan** boshlab chiqaradi |
+| `%8d`, `%12d` | butun sonni 8 va 12 belgilik joyda **o'ngdan** tekislab chiqaradi |
+| `%%` | ekranda bitta haqiqiy `%` belgisi (`%` printf da maxsus belgi) |
+| `jami * 12 / 100` | QQS summasi: avval ko'paytiramiz, keyin bo'lamiz (butun sonlarda tartib muhim — 3-bobda ko'rasiz) |
+
+**Nima ko'rdik:** jadval ustunlari **to'g'ri tekislangan** — aynan `%-10s`, `%8d` kabi kenglik ko'rsatkichlari tufayli. `Non` uchun `4000 × 120 = 480000`; uchala summa yig'indisi `1164000`; QQS 12% = `139680`.
+
+**Muammo (keyingi bosqichlar uchun):** bu dasturda narx va sonlar **kodning ichiga yozib qo'yilgan** — o'zgartirish uchun kodni tahrirlab qayta yig'ish kerak. Yangi mahsulot qo'shish uchun esa yana 2 ta o'zgaruvchi, 1 ta `printf` yozish kerak. Shuning uchun keyingi bosqichlarda dasturni **tuzilmali** qilamiz.
+
+> **Eslab qoling:** `printf` ning `%-10s`, `%8d` kabi **kenglik** belgilari jadvalni tekislaydi; `%%` — haqiqiy `%`.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. To'rtinchi mahsulot (`shakar`, 15000 so'm, 60 dona) qo'shing — jami va QQS to'g'ri o'zgaradimi?
+2. QQS stavkasini (12) o'zgaruvchiga chiqaring (`int qqs = 12;`) va ikki joyda ishlating.
+3. Jadval sarlavhasidagi `=` va `-` qatorlarining uzunligi jadval kengligiga mos ekanini tekshiring (kengroq mahsulot nomi yozsangiz nima bo'ladi?).
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Kompyuter — **protsessor** (tez xodim) + **xotira** (raqamlangan baytlar qatori). Hamma narsa — sonlar.

@@ -1,0 +1,46 @@
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 1164000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Qaysi mahsulot o'chirilsin?
+  O'chirildi: sut (qoldi 3 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+  oziq-ovqat   624000.00 so'm
+  ichimlik     0.00 so'm
+  uy-ro'zg'or  9000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+sovun      uy-ro'zg'or     3000.00      3 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 633000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+
+Xayr!

@@ -1,0 +1,16 @@
+Ombor v1.0 (toifalar: 3 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+
+Xayr!

@@ -333,6 +333,7 @@ lab-check:
 	@tools/lab.py selfcheck
 	@tools/mashq.py selfcheck
 	@sh darslik/misollar/tekshir.sh
+	@tools/katta_loyiha.py
 	@tools/darslik_kod.py
 
 clean:

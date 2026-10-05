@@ -1,0 +1,54 @@
+  [xotira] sig'im 0 -> 2
+  [xotira] sig'im 2 -> 4
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: shakar (jami 4 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  [xotira] sig'im 4 -> 8
+  Qo'shildi: yog (jami 5 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: un (jami 6 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: olma (jami 7 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Qaysi mahsulot o'chirilsin?
+  O'chirildi: sut (qoldi 6 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+Qaysi mahsulot o'chirilsin?
+  XATO: bunday mahsulot topilmadi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+non           4000.00    120      480000.00
+guruch       18000.00      8      144000.00
+shakar       15000.00     60      900000.00
+yog          30000.00     20      600000.00
+un            8000.00    100      800000.00
+olma          5000.00     40      200000.00
+---------------------------------------
+Jami qiymat:                3124000.00
+QQS stavkasi:               12%
+QQS summasi:                374880.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  0) chiqish
+Tanlov:
+
+Xayr!

@@ -757,6 +757,264 @@ Eng issiq kun: Pa (27 gradus)
 
 **Sinab ko'ring:** `char sms[30]` ni `char sms[100]` qiling. `harorat[kun][1]` ni `harorat[kun][2]` qilib, `-fsanitize=address` bilan yig'ing — sanitizer nima deydi (6.2)?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 6-bosqich: massivlar va satrlar
+
+**Oldingi bosqichdan:** har mahsulot uchun alohida o'zgaruvchi va hamma joyda `switch (id)`. Yangi mahsulot qo'shib bo'lmaydi: dastur **faqat 3 ta** mahsulotni biladi.
+
+### Bu bosqichda nima qilamiz
+
+Ma'lumotni **massivlarda** saqlaymiz: `nom[i]`, `narx[i]`, `soni[i]` — **parallel massivlar** ("i-mahsulot" ma'lumoti uchala massivning `i`-katagida). Natijada:
+
+- mahsulot qo'shish — **runtime da** (dastur ishlayotganda) — menyudan mumkin;
+- hamma `switch` lar `for` sikliga aylanadi;
+- mahsulotni **nomi** bilan topamiz (`"sut"`), raqam bilan emas — foydalanuvchi uchun qulayroq.
+
+**Satrlar:** C da matn — `char` massivi, oxirida **`'\0'`** (nol bayt) bilan tugaydi (6-bob). Shuning uchun:
+- nomlar `char nom[MAKS][NOM_UZ]` — "MAKS ta satr, har biri NOM_UZ belgigacha";
+- satrni `==` bilan solishtirib **bo'lmaydi** (u manzillarni solishtiradi) — `strcmp` ishlatamiz;
+- satrni `=` bilan ko'chirib **bo'lmaydi** — `snprintf`/`strcpy` ishlatamiz;
+- uzun nom massivdan **tashqariga yozib yubormasligi** uchun `scanf("%23s", ...)` va `snprintf` — **chegarali** funksiyalar (bufer to'lishidan himoya, 6-bob, 13-bob).
+
+```c
+/* ombor.c - Ombor, 6-bosqich: massivlar va satrlar - istalgancha (MAKS gacha) mahsulot, nom bo'yicha qidirish */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "ombor_chop.h"
+
+#define MAKS 8                                  /* eng ko'pi bilan nechta mahsulot */
+#define NOM_UZ 24                               /* nom uchun joy (oxirgi '\0' bilan) */
+
+enum { OK = 0, TOLA = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5 };
+
+/* "parallel massivlar": i-mahsulotning ma'lumoti nom[i], narx[i], soni[i] da */
+static char nom[MAKS][NOM_UZ];
+static long narx[MAKS];
+static uint16_t soni[MAKS];
+static int n;                                   /* hozir nechta mahsulot bor */
+
+/* nom bo'yicha qidiradi: indeksni yoki -1 ni qaytaradi */
+static int topish(const char *qidirilgan)
+{
+    for (int i = 0; i < n; i++)
+        if (strcmp(nom[i], qidirilgan) == 0)    /* satrlarni == bilan emas, strcmp bilan solishtiramiz */
+            return i;
+    return -1;
+}
+
+static int qosh(const char *yangi_nom, long yangi_narx, uint16_t yangi_soni)
+{
+    if (n == MAKS)
+        return TOLA;
+    if (topish(yangi_nom) >= 0)
+        return NOM_BAND;
+    snprintf(nom[n], NOM_UZ, "%s", yangi_nom);  /* uzun bo'lsa qirqiladi, '\0' doim qo'yiladi */
+    narx[n] = yangi_narx;
+    soni[n] = yangi_soni;
+    n++;
+    return OK;
+}
+
+static int sot(int i, int miqdor)
+{
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > soni[i])
+        return YETARLI_EMAS;
+    soni[i] -= miqdor;
+    return OK;
+}
+
+static void royxat(void)
+{
+    long jami = 0;
+    chop_sarlavha();
+    for (int i = 0; i < n; i++) {
+        chop_qator(nom[i], narx[i], soni[i]);
+        jami += narx[i] * soni[i];
+    }
+    chop_jami(jami, 12);
+}
+
+static const char *xato_matni(int kod)
+{
+    switch (kod) {
+    case TOLA: return "ombor to'lgan";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    default: return "noma'lum xato";
+    }
+}
+
+static void qoshish_menyusi(void)
+{
+    char s[NOM_UZ];
+    long so_m;
+    int miqdor;
+    printf("Nom, narx (so'mda) va soni?\n");
+    if (scanf("%23s %ld %d", s, &so_m, &miqdor) != 3)   /* %23s: 23 belgidan ko'pini o'qimaydi */
+        return;
+    int r = qosh(s, so_m * 100, (uint16_t)miqdor);
+    if (r == OK)
+        printf("  Qo'shildi: %s\n", s);
+    else
+        printf("  XATO: %s\n", xato_matni(r));
+}
+
+static void sotish_menyusi(void)
+{
+    char s[NOM_UZ];
+    int miqdor;
+    printf("Mahsulot nomi va necha dona?\n");
+    if (scanf("%23s %d", s, &miqdor) != 2)
+        return;
+    int i = topish(s);
+    int r = i < 0 ? TOPILMADI : sot(i, miqdor);
+    if (r == OK)
+        printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, nom[i], soni[i]);
+    else
+        printf("  XATO: %s\n", xato_matni(r));
+}
+
+static void qidirish_menyusi(void)
+{
+    char s[NOM_UZ];
+    printf("Nom boshlanishi?\n");
+    if (scanf("%23s", s) != 1)
+        return;
+    int topildi = 0;
+    for (int i = 0; i < n; i++)
+        if (strncmp(nom[i], s, strlen(s)) == 0) {       /* faqat boshidagi belgilarni solishtiramiz */
+            printf("  %s (%u dona)\n", nom[i], soni[i]);
+            topildi++;
+        }
+    if (!topildi)
+        printf("  hech narsa topilmadi\n");
+}
+
+int main(void)
+{
+    qosh("non", 400000, 120);
+    qosh("sut", 1200000, 45);
+    qosh("guruch", 1800000, 8);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        switch (tanlov) {
+        case 1: royxat(); break;
+        case 2: sotish_menyusi(); break;
+        case 3: qoshish_menyusi(); break;
+        case 4: qidirish_menyusi(); break;
+        default: printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/06_massivlar
+$ printf '3\nshakar 15000 60\n3\nnon 5000 10\n2\nsut 5\n2\nolma 1\n4\nsh\n4\nxyz\n2\nguruch 100\n1\n0\n' > kirish.txt
+$ gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: shakar
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  XATO: bunday nomli mahsulot allaqachon bor
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 5 dona sut. Qoldi: 40 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: bunday mahsulot topilmadi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom boshlanishi?
+  shakar (60 dona)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom boshlanishi?
+  hech narsa topilmadi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: omborda yetarli emas
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+non           4000.00    120      480000.00
+sut          12000.00     40      480000.00
+guruch       18000.00      8      144000.00
+shakar       15000.00     60      900000.00
+---------------------------------------
+Jami qiymat:                2004000.00
+QQS stavkasi:               12%
+QQS summasi:                240480.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+
+Xayr!
+```
+
+**Kiritilgan ketma-ketlik:**
+
+| Kirish | Natija |
+|---|---|
+| `3`, `shakar 15000 60` | yangi mahsulot **qo'shildi** (3 ta o'rniga 4 ta bo'ldi) |
+| `3`, `non 5000 10` | **XATO:** "non" nomi allaqachon bor (nom takrorlanmaydi) |
+| `2`, `sut 5` | 5 dona sut sotildi → qoldi 40 |
+| `2`, `olma 1` | **XATO:** bunday mahsulot topilmadi |
+| `4`, `sh` | nomi `sh` bilan boshlanuvchi: **shakar** |
+| `4`, `xyz` | hech narsa topilmadi |
+| `2`, `guruch 100` | **XATO:** omborda yetarli emas (8 dona) |
+| `1` | ro'yxat: 4 mahsulot, jami 2004000.00 |
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `static char nom[MAKS][NOM_UZ];` | 8 ta satr uchun joy, har biri 24 baytgacha (23 belgi + `'\0'`) |
+| `static int n;` | hozir nechta katak band: massivning "uzunligi" (C massivning uzunligini o'zi bilmaydi!) |
+| `topish(const char *qidirilgan)` | `for` bilan hamma nomni `strcmp` bilan solishtiradi; topilgan **indeksni** yoki `-1` qaytaradi |
+| `snprintf(nom[n], NOM_UZ, "%s", yangi_nom);` | nomni **chegarasi bilan** ko'chiradi: uzun bo'lsa qirqadi, `'\0'` ni doim qo'yadi |
+| `scanf("%23s", s)` | ko'pi bilan 23 belgi o'qiydi — `s[24]` dan oshib ketmaydi |
+| `strncmp(nom[i], s, strlen(s))` | faqat **boshidagi** `strlen(s)` ta belgini solishtiradi — "boshlanishi bo'yicha qidirish" |
+| `so_m * 100` | foydalanuvchi so'mda kiritadi, biz tiyinda saqlaymiz |
+
+**Muhim xavf:** `n == MAKS` bo'lganda yangi mahsulot **qo'shilmaydi** (`TOLA` xatosi) — massiv o'lchami **doimiy**. Agar bu tekshiruv bo'lmasa, `nom[n]` massivdan tashqariga yozilar edi (**bufer to'lishi**). 8-bobda massivni dinamik qilib, bu cheklovni yo'qotamiz.
+
+> **Eslab qoling:** C massivi o'z uzunligini bilmaydi — `n` ni o'zingiz saqlang. Satr = `char[]` + `'\0'`. Solishtirish — `strcmp`, ko'chirish — `snprintf`, o'qish — `%23s` (**chegara bilan**). Massiv chegarasini **doim** tekshiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `MAKS` ni 3 ga tushirib yig'ing va 4-mahsulotni qo'shib ko'ring: dastur nima deydi?
+2. Nomlari bo'sh joy bilan yozilgan mahsulotlar ("olma sharbati") bilan nima bo'ladi? `scanf("%23s")` nega buni buzadi? (Maslahat: 6-bobdagi `fgets`.)
+3. `qidirish_menyusi` ga katta-kichik harfni farqlamaydigan qidiruvni qo'shing. (Maslahat: `strncasecmp` yoki har belgini `tolower` bilan o'tkazish.)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Massiv — bir xil turdagi **ketma-ket** qutilar; indeks **0 dan**; uzunlik **qat'iy**; `a[i]` manzili = boshi + `i * hajm`.

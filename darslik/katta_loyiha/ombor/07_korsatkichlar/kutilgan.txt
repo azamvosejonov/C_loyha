@@ -1,0 +1,48 @@
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: shakar
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Eng qimmat: guruch (18000.00 so'm)
+  Jami qiymat: 2064000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Narx bo'yicha saralandi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+guruch       18000.00      8      144000.00
+shakar       15000.00     60      900000.00
+sut          12000.00     45      540000.00
+non           4000.00    120      480000.00
+---------------------------------------
+Jami qiymat:                2064000.00
+QQS stavkasi:               12%
+QQS summasi:                247680.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: omborda yetarli emas
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 5 dona sut. Qoldi: 40 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Eng qimmat: guruch (18000.00 so'm)
+  Jami qiymat: 2004000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+
+Xayr!

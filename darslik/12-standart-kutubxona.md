@@ -555,6 +555,578 @@ Otabek 64
 
 **Sinab ko'ring:** `ball_boyicha` ni o'zgartirib, ism bo'yicha alifbo tartibida saralang. `fclose(f);` (birinchisini) o'chirib, o'rniga `abort();` qo'ying — `natijalar.txt` da nima qoladi?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 12-bosqich: faylga saqlash, `qsort`, `errno`, `assert`
+
+**Oldingi bosqichdan:** modullarga bo'lingan, toza dastur. Lekin ikki muhim kamchilik: (1) dastur tugasa **hamma ma'lumot yo'qoladi** — ombor faqat xotirada; (2) saralash funksiyasi (7-bosqichdagi pufakcha) — sekin va faqat narx bo'yicha.
+
+### Bu bosqichda nima qilamiz
+
+Standart kutubxonaning (12-bob) uchta asosiy qismini ishlatamiz:
+
+| Yangi imkoniyat | Vosita | Nega |
+|---|---|---|
+| **Faylga saqlash va yuklash** | `fopen`, `fprintf`, `fgets`, `sscanf`, `fclose` | ma'lumot dastur tugagandan keyin ham qoladi |
+| **Saralash** (nom yoki narx bo'yicha) | `qsort` + **taqqoslagich funksiya** | tayyor, tez (O(n log n)) va xatosiz; o'zimiz yozmaymiz |
+| **Xatoni aniq bildirish** | `errno`, `strerror` | "fayl topilmadi" yoki "format noto'g'ri" — foydalanuvchiga tushunarli |
+| **Ichki to'g'rilikni tekshirish** | `assert` | "bu hech qachon bo'lmasligi kerak" shartini tekshiradi: buzilsa dastur darhol to'xtaydi (xatoni qidirishni osonlashtiradi) |
+
+**Fayl formati — matn, har qatorda bitta mahsulot:** `nom;narx;soni;toifa;holat`. Matn format — odam ham o'qiy oladi va xatoni topish oson.
+
+**Muhim dizayn qarori — `ombor_yukla` xavfsiz:** faylni **vaqtinchalik** omborga o'qiydi; faqat **hammasi muvaffaqiyatli** o'qilgandan keyin asl ombor almashtiriladi. Fayl buzuq bo'lsa, asl ombor **o'zgarmay** qoladi (*atomik* almashtirish g'oyasi — 27-bob: `tmp` + `rename`).
+
+**Faqat o'zgargan fayllar:** `ombor.h` (yangi funksiyalar), `ombor.c` (yangi qismlar), `main.c` (3 ta menyu bandi). `log.h`, `pul.h`, `pul.c` o'zgarmagan (11-bosqichdagi bilan bir xil).
+
+```c
+/* ombor.h - ombor kutubxonasining OCHIQ interfeysi (12-bosqich: saralash, faylga saqlash) */
+#ifndef OMBOR_H
+#define OMBOR_H
+
+#include <stdint.h>
+
+/* toifalar ro'yxati bir joyda: enum ham, nomlar jadvali ham undan hosil bo'ladi */
+#define TOIFALAR(X) \
+    X(OZIQ_OVQAT, "oziq-ovqat") \
+    X(ICHIMLIK, "ichimlik") \
+    X(UY_RUZGOR, "uy-ro'zg'or")
+
+#define X_ENUM(id, nom) id,
+enum toifa { TOIFALAR(X_ENUM) TOIFA_SONI };
+#undef X_ENUM
+
+/* funksiyalar natija kodlari: 0 - OK, manfiy - xato */
+enum { OK = 0, XOTIRA_YOQ = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5, NOTOGRI_TOIFA = -6 };
+
+typedef struct ombor Ombor;                     /* faqat nom: ichi ombor.c da */
+
+enum saralash { SARALASH_NOM = 1, SARALASH_NARX = 2 };
+
+Ombor *ombor_yarat(void);
+void ombor_yoq(Ombor *o);
+int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa);
+int ombor_sot(Ombor *o, const char *nom, int miqdor, uint16_t *qoldi);
+int ombor_ochir(Ombor *o, const char *nom);
+int ombor_soni(const Ombor *o);
+void ombor_royxat(const Ombor *o);
+void ombor_hisobot(const Ombor *o);
+void ombor_saralash(Ombor *o, enum saralash mezon);
+int ombor_saqla(const Ombor *o, const char *fayl);      /* 0 yoki -1 (errno qo'yiladi) */
+int ombor_yukla(Ombor *o, const char *fayl);            /* nechta mahsulot yuklandi yoki -1 (errno) */
+const char *toifa_nomi(enum toifa t);
+const char *ombor_xato(int kod);
+
+#endif
+```
+
+`ombor.c` ning to'liq matni — o'zgargan va yangi qismlari izohlangan:
+
+```c
+/* ombor.c - ombor kutubxonasining ichki ishi (12-bosqich: qsort, fayl, errno, assert) */
+#include <assert.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "log.h"
+#include "ombor.h"
+#include "pul.h"
+
+#define YANGI      BIT(0)
+#define TUGAYAPTI  BIT(2)
+
+#define X_NOM(id, nom) nom,
+static const char *const nomlar[] = { TOIFALAR(X_NOM) };
+#undef X_NOM
+
+struct mahsulot {
+    char *nom;
+    long narx;
+    uint16_t soni;
+    enum toifa toifa;
+    unsigned holat;
+};
+
+struct ombor {                                  /* TA'RIF faqat shu faylda: tashqaridan ko'rinmaydi */
+    struct mahsulot *m;
+    int n;
+    int sig;
+};
+
+const char *toifa_nomi(enum toifa t)
+{
+    return (unsigned)t < TOIFA_SONI ? nomlar[t] : "?";
+}
+
+Ombor *ombor_yarat(void)
+{
+    return calloc(1, sizeof(Ombor));            /* hammasi nolga: m = NULL, n = 0, sig = 0 */
+}
+
+void ombor_yoq(Ombor *o)
+{
+    if (!o)
+        return;
+    for (int i = 0; i < o->n; i++)
+        free(o->m[i].nom);
+    free(o->m);
+    free(o);
+}
+
+static struct mahsulot *topish(const Ombor *o, const char *nom)
+{
+    for (int i = 0; i < o->n; i++)
+        if (strcmp(o->m[i].nom, nom) == 0)
+            return &o->m[i];
+    return NULL;
+}
+
+static void holat_yangila(struct mahsulot *p)
+{
+    if (p->soni < 10)
+        p->holat |= TUGAYAPTI;
+    else
+        p->holat &= ~TUGAYAPTI;
+}
+
+int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa)
+{
+    if ((unsigned)toifa >= TOIFA_SONI)
+        return NOTOGRI_TOIFA;
+    if (topish(o, nom))
+        return NOM_BAND;
+    if (o->n == o->sig) {
+        int yangi = o->sig ? o->sig * 2 : 2;
+        struct mahsulot *y = realloc(o->m, (size_t)yangi * sizeof(*y));
+        if (!y)
+            return XOTIRA_YOQ;
+        LOG("sig'im %d -> %d", o->sig, yangi);
+        o->m = y;
+        o->sig = yangi;
+    }
+    char *nusxa = strdup(nom);
+    if (!nusxa)
+        return XOTIRA_YOQ;
+    assert(o->n < o->sig);                      /* joy borligiga ishonch: yo'q bo'lsa dastur to'xtaydi */
+    struct mahsulot *p = &o->m[o->n++];
+    p->nom = nusxa;
+    p->narx = narx;
+    p->soni = soni;
+    p->toifa = toifa;
+    p->holat = YANGI;
+    holat_yangila(p);
+    LOG("qo'shildi: %s (%d ta)", nom, o->n);
+    return OK;
+}
+
+int ombor_sot(Ombor *o, const char *nom, int miqdor, uint16_t *qoldi)
+{
+    struct mahsulot *p = topish(o, nom);
+    if (!p)
+        return TOPILMADI;
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > p->soni)
+        return YETARLI_EMAS;
+    p->soni -= miqdor;
+    holat_yangila(p);
+    if (qoldi)
+        *qoldi = p->soni;
+    LOG("sotildi: %s, %d dona", nom, miqdor);
+    return OK;
+}
+
+int ombor_ochir(Ombor *o, const char *nom)
+{
+    struct mahsulot *p = topish(o, nom);
+    if (!p)
+        return TOPILMADI;
+    int i = (int)(p - o->m);
+    free(p->nom);
+    memmove(&o->m[i], &o->m[i + 1], (size_t)(o->n - i - 1) * sizeof(*o->m));
+    o->n--;
+    return OK;
+}
+
+int ombor_soni(const Ombor *o)
+{
+    return o->n;
+}
+
+void ombor_royxat(const Ombor *o)
+{
+    printf("%-10s %-12s %10s %6s %s\n", "Mahsulot", "Toifa", "Narx", "Soni", "Holat");
+    printf("----------------------------------------------------\n");
+    long jami = 0;
+    for (int i = 0; i < o->n; i++) {
+        const struct mahsulot *p = &o->m[i];
+        char narx_matn[32];
+        pul_matn(narx_matn, sizeof(narx_matn), p->narx);
+        printf("%-10s %-12s %10s %6u %s%s\n", p->nom, toifa_nomi(p->toifa), narx_matn, p->soni,
+               (p->holat & YANGI) ? "[yangi] " : "", (p->holat & TUGAYAPTI) ? "[TUGAYAPTI]" : "");
+        jami += p->narx * p->soni;
+    }
+    printf("----------------------------------------------------\n");
+    printf("Jami qiymat: ");
+    pul_chiqar(jami);
+    printf(" so'm\n");
+}
+
+void ombor_hisobot(const Ombor *o)
+{
+    long toifa_jami[TOIFA_SONI] = { 0 };
+    for (int i = 0; i < o->n; i++)
+        toifa_jami[o->m[i].toifa] += o->m[i].narx * o->m[i].soni;
+    for (int t = 0; t < TOIFA_SONI; t++) {
+        printf("  %-12s ", toifa_nomi((enum toifa)t));
+        pul_chiqar(toifa_jami[t]);
+        printf(" so'm\n");
+    }
+}
+
+/* qsort uchun taqqoslagichlar: ikki mahsulotni solishtiradi (manfiy / 0 / musbat) */
+static int solishtir_nom(const void *a, const void *b)
+{
+    const struct mahsulot *x = a, *y = b;
+    return strcmp(x->nom, y->nom);
+}
+
+static int solishtir_narx(const void *a, const void *b)
+{
+    const struct mahsulot *x = a, *y = b;
+    return (y->narx > x->narx) - (y->narx < x->narx);   /* qimmati birinchi; ayirmasiz: toshmaydi */
+}
+
+void ombor_saralash(Ombor *o, enum saralash mezon)
+{
+    if (o->n > 1)
+        qsort(o->m, (size_t)o->n, sizeof(*o->m), mezon == SARALASH_NARX ? solishtir_narx : solishtir_nom);
+}
+
+/* matn fayl: har qatorda "nom;narx;soni;toifa;holat" */
+int ombor_saqla(const Ombor *o, const char *fayl)
+{
+    FILE *f = fopen(fayl, "w");
+    if (!f)
+        return -1;                              /* errno ni fopen o'zi qo'ydi */
+    for (int i = 0; i < o->n; i++) {
+        const struct mahsulot *p = &o->m[i];
+        if (fprintf(f, "%s;%ld;%u;%d;%u\n", p->nom, p->narx, p->soni, (int)p->toifa, p->holat) < 0) {
+            fclose(f);
+            return -1;
+        }
+    }
+    return fclose(f) == 0 ? 0 : -1;             /* fclose ham xato berishi mumkin (disk to'lgan) */
+}
+
+int ombor_yukla(Ombor *o, const char *fayl)
+{
+    FILE *f = fopen(fayl, "r");
+    if (!f)
+        return -1;
+    Ombor *t = ombor_yarat();                   /* vaqtincha ombor: xato bo'lsa asl ombor buzilmaydi */
+    if (!t) {
+        fclose(f);
+        errno = ENOMEM;
+        return -1;
+    }
+    char qator[128];
+    int son = 0;
+    while (fgets(qator, sizeof(qator), f)) {
+        char nom[24];
+        long narx;
+        unsigned short soni;
+        int toifa;
+        unsigned holat;
+        if (sscanf(qator, "%23[^;];%ld;%hu;%d;%u", nom, &narx, &soni, &toifa, &holat) != 5 ||
+            ombor_qosh(t, nom, narx, soni, (enum toifa)toifa) != OK) {
+            ombor_yoq(t);
+            fclose(f);
+            errno = EINVAL;                     /* "Invalid argument": fayl formati noto'g'ri */
+            return -1;
+        }
+        t->m[t->n - 1].holat = holat;
+        son++;
+    }
+    fclose(f);
+    for (int i = 0; i < o->n; i++)              /* hammasi yaxshi: eskisini almashtiramiz */
+        free(o->m[i].nom);
+    free(o->m);
+    *o = *t;
+    free(t);
+    return son;
+}
+
+const char *ombor_xato(int kod)
+{
+    switch (kod) {
+    case XOTIRA_YOQ: return "xotira yetmadi";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    case NOTOGRI_TOIFA: return "toifa 0, 1 yoki 2 bo'lishi kerak";
+    default: return "noma'lum xato";
+    }
+}
+```
+
+```c
+/* main.c - menyu (12-bosqich: saralash, saqlash, yuklash) */
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "ombor.h"
+
+int main(void)
+{
+    Ombor *ombor = ombor_yarat();
+    if (!ombor)
+        return 1;
+    ombor_qosh(ombor, "non", 400000, 120, OZIQ_OVQAT);
+    ombor_qosh(ombor, "sut", 1200000, 45, ICHIMLIK);
+    ombor_qosh(ombor, "guruch", 1800000, 8, OZIQ_OVQAT);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        char s[24];
+        long so_m;
+        int miqdor, toifa, r;
+        uint16_t qoldi;
+        switch (tanlov) {
+        case 1:
+            ombor_royxat(ombor);
+            break;
+        case 2:
+            printf("Mahsulot nomi va necha dona?\n");
+            if (scanf("%23s %d", s, &miqdor) != 2)
+                break;
+            r = ombor_sot(ombor, s, miqdor, &qoldi);
+            if (r == OK)
+                printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, s, qoldi);
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 3:
+            printf("Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?\n");
+            if (scanf("%23s %ld %d %d", s, &so_m, &miqdor, &toifa) != 4)
+                break;
+            r = ombor_qosh(ombor, s, so_m * 100, (uint16_t)miqdor, (enum toifa)toifa);
+            if (r == OK)
+                printf("  Qo'shildi: %s (%s)\n", s, toifa_nomi((enum toifa)toifa));
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 4:
+            printf("Qaysi mahsulot o'chirilsin?\n");
+            if (scanf("%23s", s) != 1)
+                break;
+            r = ombor_ochir(ombor, s);
+            if (r == OK)
+                printf("  O'chirildi: %s (qoldi %d ta)\n", s, ombor_soni(ombor));
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 5:
+            ombor_hisobot(ombor);
+            break;
+        case 6:
+            printf("Saralash: 1-nom, 2-narx (qimmati birinchi)?\n");
+            if (scanf("%d", &miqdor) != 1)
+                break;
+            ombor_saralash(ombor, miqdor == 2 ? SARALASH_NARX : SARALASH_NOM);
+            printf("  Saralandi\n");
+            break;
+        case 7:
+            printf("Qaysi faylga saqlansin?\n");
+            if (scanf("%23s", s) != 1)
+                break;
+            if (ombor_saqla(ombor, s) == 0)
+                printf("  Saqlandi: %s (%d ta mahsulot)\n", s, ombor_soni(ombor));
+            else
+                printf("  XATO: %s: %s\n", s, strerror(errno));
+            break;
+        case 8:
+            printf("Qaysi fayldan yuklansin?\n");
+            if (scanf("%23s", s) != 1)
+                break;
+            r = ombor_yukla(ombor, s);
+            if (r >= 0)
+                printf("  Yuklandi: %s (%d ta mahsulot)\n", s, r);
+            else
+                printf("  XATO: %s: %s\n", s, strerror(errno));
+            break;
+        default:
+            printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    ombor_yoq(ombor);
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+`Makefile` — 11-bosqichdagi bilan bir xil (faqat `clean` yangi `ombor.txt` ni ham o'chiradi).
+
+### Ishga tushirish
+
+Buzuq fayl tayyorlaymiz va ssenariyni ishga tushiramiz:
+
+```console
+$ cd katta_loyiha/ombor/12_stdlib
+$ printf 'sarlavha qatori\nbu fayl formati noto'"'"'g'"'"'ri\n' > buzuq.txt
+$ printf '3\nsovun 3000 5 2\n3\nlimonad 6000 30 1\n6\n2\n1\n6\n1\n1\n7\nombor.txt\n8\nyoq_fayl.txt\n8\nbuzuq.txt\n2\nsovun 3\n8\nombor.txt\n1\n0\n' > kirish.txt
+$ make
+gcc -Wall -Wextra -g -MMD -c main.c -o main.o
+gcc -Wall -Wextra -g -MMD -c ombor.c -o ombor.o
+gcc -Wall -Wextra -g -MMD -c pul.c -o pul.o
+gcc -Wall -Wextra -g main.o ombor.o pul.o -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: limonad (ichimlik)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Saralash: 1-nom, 2-narx (qimmati birinchi)?
+  Saralandi
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Saralash: 1-nom, 2-narx (qimmati birinchi)?
+  Saralandi
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi faylga saqlansin?
+  Saqlandi: ombor.txt (5 ta mahsulot)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  XATO: yoq_fayl.txt: No such file or directory
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  XATO: buzuq.txt: Invalid argument
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 3 dona sovun. Qoldi: 2 dona
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  Yuklandi: ombor.txt (5 ta mahsulot)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+
+Xayr!
+$ cat ombor.txt
+guruch;1800000;8;0;5
+limonad;600000;30;1;1
+non;400000;120;0;1
+sovun;300000;5;2;5
+sut;1200000;45;1;1
+```
+
+**Ssenariy (kirish tahlili):**
+
+| Kirish | Natija |
+|---|---|
+| `3` sovun, `3` limonad | mahsulotlar qo'shildi (jami 5) |
+| `6`, `2` va `1` | **narx bo'yicha** saralash → ro'yxat: guruch, sut, limonad, non, sovun (qimmatdan arzonga) |
+| `6`, `1` va `1` | **nom bo'yicha** saralash → alifbo tartibi: guruch, limonad, non, sovun, sut |
+| `7 ombor.txt` | **saqlandi** (5 ta) |
+| `8 yoq_fayl.txt` | **XATO: No such file or directory** (`errno = ENOENT`, `fopen` qo'ygan) |
+| `8 buzuq.txt` | **XATO: Invalid argument** (`errno = EINVAL`: format noto'g'ri; dastur o'zi qo'ydi) |
+| `2 sovun 3` | 3 dona sotildi → qoldi 2 |
+| `8 ombor.txt` | **yuklandi**: asl holat tiklandi — sovun yana 5 dona (saqlangandan keyingi sotish **bekor** bo'ldi) |
+| `1` | yakuniy ro'yxat |
+
+`cat ombor.txt` — saqlangan fayl: har qatorda `nom;narx(tiyin);soni;toifa;holat`.
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `qsort(o->m, n, sizeof(*o->m), solishtir)` | massivni saralaydi: **boshlanishi**, **elementlar soni**, **bir element hajmi**, **taqqoslagich** |
+| `solishtir_nom(const void *a, const void *b)` | ikki elementni solishtiradi: `<0` (a oldin), `0` (teng), `>0` (b oldin); `void *` ni **aniq turga** aylantiramiz |
+| `(y->narx > x->narx) - (y->narx < x->narx)` | solishtirishning toshmaydigan shakli: `y->narx - x->narx` ayirmasi katta sonlarda **toshib ketishi** mumkin |
+| `fopen(fayl, "w")` | yozish uchun ochadi; muvaffaqiyatsiz bo'lsa `NULL`, `errno` o'rnatiladi |
+| `fprintf(f, "%s;%ld;...\n", ...)` | `printf` ning fayl varianti; **manfiy** natija — yozish xatosi |
+| `fclose(f) == 0` | `fclose` ham xato berishi mumkin (disk to'lgan bo'lsa — buferdagi ma'lumot shu paytda yoziladi!) |
+| `fgets(qator, sizeof(qator), f)` | fayldan bir qator o'qiydi, **chegarali** |
+| `sscanf(qator, "%23[^;];%ld;%hu;%d;%u", ...)` | qatorni qismlarga ajratadi: `%23[^;]` — "`;` gacha, ko'pi bilan 23 belgi"; **5** qiymat o'qilishi shart |
+| `errno = EINVAL;` | o'z xatomizni ham `errno` orqali bildiramiz; `main` `strerror(errno)` bilan matn qiladi |
+| `assert(o->n < o->sig)` | "joy bor" deb **ishonamiz**; buzilsa dastur `Assertion failed` bilan to'xtaydi — mantiq xatosini darhol topamiz |
+| `*o = *t; free(t);` | vaqtinchalik omborning ichini asl omborga **ko'chirib**, o'zini bo'shatamiz (nomlar `t` dan `o` ga o'tdi, qayta `free` qilinmaydi) |
+
+**Xatolar uch toifada:** (1) **foydalanuvchi xatosi** (noto'g'ri raqam, yo'q fayl) — natija kodi + xabar; (2) **muhit xatosi** (disk to'lgan, xotira yo'q) — `errno` va tekshiruv; (3) **dasturchi xatosi** (mantiq buzildi) — `assert`. Ularni **aralashtirmang**: `assert` foydalanuvchi kiritishini tekshirmaydi!
+
+> **Eslab qoling:** `qsort` + taqqoslagich — tayyor saralash; **hamma** fayl amali (`fopen`, `fprintf`, `fclose`) natijasini tekshiring; `errno` + `strerror` — sababni aytadi; yuklashni **vaqtinchalik** obyektda bajaring — xato bo'lsa asl ma'lumot buzilmaydi; `assert` — dasturchi xatosi uchun, foydalanuvchi xatosi uchun emas.
+
+### Ombor tayyor — endi nima?
+
+12-bosqichda sizda ~400 qatorli, 5 faylli, sanitizer'dan o'tgan dastur bor. Keyingi qadamlar (hammasi imkoniyatga qarab):
+
+1. Savol-javob uchun **o'z funksiyangizni** qo'shing: "eng ko'p zaxirali 3 mahsulot", "toifa bo'yicha filtr", "CSV'ga eksport".
+2. 13-bobdan keyin shu dasturni **xavfsizlik** nuqtai nazaridan qayta tekshiramiz (sanitizer, chegaralar). 14–15-boblardan keyin esa **tizim dasturlash** loyihalariga (shell, parallel dastur) o'tamiz.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `ombor_saqla` ni "atomik" qiling: avval `ombor.txt.tmp` ga yozing, `fclose` dan keyin `rename("ombor.txt.tmp", "ombor.txt")` (27-bob). Nega bu xavfsizroq? (Disk to'lib qolsa eski fayl saqlanib qoladi.)
+2. CSV eksport: `ombor_eksport_csv(o, fayl)` yozing (`nom,narx,soni`); narxni `pul_matn` bilan so'm.tiyin ko'rinishida chiqaring.
+3. `solishtir_nom` ni katta-kichik harfni farqlamaydigan qiling (`strcasecmp`, `<strings.h>`). `qsort` ning ikkala taqqoslagichini bir funksiyaga birlashtirib bo'ladimi? (Maslahat: global o'zgaruvchi kerak bo'ladi — bu yaxshimi? `qsort_r` ni qidiring.)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. libc — tilning qismi emas, **tayyor funksiyalar to'plami**; har biri uchun tegishli sarlavha (`<stdio.h>`...) qo'shiladi.

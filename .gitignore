@@ -5,3 +5,8 @@ build/
 
 # Mashqlar holati (tools/mashq.py) - har bir o'quvchining o'ziniki
 .mashq/
+
+# katta_loyiha yig'ish natijalari
+darslik/katta_loyiha/*/*/ombor
+darslik/katta_loyiha/*/*/*.a
+darslik/katta_loyiha/*/*/ombor.txt

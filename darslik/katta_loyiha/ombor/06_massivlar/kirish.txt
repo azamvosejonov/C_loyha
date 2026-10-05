@@ -1,0 +1,16 @@
+3
+shakar 15000 60
+3
+non 5000 10
+2
+sut 5
+2
+olma 1
+4
+sh
+4
+xyz
+2
+guruch 100
+1
+0

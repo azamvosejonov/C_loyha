@@ -1,0 +1,17 @@
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+Omborga 500 dona non keldi:
+  non endi: 620 dona
+Yana 65000 dona keldi (juda ko'p):
+  himoyasiz qo'shsak: 84 (noto'g'ri! aylanib ketdi)
+  OGOHLANTIRISH: 620 + 65000 = 65620, 16 bitga sig'maydi -> 65535 da to'xtadi
+  himoyali qo'shsak: 65535 dona

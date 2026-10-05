@@ -564,6 +564,129 @@ $4 = 1100000
 O'zingiz qo'lda qiling: `gdb ./jamgarma`, keyin `break 11`, `run`, `print jamgarma`, `next`, `print oylik_qoshish`, `continue`.
 Har qadamda qiymatni **avval taxmin qiling**, keyin `print` bilan tekshiring.
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 1-bosqich: chiqarishni alohida faylga ajratish
+
+**Oldingi bosqichdan:** 0-bosqichda hamma narsa bitta `ombor.c` faylda edi: ma'lumot ham, jadval chiqarish ham. Dastur kattalashgan sari bitta fayl uzun va chalkash bo'lib boradi.
+
+### Bu bosqichda nima qilamiz
+
+Jadval **chiqarish** ishini boshqa faylga (`ombor_chop.c`) ko'chiramiz, asosiy fayl (`ombor.c`) esa uni chaqirib ishlatadi. Bu 1-bobning g'oyasi: **e'lon** (`.h` — "shunday funksiya bor") va **ta'rif** (`.c` — funksiyaning tanasi) alohida turadi; kompilyator har faylni alohida yig'adi, linker ularni birlashtiradi.
+
+**Nega bu foydali?** (1) Har faylning vazifasi aniq: `ombor.c` — ma'lumot va mantiq, `ombor_chop.c` — ko'rinish. (2) Chiqarish usulini o'zgartirsangiz (masalan, jadval o'rniga CSV), faqat bitta faylga tegasiz. (3) Fayllarni alohida yig'ish katta loyihada vaqtni tejaydi.
+
+**Uchta fayl:**
+
+| Fayl | Rol |
+|---|---|
+| `ombor_chop.h` | **e'lonlar**: `ombor.c` ga "bunday funksiyalar bor" deb xabar beradi |
+| `ombor_chop.c` | **ta'riflar**: funksiyalarning haqiqiy tanasi |
+| `ombor.c` | `main` va ma'lumot; `#include "ombor_chop.h"` bilan e'lonlarni oladi |
+
+```c
+/* ombor_chop.h - chiqarish funksiyalarining E'LONLARI (nima bor, tanasi yo'q) */
+#ifndef OMBOR_CHOP_H
+#define OMBOR_CHOP_H
+
+void chop_sarlavha(void);
+void chop_qator(const char *nom, int narx, int soni);
+void chop_jami(int jami, int qqs_foiz);
+
+#endif
+```
+
+`#ifndef ... #define ... #endif` — **himoya qatorlari** (include guard): sarlavha bir faylga ikki marta qo'shilib qolsa, ikkinchi marta e'tiborga olinmaydi (aks holda "qayta ta'riflangan" xatosi chiqadi; 10-bobda to'liq).
+
+```c
+/* ombor_chop.c - chiqarish funksiyalarining TA'RIFLARI (tanasi shu yerda) */
+#include <stdio.h>
+
+#include "ombor_chop.h"
+
+void chop_sarlavha(void)
+{
+    printf("============== OMBOR ===============\n");
+    printf("%-10s %8s %6s %12s\n", "Mahsulot", "Narx", "Soni", "Summa");
+    printf("------------------------------------\n");
+}
+
+void chop_qator(const char *nom, int narx, int soni)
+{
+    printf("%-10s %8d %6d %12d\n", nom, narx, soni, narx * soni);
+}
+
+void chop_jami(int jami, int qqs_foiz)
+{
+    printf("------------------------------------\n");
+    printf("%-24s %11d\n", "Jami qiymat:", jami);
+    printf("%-24s %10d%%\n", "QQS stavkasi:", qqs_foiz);
+    printf("%-24s %11d\n", "QQS summasi:", jami * qqs_foiz / 100);
+}
+```
+
+```c
+/* ombor.c - Ombor, 1-bosqich: asosiy dastur chiqarishni boshqa fayldan oladi */
+#include "ombor_chop.h"
+
+int main(void)
+{
+    int non_narx = 4000, non_soni = 120;
+    int sut_narx = 12000, sut_soni = 45;
+    int guruch_narx = 18000, guruch_soni = 8;
+
+    int jami = non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni;
+
+    chop_sarlavha();
+    chop_qator("Non", non_narx, non_soni);
+    chop_qator("Sut", sut_narx, sut_soni);
+    chop_qator("Guruch", guruch_narx, guruch_soni);
+    chop_jami(jami, 12);
+    return 0;
+}
+```
+
+**Yig'ish — 1-bobdagi bosqichlar bilan:**
+
+```console
+$ cd katta_loyiha/ombor/01_fayllar
+$ gcc -Wall -Wextra -c ombor_chop.c
+$ gcc -Wall -Wextra -c ombor.c
+$ gcc ombor.o ombor_chop.o -o ombor
+$ ./ombor
+============== OMBOR ===============
+Mahsulot       Narx   Soni        Summa
+------------------------------------
+Non            4000    120       480000
+Sut           12000     45       540000
+Guruch        18000      8       144000
+------------------------------------
+Jami qiymat:                 1164000
+QQS stavkasi:                    12%
+QQS summasi:                  139680
+```
+
+**Qanday ishladi:** `-c` — "faqat kompilyatsiya qil, bog'lama": har `.c` fayldan **obyekt fayl** (`.o`) chiqadi. Oxirgi qadamda linker ikkala `.o` ni birlashtirib, `ombor` dasturini yaratadi. Natija 0-bosqichdagi bilan **aynan bir xil** — chunki biz faqat kodni qayta tashkil qildik (bunday o'zgarish **refaktoring** deyiladi: ishlash o'zgarmaydi, tuzilma yaxshilanadi).
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `void chop_qator(const char *nom, int narx, int soni);` (`.h` da) | e'lon: nom, uchta parametr; `const char *` — "matn" (6-bobda to'liq) |
+| `#include "ombor_chop.h"` (`ombor.c` da) | qo'shtirnoq `" "` — **o'zimizning** sarlavha (burchak `< >` — tizimniki) |
+| `#include "ombor_chop.h"` (`ombor_chop.c` da ham) | ta'rif e'londan farq qilsa kompilyator xato beradi — **ikkalasi mos** ekanini tekshiradi |
+| `jami` o'zgaruvchisi `main` da qoldi | ma'lumot hisob-kitobi chiqarishdan ajralgan |
+
+**Agar `ombor_chop.o` ni qo'shmasak?** Linker `undefined reference to 'chop_sarlavha'` xatosini beradi (1-bob): funksiya e'lon qilingan, lekin ta'rifi topilmagan. Sinab ko'ring: `gcc ombor.o -o ombor`.
+
+> **Eslab qoling:** `.h` — **e'lon** (nima bor), `.c` — **ta'rif** (qanday ishlaydi). Har `.c` alohida yig'iladi (`-c`), linker `.o` larni birlashtiradi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `chop_jami` ichidagi `"QQS stavkasi:"` qatorini `chop_qqs(int jami, int foiz)` degan alohida funksiyaga ajrating (e'lon `.h` ga, ta'rif `.c` ga).
+2. Sarlavhadan `chop_sarlavha` e'lonini vaqtincha o'chirib yig'ing: kompilyator nima deydi? (1-bobdagi `implicit declaration`.)
+3. `ombor_chop.c` ni o'zgartirib, `ombor.c` ni **qayta yig'masdan** faqat `ombor_chop.c` ni yig'ib, bog'lang. Nega bu ishlaydi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. `gcc` — to'rt bosqich: **preprotsessor → kompilyator → assembler → linker**.

@@ -1144,6 +1144,164 @@ SIGNAL! Xavfli datchik ishga tushdi.
 `(datchiklar & ESHIK) != 0` — "kalit yoniqmi?" ni **0 yoki 1** ko'rinishida olish (`%d` ga qo'yish uchun).
 `d & (HARAKAT | TUTUN)` — avval `HARAKAT | TUTUN` ikkita bitli niqob yasaydi, keyin `&` ularning **istalgani** yoniqligini tekshiradi.
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 3-bosqich: chegirma va mahsulot holati (bit bayroqlari)
+
+**Oldingi bosqichdan:** narxlar va sonlar to'g'ri turlarda. Endi mahsulotga **biznes qoidalari** qo'shamiz: chegirma hisoblash va mahsulot **holati** (yangi? chegirmada? tugayapti?).
+
+### Bu bosqichda nima qilamiz
+
+1. **Chegirma:** `narx − narx × foiz / 100`. Hammasi **butun sonlarda** — yaxlitlash pastga (tiyinlarda xato kichik).
+2. **Holat bayroqlari:** har mahsulotning bir nechta "ha/yo'q" xossasi bor (yangi, chegirmada, tugayapti). Uchta alohida o'zgaruvchi o'rniga **bitta `unsigned`** olamiz va har xossa — alohida **bit** (3-bobdagi "chiroq kalitlari paneli"!). Bu yadroda har joyda ishlatiladigan usul: bitta son 32 ta xossani saqlaydi.
+
+| Bayroq | Bit | Qiymat | Ma'nosi |
+|---|---|---|---|
+| `YANGI` | 0 | `0000 0001` (`0x1`) | yaqinda qo'shilgan |
+| `CHEGIRMA` | 1 | `0000 0010` (`0x2`) | chegirmada |
+| `TUGAYAPTI` | 2 | `0000 0100` (`0x4`) | zaxira 10 tadan kam |
+
+**Nega bayroqlar?** 3 ta alohida `int` uchun 12 bayt kerak, bitta `unsigned` uchun 4 bayt; va "hammasini nolga qaytarish", "bir nechtasini birga tekshirish" kabi amallar bitta bit amali bilan bajariladi.
+
+**O'zgargan fayl:** faqat `ombor.c` (`ombor_chop.*` o'zgarmagan, 2-bosqichdagi bilan bir xil).
+
+```c
+/* ombor.c - Ombor, 3-bosqich: chegirma (arifmetika) va mahsulot holati (bitli bayroqlar) */
+#include <stdint.h>
+#include <stdio.h>
+
+#include "ombor_chop.h"
+
+/* mahsulot holati: har bir "kalit" - bitta bit (32 kalitli panel, ulardan 3 tasi ishlatilyapti) */
+#define YANGI      (1u << 0)                    /* 0000 0001 */
+#define CHEGIRMA   (1u << 1)                    /* 0000 0010 */
+#define TUGAYAPTI  (1u << 2)                    /* 0000 0100 */
+
+/* chegirmali narx: butun sonlarda, yaxlitlash pastga */
+static long chegirmali(long narx, int foiz)
+{
+    return narx - narx * foiz / 100;
+}
+
+/* zaxraga qarab holatni yangilaydi: kam qolsa TUGAYAPTI bayrog'ini yoqamiz, ko'p bo'lsa o'chiramiz */
+static unsigned holat_yangila(unsigned holat, uint16_t soni)
+{
+    if (soni < 10)
+        holat |= TUGAYAPTI;                     /* yoqish: boshqa bitlarga tegmaydi */
+    else
+        holat &= ~TUGAYAPTI;                    /* o'chirish */
+    return holat;
+}
+
+static void holat_chiqar(const char *nom, unsigned holat)
+{
+    printf("  %-8s holati: 0x%X (", nom, holat);
+    printf("yangi:%s ", (holat & YANGI) ? "ha" : "yo'q");
+    printf("chegirma:%s ", (holat & CHEGIRMA) ? "ha" : "yo'q");
+    printf("tugayapti:%s)\n", (holat & TUGAYAPTI) ? "ha" : "yo'q");
+}
+
+int main(void)
+{
+    long non_narx = 400000, sut_narx = 1200000, guruch_narx = 1800000;     /* tiyinda */
+    uint16_t non_soni = 120, sut_soni = 45, guruch_soni = 8;
+    unsigned non_holat = YANGI, sut_holat = 0, guruch_holat = 0;           /* non yangi mahsulot */
+
+    non_holat = holat_yangila(non_holat, non_soni);
+    sut_holat = holat_yangila(sut_holat, sut_soni);
+    guruch_holat = holat_yangila(guruch_holat, guruch_soni);
+
+    printf("--- Dastlabki holat ---\n");
+    holat_chiqar("Non", non_holat);
+    holat_chiqar("Sut", sut_holat);
+    holat_chiqar("Guruch", guruch_holat);
+
+    printf("\n--- Guruchga 25%% chegirma e'lon qilindi ---\n");
+    guruch_holat ^= CHEGIRMA;                   /* almashtirish: o'chiq edi -> yondi */
+    if (guruch_holat & CHEGIRMA)
+        guruch_narx = chegirmali(guruch_narx, 25);
+    holat_chiqar("Guruch", guruch_holat);
+    printf("  yangi narx: ");
+    chop_pul(guruch_narx);
+    printf(" so'm\n");
+
+    printf("\n--- 30 kun o'tdi: non endi yangi emas ---\n");
+    non_holat &= ~YANGI;                        /* faqat YANGI bitini o'chirish */
+    holat_chiqar("Non", non_holat);
+
+    printf("\n--- Ro'yxat ---\n");
+    long jami = non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni;
+    chop_sarlavha();
+    chop_qator("Non", non_narx, non_soni);
+    chop_qator("Sut", sut_narx, sut_soni);
+    chop_qator("Guruch", guruch_narx, guruch_soni);
+    chop_jami(jami, 12);
+
+    printf("\nTiyin ostidagi qoldiq: 1234567 tiyin = %ld so'm va %ld tiyin\n", 1234567L / 100, 1234567L % 100);
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/03_operatorlar
+$ gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor
+$ ./ombor
+--- Dastlabki holat ---
+  Non      holati: 0x1 (yangi:ha chegirma:yo'q tugayapti:yo'q)
+  Sut      holati: 0x0 (yangi:yo'q chegirma:yo'q tugayapti:yo'q)
+  Guruch   holati: 0x4 (yangi:yo'q chegirma:yo'q tugayapti:ha)
+
+--- Guruchga 25% chegirma e'lon qilindi ---
+  Guruch   holati: 0x6 (yangi:yo'q chegirma:ha tugayapti:ha)
+  yangi narx: 13500.00 so'm
+
+--- 30 kun o'tdi: non endi yangi emas ---
+  Non      holati: 0x0 (yangi:yo'q chegirma:yo'q tugayapti:yo'q)
+
+--- Ro'yxat ---
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       13500.00      8      108000.00
+---------------------------------------
+Jami qiymat:                1128000.00
+QQS stavkasi:               12%
+QQS summasi:                135360.00
+
+Tiyin ostidagi qoldiq: 1234567 tiyin = 12345 so'm va 67 tiyin
+```
+
+**Bit amallari — qaysi qatorda nima qilinadi:**
+
+| Kod | Amal | Nima qiladi |
+|---|---|---|
+| `#define YANGI (1u << 0)` | surish | 0-o'rindagi bitta bitni yoqilgan qiladi → `0x1` |
+| `holat \|= TUGAYAPTI;` | **yoqish** (OR) | faqat shu bitni yoqadi, qolganlarga **tegmaydi** |
+| `holat &= ~TUGAYAPTI;` | **o'chirish** (AND + NOT) | `~TUGAYAPTI` — shu bitdan tashqari hamma bit 1; `&` bilan faqat shu bit 0 bo'ladi |
+| `holat ^= CHEGIRMA;` | **almashtirish** (XOR) | o'chiq edi → yondi (yana qilsak → o'chadi) |
+| `holat & YANGI` | **tekshirish** (AND) | natija noldan farqli bo'lsa — bayroq yoniq |
+
+**Trace — guruchning holati (`holat` o'zgaruvchisi):**
+
+| Qadam | Amal | `holat` (bitlar) | Hex |
+|---|---|---|---|
+| boshida | `guruch_holat = 0` | `0000 0000` | `0x0` |
+| `holat_yangila` (zaxira 8 < 10) | `\|= TUGAYAPTI` | `0000 0100` | `0x4` |
+| chegirma e'lon qilindi | `^= CHEGIRMA` | `0000 0110` | `0x6` |
+
+**Nima ko'rdik:** `Guruch holati: 0x6` — ikkala bayroq (chegirma + tugayapti) bitta sonda: `0x6 = 0x4 + 0x2`. Chegirmadan keyin narx 18000 → 13500 (25% kamaydi). 30 kundan keyin nonning `YANGI` biti `&= ~YANGI` bilan o'chdi — **boshqa bitlarga tegmasdan**.
+Oxirgi qator: `1234567 / 100` = 12345 so'm, `1234567 % 100` = 67 tiyin — `/` va `%` birgalikda butun va qoldiq qismni ajratadi.
+
+> **Eslab qoling:** bayroqlar bitta sonda: **yoqish** `|=`, **o'chirish** `&= ~`, **almashtirish** `^=`, **tekshirish** `&`. Chegirma kabi hisoblarda `*` va `/` tartibi muhim: avval ko'paytirib, keyin bo'lasiz (aks holda butun bo'lish kasrni yo'qotadi).
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. Yangi bayroq `NOYOB` (`1u << 3`) qo'shing va uni `holat_chiqar` da ko'rsating.
+2. `chegirmali` ni tekshiring: `chegirmali(1999, 10)` nima beradi? Yaxlitlash qaysi tomonga ketadi? (Maslahat: butun bo'lish.)
+3. Mahsulot "tugayapti"mi va "chegirmada"mi — **ikkalasi birga** bo'lganini bitta `if` bilan tekshiring. (Maslahat: `(holat & (A | B)) == (A | B)`.)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. `/` butun sonlarda — **butun** bo'lish (kasr tashlanadi); `%` — qoldiq. `=` — berish, `==` — taqqoslash.

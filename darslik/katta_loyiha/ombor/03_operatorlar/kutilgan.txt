@@ -1,0 +1,25 @@
+--- Dastlabki holat ---
+  Non      holati: 0x1 (yangi:ha chegirma:yo'q tugayapti:yo'q)
+  Sut      holati: 0x0 (yangi:yo'q chegirma:yo'q tugayapti:yo'q)
+  Guruch   holati: 0x4 (yangi:yo'q chegirma:yo'q tugayapti:ha)
+
+--- Guruchga 25% chegirma e'lon qilindi ---
+  Guruch   holati: 0x6 (yangi:yo'q chegirma:ha tugayapti:ha)
+  yangi narx: 13500.00 so'm
+
+--- 30 kun o'tdi: non endi yangi emas ---
+  Non      holati: 0x0 (yangi:yo'q chegirma:yo'q tugayapti:yo'q)
+
+--- Ro'yxat ---
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       13500.00      8      108000.00
+---------------------------------------
+Jami qiymat:                1128000.00
+QQS stavkasi:               12%
+QQS summasi:                135360.00
+
+Tiyin ostidagi qoldiq: 1234567 tiyin = 12345 so'm va 67 tiyin

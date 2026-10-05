@@ -1,0 +1,54 @@
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: shakar
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  XATO: bunday nomli mahsulot allaqachon bor
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 5 dona sut. Qoldi: 40 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: bunday mahsulot topilmadi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom boshlanishi?
+  shakar (60 dona)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Nom boshlanishi?
+  hech narsa topilmadi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: omborda yetarli emas
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+non           4000.00    120      480000.00
+sut          12000.00     40      480000.00
+guruch       18000.00      8      144000.00
+shakar       15000.00     60      900000.00
+---------------------------------------
+Jami qiymat:                2004000.00
+QQS stavkasi:               12%
+QQS summasi:                240480.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) qidirish  0) chiqish
+Tanlov:
+
+Xayr!

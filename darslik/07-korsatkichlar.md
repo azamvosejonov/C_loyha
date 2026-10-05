@@ -815,6 +815,301 @@ Ko'chadagi qutilar:
 
 **Sinab ko'ring:** `p = p + 2;` ni `p = p + 5;` qilib, `-fsanitize=address` bilan yig'ing — 5 ta uy nariga borsak, ko'chada uy bormi? `xat_tashla` ni `struct uy u` (yulduzsiz, nusxa) qabul qiladigan qilib yozsangiz, qutilar nega bo'sh qoladi?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 7-bosqich: ko'rsatkichlar
+
+**Oldingi bosqichdan:** ma'lumot massivlarda, mahsulot nomi bo'yicha topiladi. Lekin ikki narsa noqulay: (1) `sot` zaxirani o'zgartirish uchun **indeks** va global massivni bilishi kerak — funksiya "o'zi nimani o'zgartirayotganini" ko'rsatmaydi; (2) ma'lumotni saralash, eng qimmatni topish kabi amallar yo'q.
+
+### Bu bosqichda nima qilamiz
+
+**Ko'rsatkich** — o'zgaruvchining xotiradagi **manzilini** saqlaydigan o'zgaruvchi (7-bob). Uning yordamida funksiya **boshqa joydagi** qiymatni o'qiy va o'zgartira oladi. Ombor loyihasida to'rt joyda ishlatamiz:
+
+| Qayerda | Ko'rsatkich nima beradi |
+|---|---|
+| `sot(uint16_t *zaxira, int miqdor)` | funksiya zaxira **katagining o'ziga** boradi va uni o'zgartiradi; chaqirishda `&soni[i]` — "i-katakning manzili" |
+| `eng_qimmat(const long *a, int n)` | massivdagi **eng katta elementning manzilini** qaytaradi (`NULL` — massiv bo'sh) |
+| `jami_qiymat(const long *a_narx, const uint16_t *a_soni, int n)` | massivni **ko'rsatkich** sifatida oladi (massiv funksiyaga uzatilganda ko'rsatkichga aylanadi) |
+| `almashtir_long(long *a, long *b)` | ikki katakning qiymatini **almashtiradi** (nusxa bo'yicha uzatishda bu mumkin emas edi) |
+
+**Nega `const`?** `const long *a` — "bu funksiya `a` ko'rsatgan ma'lumotni **o'zgartirmaydi**" degan va'da. Kompilyator va'dani **tekshiradi**: o'zgartirmoqchi bo'lsangiz xato beradi. O'qiydigan funksiyalarda doim `const` yozing.
+
+**Pufakcha (bubble) saralash:** qo'shni elementlarni solishtirib, noto'g'ri tartibda bo'lsa almashtiradi; eng qimmati "pufakcha kabi" boshiga ko'tariladi. Parallel massivlar bo'lgani uchun **uchala massivni birga** almashtirish kerak — bu noqulaylik 9-bobda (`struct`) yo'qoladi.
+
+```c
+/* ombor.c - Ombor, 7-bosqich: ko'rsatkichlar - zaxirani manzil bo'yicha o'zgartirish, saralash, eng qimmatni topish */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#include "ombor_chop.h"
+
+#define MAKS 8
+#define NOM_UZ 24
+
+enum { OK = 0, TOLA = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5 };
+
+static char nom[MAKS][NOM_UZ];
+static long narx[MAKS];
+static uint16_t soni[MAKS];
+static int n;
+
+static int topish(const char *qidirilgan)
+{
+    for (int i = 0; i < n; i++)
+        if (strcmp(nom[i], qidirilgan) == 0)
+            return i;
+    return -1;
+}
+
+static int qosh(const char *yangi_nom, long yangi_narx, uint16_t yangi_soni)
+{
+    if (n == MAKS)
+        return TOLA;
+    if (topish(yangi_nom) >= 0)
+        return NOM_BAND;
+    snprintf(nom[n], NOM_UZ, "%s", yangi_nom);
+    narx[n] = yangi_narx;
+    soni[n] = yangi_soni;
+    n++;
+    return OK;
+}
+
+/* zaxira - o'zgartiriladigan katakning MANZILI: funksiya shu katakka borib yozadi */
+static int sot(uint16_t *zaxira, int miqdor)
+{
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > *zaxira)                       /* *zaxira - manzil ko'rsatgan joydagi qiymat */
+        return YETARLI_EMAS;
+    *zaxira -= miqdor;
+    return OK;
+}
+
+/* massivdagi eng katta narxning MANZILINI qaytaradi (bo'sh bo'lsa NULL) */
+static const long *eng_qimmat(const long *a, int soni_a)
+{
+    if (soni_a == 0)
+        return NULL;
+    const long *eng = a;
+    for (const long *p = a + 1; p < a + soni_a; p++)    /* p++ - keyingi elementga o'tish */
+        if (*p > *eng)
+            eng = p;
+    return eng;
+}
+
+static long jami_qiymat(const long *a_narx, const uint16_t *a_soni, int soni_a)
+{
+    long jami = 0;
+    for (int i = 0; i < soni_a; i++)
+        jami += *(a_narx + i) * *(a_soni + i);          /* *(a + i) xuddi a[i] */
+    return jami;
+}
+
+static void almashtir_long(long *a, long *b)
+{
+    long t = *a;
+    *a = *b;
+    *b = t;
+}
+
+static void almashtir_soni(uint16_t *a, uint16_t *b)
+{
+    uint16_t t = *a;
+    *a = *b;
+    *b = t;
+}
+
+static void almashtir_nom(char *a, char *b)
+{
+    char t[NOM_UZ];
+    strcpy(t, a);
+    strcpy(a, b);
+    strcpy(b, t);
+}
+
+/* narx bo'yicha kamayish tartibida (qimmati birinchi): "pufakcha" saralash */
+static void narx_boyicha_saralash(void)
+{
+    for (int o = 0; o < n - 1; o++)
+        for (int i = 0; i < n - 1 - o; i++)
+            if (narx[i] < narx[i + 1]) {
+                almashtir_long(&narx[i], &narx[i + 1]);         /* uchta massivni birga almashtirish kerak */
+                almashtir_soni(&soni[i], &soni[i + 1]);
+                almashtir_nom(nom[i], nom[i + 1]);
+            }
+}
+
+static void royxat(void)
+{
+    chop_sarlavha();
+    for (int i = 0; i < n; i++)
+        chop_qator(nom[i], narx[i], soni[i]);
+    chop_jami(jami_qiymat(narx, soni, n), 12);
+}
+
+static const char *xato_matni(int kod)
+{
+    switch (kod) {
+    case TOLA: return "ombor to'lgan";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    default: return "noma'lum xato";
+    }
+}
+
+static void qoshish_menyusi(void)
+{
+    char s[NOM_UZ];
+    long so_m;
+    int miqdor;
+    printf("Nom, narx (so'mda) va soni?\n");
+    if (scanf("%23s %ld %d", s, &so_m, &miqdor) != 3)
+        return;
+    int r = qosh(s, so_m * 100, (uint16_t)miqdor);
+    if (r == OK)
+        printf("  Qo'shildi: %s\n", s);
+    else
+        printf("  XATO: %s\n", xato_matni(r));
+}
+
+static void sotish_menyusi(void)
+{
+    char s[NOM_UZ];
+    int miqdor;
+    printf("Mahsulot nomi va necha dona?\n");
+    if (scanf("%23s %d", s, &miqdor) != 2)
+        return;
+    int i = topish(s);
+    int r = i < 0 ? TOPILMADI : sot(&soni[i], miqdor);      /* &soni[i] - i-katakning manzili */
+    if (r == OK)
+        printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, nom[i], soni[i]);
+    else
+        printf("  XATO: %s\n", xato_matni(r));
+}
+
+static void hisobot(void)
+{
+    const long *q = eng_qimmat(narx, n);
+    if (!q) {
+        printf("  ombor bo'sh\n");
+        return;
+    }
+    int i = (int)(q - narx);                    /* ikki ko'rsatkich ayirmasi = elementlar soni */
+    printf("  Eng qimmat: %s (", nom[i]);
+    chop_pul(*q);
+    printf(" so'm)\n  Jami qiymat: ");
+    chop_pul(jami_qiymat(narx, soni, n));
+    printf(" so'm\n");
+}
+
+int main(void)
+{
+    qosh("non", 400000, 120);
+    qosh("sut", 1200000, 45);
+    qosh("guruch", 1800000, 8);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        switch (tanlov) {
+        case 1: royxat(); break;
+        case 2: sotish_menyusi(); break;
+        case 3: qoshish_menyusi(); break;
+        case 4: narx_boyicha_saralash(); printf("  Narx bo'yicha saralandi\n"); break;
+        case 5: hisobot(); break;
+        default: printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/07_korsatkichlar
+$ printf '3\nshakar 15000 60\n5\n4\n1\n2\nsut 50\n2\nsut 5\n5\n0\n' > kirish.txt
+$ gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda) va soni?
+  Qo'shildi: shakar
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Eng qimmat: guruch (18000.00 so'm)
+  Jami qiymat: 2064000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Narx bo'yicha saralandi
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+guruch       18000.00      8      144000.00
+shakar       15000.00     60      900000.00
+sut          12000.00     45      540000.00
+non           4000.00    120      480000.00
+---------------------------------------
+Jami qiymat:                2064000.00
+QQS stavkasi:               12%
+QQS summasi:                247680.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  XATO: omborda yetarli emas
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 5 dona sut. Qoldi: 40 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+  Eng qimmat: guruch (18000.00 so'm)
+  Jami qiymat: 2004000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) saralash  5) hisobot  0) chiqish
+Tanlov:
+
+Xayr!
+```
+
+**Kiritilgan ketma-ketlik:** `3` shakar qo'shildi → `5` hisobot (eng qimmat: guruch 18000; jami 2064000) → `4` saralash → `1` ro'yxat (**narx bo'yicha kamayish**: guruch, shakar, sut, non) → `2 sut 50` (xato: faqat 45) → `2 sut 5` (sotildi) → `5` hisobot (jami 2004000: sut 5 donaga kamaydi).
+
+**Ko'rsatkich amallari — qatorma-qator:**
+
+| Kod | Ma'nosi |
+|---|---|
+| `uint16_t *zaxira` | "`uint16_t` turidagi katakning manzili" |
+| `*zaxira` | shu manzildagi **qiymat**ni o'qish (yoki yozish: `*zaxira -= miqdor`) |
+| `&soni[i]` | `soni[i]` katagining **manzili** |
+| `const long *eng = a;` | massiv boshiga ko'rsatkich (`a` — birinchi elementning manzili) |
+| `p++` | ko'rsatkichni **keyingi elementga** siljitish (`long` bo'lsa 8 baytga: kompilyator o'zi hisoblaydi) |
+| `*(a_narx + i)` | `a_narx[i]` bilan **bir xil** — indeks aslida "manzil + siljish" |
+| `q - narx` | ikki ko'rsatkich ayirmasi = oralaridagi **elementlar soni** (`i` indeksini topish) |
+| `NULL` | "hech narsaga ko'rsatmaydi": tekshirmasdan `*NULL` — **dastur qulaydi** |
+
+**Nima ko'rdik:** `hisobot` eng qimmat mahsulotni ko'rsatkich bilan topdi va uning **indeksini** `q - narx` bilan hisobladi — shu indeks bo'yicha `nom[i]` ni chiqardi. `sot(&soni[i], miqdor)` — funksiya zaxirani o'zi o'zgartirdi: "Qoldi: 40 dona" — chaqiruvchi (`sotish_menyusi`) uni `soni[i]` dan o'qidi.
+
+**Xavf:** `NULL` ko'rsatkichni, yoki massivdan tashqarini ko'rsatayotgan ko'rsatkichni `*` bilan ishlatish — **aniqlanmagan xatti-harakat** (qulash yoki jim buzilish). Shuning uchun `eng_qimmat` bo'sh massivda `NULL` qaytaradi va `hisobot` uni **tekshiradi** (`if (!q)`).
+
+> **Eslab qoling:** `&x` — x ning manzili; `*p` — p ko'rsatgan qiymat. Funksiya **o'zgartirishi** kerak bo'lgan narsaning manzilini oladi. O'qiydigan funksiyada `const`. Ko'rsatkichni ishlatishdan oldin `NULL` ni tekshiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `eng_arzon` funksiyasini yozing (xuddi `eng_qimmat` kabi) va hisobotga qo'shing.
+2. `sot` ga qo'shimcha: zaxira 10 dan pastga tushsa `*tugayapti = 1` degan **ikkinchi chiqish ko'rsatkichi** orqali xabar bering. (Maslahat: `int *tugayapti` parametri.)
+3. `almashtir_long` ni **bitta** umumiy funksiyaga aylantirib bo'ladimi? Maslahat: `void *` va hajm — 7-bob (`void *`), `memcpy` — 6-bob. Qiyinroq: nega har tur uchun alohida funksiya yozdik?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Ko'rsatkich — **manzil saqlaydigan quti**: `int *p = &x;`. `&x` — "x ning manzili", `*p` — "p ko'rsatgan joydagi qiymat".

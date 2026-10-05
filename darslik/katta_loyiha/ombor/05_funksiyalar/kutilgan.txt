@@ -1,0 +1,55 @@
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  Sotildi: 20 dona Non. Qoldi: 100 dona
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: omborda yetarli emas
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: bunday mahsulot yo'q
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: miqdor musbat bo'lishi kerak
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+  XATO: menyuda bunday band yo'q
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    100      400000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1084000.00
+QQS stavkasi:               12%
+QQS summasi:                130080.00
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+
+Xayr!

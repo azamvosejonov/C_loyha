@@ -1,0 +1,86 @@
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: limonad (ichimlik)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Saralash: 1-nom, 2-narx (qimmati birinchi)?
+  Saralandi
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Saralash: 1-nom, 2-narx (qimmati birinchi)?
+  Saralandi
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi faylga saqlansin?
+  Saqlandi: ombor.txt (5 ta mahsulot)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  XATO: yoq_fayl.txt: No such file or directory
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  XATO: buzuq.txt: Invalid argument
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 3 dona sovun. Qoldi: 2 dona
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Qaysi fayldan yuklansin?
+  Yuklandi: ombor.txt (5 ta mahsulot)
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+non        oziq-ovqat      4000.00    120 [yangi] 
+sovun      uy-ro'zg'or     3000.00      5 [yangi] [TUGAYAPTI]
+sut        ichimlik       12000.00     45 [yangi] 
+----------------------------------------------------
+Jami qiymat: 1359000.00 so'm
+
+1) ro'yxat 2) sotish 3) qo'shish 4) o'chirish 5) hisobot 6) saralash 7) saqlash 8) yuklash 0) chiqish
+Tanlov:
+
+Xayr!

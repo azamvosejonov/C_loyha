@@ -700,6 +700,318 @@ struct mashina: 36 bayt, yil maydoni 28-baytdan boshlanadi
 
 **Sinab ko'ring:** `enum yoqilgi` ga `GIBRID` qo'shing (va `yoqilgi_nomi` ga "gibrid"). `tolov_korsat` dagi `case KARTA:` ni o'chiring — `-Wall` qanday ogohlantirish beradi?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 9-bosqich: `struct`, `enum`, `typedef`
+
+**Oldingi bosqichdan:** mahsulot ma'lumoti uchta **parallel massivda** (`nom[]`, `narx[]`, `soni[]`). Har yangi xossa (toifa, holat) — yana bitta massiv. Saralashda uchalasini birga almashtirish kerak edi — xato qilish oson.
+
+### Bu bosqichda nima qilamiz
+
+Bitta mahsulotning **hamma ma'lumotini bitta tuzilmaga** (`struct mahsulot`) yig'amiz. Endi mahsulot — **bitta obyekt**: uni ko'chirish, almashtirish, funksiyaga berish — bitta amal.
+
+| Yangi narsa | Nima |
+|---|---|
+| `struct mahsulot { ... }` | tur: bir nechta xossani birlashtiradi (nom, narx, soni, toifa, holat) |
+| `enum toifa { OZIQ_OVQAT, ICHIMLIK, UY_RUZGOR, TOIFA_SONI }` | nomlangan butun sonlar (0, 1, 2, **3**); oxirgi `TOIFA_SONI` — "nechta toifa bor" (avtomatik hisoblanadi) |
+| `struct ombor { struct mahsulot *m; int n; int sig; }` | **butun ombor** — massiv + hozirgi son + sig'im bitta tuzilmada: global o'zgaruvchilar yo'qoldi |
+| `typedef struct ombor Ombor;` | qisqa nom: `struct ombor` o'rniga `Ombor` |
+
+**Nega global o'zgaruvchilar yo'qoldi — bu muhim:** endi funksiyalar `Ombor *o` **parametr** oladi. Shuning uchun: (1) bir dasturda **bir nechta** ombor bo'lishi mumkin; (2) funksiya nimaga tegishini imzosidan ko'ramiz; (3) test yozish oson. Global o'zgaruvchilar esa "yashirin bog'liqlik"dir.
+
+**Toifa — massiv indeksi sifatida:** `enum` qiymatlari 0, 1, 2 bo'lgani uchun `toifa_nomi[toifa]` (nomlar jadvali) va `toifa_jami[toifa]` (jami qiymat) kabi massivlarni **to'g'ridan-to'g'ri indekslash** mumkin. `TOIFA_SONI` esa massiv uzunligi.
+
+```c
+/* ombor.c - Ombor, 9-bosqich: struct, enum, typedef - bitta mahsulotning hamma ma'lumoti bitta tuzilmada */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "ombor_chop.h"
+
+/* mahsulot toifasi: nomlangan butun sonlar */
+enum toifa { OZIQ_OVQAT, ICHIMLIK, UY_RUZGOR, TOIFA_SONI };
+static const char *toifa_nomi[TOIFA_SONI] = { "oziq-ovqat", "ichimlik", "uy-ro'zg'or" };
+
+#define YANGI      (1u << 0)
+#define TUGAYAPTI  (1u << 2)
+
+/* BITTA MAHSULOT: avval 4 ta parallel massiv edi, endi bitta tuzilma */
+struct mahsulot {
+    char *nom;
+    long narx;                                  /* tiyinda */
+    uint16_t soni;
+    enum toifa toifa;
+    unsigned holat;                             /* bitli bayroqlar (3-bob) */
+};
+
+struct ombor {
+    struct mahsulot *m;                         /* heap dagi massiv */
+    int n;                                      /* nechta */
+    int sig;                                    /* sig'im */
+};
+typedef struct ombor Ombor;                     /* endi "struct ombor" o'rniga "Ombor" desak bo'ladi */
+
+enum { OK = 0, XOTIRA_YOQ = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5, NOTOGRI_TOIFA = -6 };
+
+static struct mahsulot *ombor_topish(Ombor *o, const char *nom)
+{
+    for (int i = 0; i < o->n; i++)
+        if (strcmp(o->m[i].nom, nom) == 0)
+            return &o->m[i];                    /* tuzilmaning MANZILI */
+    return NULL;
+}
+
+static void holat_yangila(struct mahsulot *p)
+{
+    if (p->soni < 10)
+        p->holat |= TUGAYAPTI;
+    else
+        p->holat &= ~TUGAYAPTI;
+}
+
+static int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa)
+{
+    if (toifa < 0 || toifa >= TOIFA_SONI)
+        return NOTOGRI_TOIFA;
+    if (ombor_topish(o, nom))
+        return NOM_BAND;
+    if (o->n == o->sig) {
+        int yangi = o->sig ? o->sig * 2 : 2;
+        struct mahsulot *y = realloc(o->m, (size_t)yangi * sizeof(*y));
+        if (!y)
+            return XOTIRA_YOQ;
+        o->m = y;
+        o->sig = yangi;
+    }
+    char *nusxa = strdup(nom);
+    if (!nusxa)
+        return XOTIRA_YOQ;
+    struct mahsulot *p = &o->m[o->n++];
+    p->nom = nusxa;
+    p->narx = narx;
+    p->soni = soni;
+    p->toifa = toifa;
+    p->holat = YANGI;                           /* yangi qo'shilgan mahsulot */
+    holat_yangila(p);
+    return OK;
+}
+
+static int ombor_sot(struct mahsulot *p, int miqdor)
+{
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > p->soni)
+        return YETARLI_EMAS;
+    p->soni -= miqdor;
+    holat_yangila(p);                           /* zaxira kamaydi: holat o'zgarishi mumkin */
+    return OK;
+}
+
+static void ombor_tozala(Ombor *o)
+{
+    for (int i = 0; i < o->n; i++)
+        free(o->m[i].nom);
+    free(o->m);
+    o->m = NULL;
+    o->n = o->sig = 0;
+}
+
+static void ombor_royxat(const Ombor *o)
+{
+    printf("%-10s %-12s %10s %6s %s\n", "Mahsulot", "Toifa", "Narx", "Soni", "Holat");
+    printf("----------------------------------------------------\n");
+    long jami = 0;
+    for (int i = 0; i < o->n; i++) {
+        const struct mahsulot *p = &o->m[i];
+        printf("%-10s %-12s %10.2f %6u %s%s\n", p->nom, toifa_nomi[p->toifa], p->narx / 100.0, p->soni,
+               (p->holat & YANGI) ? "[yangi] " : "", (p->holat & TUGAYAPTI) ? "[TUGAYAPTI]" : "");
+        jami += p->narx * p->soni;
+    }
+    chop_jami(jami, 12);
+}
+
+/* toifalar bo'yicha jami qiymat: enum massiv indeksi bo'lib xizmat qiladi */
+static void ombor_hisobot(const Ombor *o)
+{
+    long toifa_jami[TOIFA_SONI] = { 0 };
+    for (int i = 0; i < o->n; i++)
+        toifa_jami[o->m[i].toifa] += o->m[i].narx * o->m[i].soni;
+    for (int t = 0; t < TOIFA_SONI; t++) {
+        printf("  %-12s ", toifa_nomi[t]);
+        chop_pul(toifa_jami[t]);
+        printf(" so'm\n");
+    }
+}
+
+static const char *xato_matni(int kod)
+{
+    switch (kod) {
+    case XOTIRA_YOQ: return "xotira yetmadi";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    case NOTOGRI_TOIFA: return "toifa 0, 1 yoki 2 bo'lishi kerak";
+    default: return "noma'lum xato";
+    }
+}
+
+int main(void)
+{
+    Ombor ombor = { NULL, 0, 0 };
+    ombor_qosh(&ombor, "non", 400000, 120, OZIQ_OVQAT);
+    ombor_qosh(&ombor, "sut", 1200000, 45, ICHIMLIK);
+    ombor_qosh(&ombor, "guruch", 1800000, 8, OZIQ_OVQAT);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        char s[24];
+        long so_m;
+        int miqdor, toifa, r;
+        struct mahsulot *p;
+        switch (tanlov) {
+        case 1:
+            ombor_royxat(&ombor);
+            break;
+        case 2:
+            printf("Mahsulot nomi va necha dona?\n");
+            if (scanf("%23s %d", s, &miqdor) != 2)
+                break;
+            p = ombor_topish(&ombor, s);
+            r = p ? ombor_sot(p, miqdor) : TOPILMADI;
+            if (r == OK)
+                printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, p->nom, p->soni);
+            else
+                printf("  XATO: %s\n", xato_matni(r));
+            break;
+        case 3:
+            printf("Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?\n");
+            if (scanf("%23s %ld %d %d", s, &so_m, &miqdor, &toifa) != 4)
+                break;
+            r = ombor_qosh(&ombor, s, so_m * 100, (uint16_t)miqdor, (enum toifa)toifa);
+            if (r == OK)
+                printf("  Qo'shildi: %s (%s)\n", s, toifa_nomi[toifa]);
+            else
+                printf("  XATO: %s\n", xato_matni(r));
+            break;
+        case 4:
+            ombor_hisobot(&ombor);
+            break;
+        default:
+            printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    ombor_tozala(&ombor);
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/09_struct
+$ printf '1\n3\nlimonad 6000 30 1\n3\nsovun 3000 5 2\n3\nkola 7000 10 7\n2\nsovun 2\n2\nsovun 3\n1\n4\n0\n' > kirish.txt
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined ombor.c ombor_chop.c -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: limonad (ichimlik)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  XATO: toifa 0, 1 yoki 2 bo'lishi kerak
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 3 dona sovun. Qoldi: 0 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+limonad    ichimlik        6000.00     30 [yangi] 
+sovun      uy-ro'zg'or     3000.00      0 [yangi] [TUGAYAPTI]
+---------------------------------------
+Jami qiymat:                1344000.00
+QQS stavkasi:               12%
+QQS summasi:                161280.00
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+  oziq-ovqat   624000.00 so'm
+  ichimlik     720000.00 so'm
+  uy-ro'zg'or  0.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+
+Xayr!
+```
+
+**Kiritilgan ketma-ketlik va natija:**
+
+| Kirish | Natija |
+|---|---|
+| `1` | 3 ta mahsulot; hammasi `[yangi]`, guruch `[TUGAYAPTI]` (8 < 10) |
+| `limonad ... 1` | ichimlik toifasida qo'shildi |
+| `sovun ... 2` | uy-ro'zg'or; zaxira 5 → darrov `[TUGAYAPTI]` |
+| `kola ... 7` | **XATO:** toifa 0, 1 yoki 2 bo'lishi kerak (`7 >= TOIFA_SONI`) |
+| `sovun 2`, `sovun 3` | 5 → 3 → 0 dona; holat yangilanib turadi |
+| `4` | **toifalar bo'yicha hisobot**: oziq-ovqat, ichimlik, uy-ro'zg'or (0.00 — sovun tugadi) |
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `p->nom` | ko'rsatkich orqali maydonga murojaat (`(*p).nom` ning qisqa yozuvi, 7-bob `->`) |
+| `&o->m[i]` | massivdagi i-tuzilmaning **manzili** (`ombor_topish` shuni qaytaradi) |
+| `struct mahsulot *p = &o->m[o->n++];` | yangi katakni olamiz va `n` ni oshiramiz: `n++` — avval qiymat, keyin oshirish |
+| `holat_yangila(p)` | zaxira o'zgarganda holat bayrog'ini yangilaydi (3-bob bit amallari qayta ishlatildi) |
+| `toifa_jami[o->m[i].toifa] += ...` | toifa — massiv **indeksi**: `toifa_jami[0]` oziq-ovqat, `[1]` ichimlik... |
+| `long toifa_jami[TOIFA_SONI] = { 0 };` | massiv hamma kataklari nol bilan boshlanadi |
+| `if ((unsigned)toifa >= TOIFA_SONI)` (`ombor_qosh` da) | **chegaradan tashqari** toifani rad etish — manfiy ham, katta ham |
+
+**Tuzilma xotirada:** `struct mahsulot` ning hajmi maydonlar yig'indisidan **katta** bo'lishi mumkin — kompilyator maydonlarni 4 yoki 8 ga karrali manzilga qo'yadi (**tekislash**, 9-bob; Asos bobdagi `struct nuqta` misoli: 1 + 3 bo'sh + 4 = 8 bayt). `sizeof(struct mahsulot)` ni chiqarib ko'ring.
+
+> **Eslab qoling:** bog'liq ma'lumotni **bitta `struct`** ga yig'ing; massiv va uning sonini bitta tuzilmada saqlang (global o'zgaruvchi o'rniga); `enum` — nomlangan sonlar va massiv indeksi; `->` — ko'rsatkich orqali maydon.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `sizeof(struct mahsulot)` ni chiqaring va maydonlar tartibini o'zgartirib (`uint16_t` ni birinchiga) qayta o'lchang. Hajm o'zgardimi? Nega?
+2. `ombor_qosh` ga `toifa` o'rniga **barcha toifalarning ro'yxatini** chiqaradigan `ombor_toifalar()` funksiyasini yozing (`for` + `toifa_nomi`).
+3. `holat` maydoniga `CHEGIRMA` bayrog'ini qo'shing va `ombor_chegirma(p, foiz)` funksiyasini yozing (3-bosqichdagi `chegirmali` dan foydalaning).
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. `struct` — bir nechta maydonni bitta turga yig'adi; `.` (qiymat) va `->` (ko'rsatkich) bilan ishlanadi; `=` to'liq nusxalaydi; oxirida `;`.

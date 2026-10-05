@@ -625,6 +625,319 @@ Oxirgi buyruq (`gcc -E ... | grep`) `QQS_BILAN(dokon[i].narx)` preprotsessordan 
 **Sinab ko'ring:** `QQS_FOIZ` ni 15 qiling — faqat bitta qatorni o'zgartirdingiz. `QQS_BILAN` dan qavslarni olib tashlang: `#define QQS_BILAN(narx) narx + narx * QQS_FOIZ / 100` va uni `QQS_BILAN(1000) * 2` bilan
 chaqiring — natija nega noto'g'ri?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 10-bosqich: preprotsessor — makrolar va `-DDEBUG` izlari
+
+**Oldingi bosqichdan:** kod ishlaydi, lekin uch narsa yaxshilanishi mumkin: (1) toifa ro'yxati **ikki joyda** yozilgan (`enum` va nomlar jadvali) — birini o'zgartirib ikkinchisini unutish oson; (2) dasturning **ichida nima bo'layotganini** ko'rish uchun `printf` qo'shib, keyin qo'lda o'chirish kerak; (3) "magik sonlar" (24, `1u << 2`).
+
+### Bu bosqichda nima qilamiz
+
+Preprotsessor (10-bob) kompilyatordan **oldin** matn almashtiradi. Undan to'rt joyda foydalanamiz:
+
+| Makro | Nima qiladi | Nega |
+|---|---|---|
+| `#define NOM_UZ 24` | doimiyga **nom** beradi | "24" ning ma'nosini bitta joyda o'zgartirish |
+| `ARRAY_SIZE(a)`, `BIT(n)` | funksiyaga o'xshash makrolar: massiv uzunligi, `1u << n` | takrorlanuvchi iboralarni qisqartirish; **qavslarga** e'tibor (10-bob tuzoqlari) |
+| `LOG(fmt, ...)` | `-DDEBUG` bilan yig'ilsa **stderr** ga `[LOG fayl:qator] ...` yozadi, aks holda **hech narsa qilmaydi** | izlarni qo'lda o'chirish shart emas; `__FILE__`, `__LINE__` avtomatik |
+| **X-makro** `TOIFALAR(X)` | toifalar ro'yxatini **bir marta** yozamiz; `enum` va nomlar jadvali undan **hosil bo'ladi** | bir joyni o'zgartirsangiz, hammasi sinxron qoladi (yadroda juda mashhur usul) |
+
+**X-makro qanday ishlaydi:** `TOIFALAR(X)` — har toifa uchun `X(id, "nom")` chaqiradigan ro'yxat. `X` ni **turlicha** aniqlab, bitta ro'yxatdan ikki xil natija olamiz:
+
+```text
+#define X_ENUM(id, nom) id,       →  enum toifa { OZIQ_OVQAT, ICHIMLIK, UY_RUZGOR, TOIFA_SONI };
+#define X_NOM(id, nom) nom,       →  { "oziq-ovqat", "ichimlik", "uy-ro'zg'or", }
+```
+
+```c
+/* ombor.c - Ombor, 10-bosqich: preprotsessor - makrolar, X-makro, -DDEBUG izlari */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "ombor_chop.h"
+
+#ifndef VERSIYA
+#define VERSIYA "1.0"                           /* -DVERSIYA='"2.0"' bilan tashqaridan o'zgartirsa bo'ladi */
+#endif
+
+#define NOM_UZ 24
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define BIT(n) (1u << (n))
+
+/* izlar: -DDEBUG bilan yig'ilsagina chiqadi, aks holda butunlay yo'qoladi */
+#ifdef DEBUG
+#define LOG(fmt, ...) fprintf(stderr, "[LOG %s:%d] " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#else
+#define LOG(fmt, ...) do { } while (0)
+#endif
+
+/* X-makro: toifalar RO'YXATINI bir marta yozamiz, enum va nomlar jadvali undan o'zi hosil bo'ladi */
+#define TOIFALAR(X) \
+    X(OZIQ_OVQAT, "oziq-ovqat") \
+    X(ICHIMLIK, "ichimlik") \
+    X(UY_RUZGOR, "uy-ro'zg'or")
+
+#define X_ENUM(id, nom) id,
+enum toifa { TOIFALAR(X_ENUM) TOIFA_SONI };
+
+#define X_NOM(id, nom) nom,
+static const char *toifa_nomi[] = { TOIFALAR(X_NOM) };
+
+#define YANGI      BIT(0)
+#define TUGAYAPTI  BIT(2)
+
+/* BITTA MAHSULOT: avval 4 ta parallel massiv edi, endi bitta tuzilma */
+struct mahsulot {
+    char *nom;
+    long narx;                                  /* tiyinda */
+    uint16_t soni;
+    enum toifa toifa;
+    unsigned holat;                             /* bitli bayroqlar (3-bob) */
+};
+
+struct ombor {
+    struct mahsulot *m;                         /* heap dagi massiv */
+    int n;                                      /* nechta */
+    int sig;                                    /* sig'im */
+};
+typedef struct ombor Ombor;                     /* endi "struct ombor" o'rniga "Ombor" desak bo'ladi */
+
+enum { OK = 0, XOTIRA_YOQ = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5, NOTOGRI_TOIFA = -6 };
+
+static struct mahsulot *ombor_topish(Ombor *o, const char *nom)
+{
+    for (int i = 0; i < o->n; i++)
+        if (strcmp(o->m[i].nom, nom) == 0)
+            return &o->m[i];                    /* tuzilmaning MANZILI */
+    return NULL;
+}
+
+static void holat_yangila(struct mahsulot *p)
+{
+    if (p->soni < 10)
+        p->holat |= TUGAYAPTI;
+    else
+        p->holat &= ~TUGAYAPTI;
+}
+
+static int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa)
+{
+    if ((unsigned)toifa >= TOIFA_SONI)
+        return NOTOGRI_TOIFA;
+    if (ombor_topish(o, nom))
+        return NOM_BAND;
+    if (o->n == o->sig) {
+        int yangi = o->sig ? o->sig * 2 : 2;
+        struct mahsulot *y = realloc(o->m, (size_t)yangi * sizeof(*y));
+        if (!y)
+            return XOTIRA_YOQ;
+        LOG("sig'im %d -> %d", o->sig, yangi);
+        o->m = y;
+        o->sig = yangi;
+    }
+    char *nusxa = strdup(nom);
+    if (!nusxa)
+        return XOTIRA_YOQ;
+    struct mahsulot *p = &o->m[o->n++];
+    LOG("qo'shildi: %s, narx=%ld, soni=%u, jami %d ta", nom, narx, soni, o->n);
+    p->nom = nusxa;
+    p->narx = narx;
+    p->soni = soni;
+    p->toifa = toifa;
+    p->holat = YANGI;                           /* yangi qo'shilgan mahsulot */
+    holat_yangila(p);
+    return OK;
+}
+
+static int ombor_sot(struct mahsulot *p, int miqdor)
+{
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > p->soni)
+        return YETARLI_EMAS;
+    p->soni -= miqdor;
+    LOG("sotildi: %s, %d dona, qoldi %u", p->nom, miqdor, p->soni);
+    holat_yangila(p);                           /* zaxira kamaydi: holat o'zgarishi mumkin */
+    return OK;
+}
+
+static void ombor_tozala(Ombor *o)
+{
+    for (int i = 0; i < o->n; i++)
+        free(o->m[i].nom);
+    free(o->m);
+    o->m = NULL;
+    o->n = o->sig = 0;
+}
+
+static void ombor_royxat(const Ombor *o)
+{
+    printf("%-10s %-12s %10s %6s %s\n", "Mahsulot", "Toifa", "Narx", "Soni", "Holat");
+    printf("----------------------------------------------------\n");
+    long jami = 0;
+    for (int i = 0; i < o->n; i++) {
+        const struct mahsulot *p = &o->m[i];
+        printf("%-10s %-12s %10.2f %6u %s%s\n", p->nom, toifa_nomi[p->toifa], p->narx / 100.0, p->soni,
+               (p->holat & YANGI) ? "[yangi] " : "", (p->holat & TUGAYAPTI) ? "[TUGAYAPTI]" : "");
+        jami += p->narx * p->soni;
+    }
+    chop_jami(jami, 12);
+}
+
+/* toifalar bo'yicha jami qiymat: enum massiv indeksi bo'lib xizmat qiladi */
+static void ombor_hisobot(const Ombor *o)
+{
+    long toifa_jami[TOIFA_SONI] = { 0 };
+    for (int i = 0; i < o->n; i++)
+        toifa_jami[o->m[i].toifa] += o->m[i].narx * o->m[i].soni;
+    for (int t = 0; t < TOIFA_SONI; t++) {
+        printf("  %-12s ", toifa_nomi[t]);
+        chop_pul(toifa_jami[t]);
+        printf(" so'm\n");
+    }
+}
+
+static const char *xato_matni(int kod)
+{
+    switch (kod) {
+    case XOTIRA_YOQ: return "xotira yetmadi";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    case NOTOGRI_TOIFA: return "toifa 0, 1 yoki 2 bo'lishi kerak";
+    default: return "noma'lum xato";
+    }
+}
+
+int main(void)
+{
+    printf("Ombor v%s (toifalar: %zu ta)\n", VERSIYA, ARRAY_SIZE(toifa_nomi));
+    Ombor ombor = { NULL, 0, 0 };
+    ombor_qosh(&ombor, "non", 400000, 120, OZIQ_OVQAT);
+    ombor_qosh(&ombor, "sut", 1200000, 45, ICHIMLIK);
+    ombor_qosh(&ombor, "guruch", 1800000, 8, OZIQ_OVQAT);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        char s[NOM_UZ];
+        long so_m;
+        int miqdor, toifa, r;
+        struct mahsulot *p;
+        switch (tanlov) {
+        case 1:
+            ombor_royxat(&ombor);
+            break;
+        case 2:
+            printf("Mahsulot nomi va necha dona?\n");
+            if (scanf("%23s %d", s, &miqdor) != 2)
+                break;
+            p = ombor_topish(&ombor, s);
+            r = p ? ombor_sot(p, miqdor) : TOPILMADI;
+            if (r == OK)
+                printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, p->nom, p->soni);
+            else
+                printf("  XATO: %s\n", xato_matni(r));
+            break;
+        case 3:
+            printf("Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?\n");
+            if (scanf("%23s %ld %d %d", s, &so_m, &miqdor, &toifa) != 4)
+                break;
+            r = ombor_qosh(&ombor, s, so_m * 100, (uint16_t)miqdor, (enum toifa)toifa);
+            if (r == OK)
+                printf("  Qo'shildi: %s (%s)\n", s, toifa_nomi[toifa]);
+            else
+                printf("  XATO: %s\n", xato_matni(r));
+            break;
+        case 4:
+            ombor_hisobot(&ombor);
+            break;
+        default:
+            printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    ombor_tozala(&ombor);
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+**Oddiy yig'ish va izlar bilan yig'ish — ikki xil dastur:**
+
+```console
+$ cd katta_loyiha/ombor/10_makrolar
+$ printf '3\nsovun 3000 5 2\n2\nsovun 2\n0\n' > kirish.txt
+$ gcc -Wall -Wextra -g ombor.c ombor_chop.c -o ombor
+$ ./ombor < kirish.txt
+Ombor v1.0 (toifalar: 3 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) hisobot  0) chiqish
+Tanlov:
+
+Xayr!
+$ gcc -Wall -Wextra -g -DDEBUG -DVERSIYA='"1.1-test"' ombor.c ombor_chop.c -o ombor_debug
+$ ./ombor_debug < kirish.txt 2>&1 | grep -E "LOG|Ombor v"
+[LOG ombor.c:84] sig'im 0 -> 2
+[LOG ombor.c:92] qo'shildi: non, narx=400000, soni=120, jami 1 ta
+[LOG ombor.c:92] qo'shildi: sut, narx=1200000, soni=45, jami 2 ta
+[LOG ombor.c:84] sig'im 2 -> 4
+[LOG ombor.c:92] qo'shildi: guruch, narx=1800000, soni=8, jami 3 ta
+[LOG ombor.c:92] qo'shildi: sovun, narx=300000, soni=5, jami 4 ta
+[LOG ombor.c:109] sotildi: sovun, 2 dona, qoldi 3
+Ombor v1.1-test (toifalar: 3 ta)
+```
+
+**Nima ko'rdik:**
+
+- Oddiy yig'ishda `LOG` makrosi **bo'sh** — dastur jim ishlaydi; versiya `1.0` (`#ifndef VERSIYA` dagi sukut qiymati).
+- `-DDEBUG` bilan izlar chiqdi: `[LOG ombor.c:84] sig'im 0 -> 2`, `qo'shildi: non ...`, `sotildi: sovun, 2 dona, qoldi 3` — har biri **fayl nomi va qator raqami** bilan. Izlar `stderr` ga yozilgani uchun `2>&1` bilan ko'rdik.
+- `-DVERSIYA='"1.1-test"'` — makrosni **buyruq qatoridan** berdik: `Ombor v1.1-test`. Kod o'zgarmagan!
+
+**Preprotsessor nima qilganini ko'ring:**
+
+```console
+$ cd katta_loyiha/ombor/10_makrolar
+$ gcc -E -P ombor.c | grep "toifa_nomi\[\] ="
+static const char *toifa_nomi[] = { "oziq-ovqat", "ichimlik", "uy-ro'zg'or", };
+```
+
+`-E` — "faqat preprotsessorni ishlat va natijani chiqar". Ko'ryapsiz: `toifa_nomi` jadvali `TOIFALAR(X_NOM)` dan **hosil bo'ldi**.
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `#ifndef VERSIYA ... #endif` | agar VERSIYA tashqaridan berilmagan bo'lsa, sukut qiymat |
+| `LOG(fmt, ...)` va `##__VA_ARGS__` | o'zgaruvchan sonli argument (`printf` kabi); `##` — ortiqcha vergulni olib tashlaydi (GCC kengaytmasi) |
+| `do { } while (0)` | bo'sh makro uchun: `LOG(...);` har qanday joyda (`if/else` ichida ham) to'g'ri ishlaydi (10-bob) |
+| `"[LOG %s:%d] " fmt "\n"` | qo'shni satr literallari **birlashadi**: format satri yig'iladi |
+| `#define BIT(n) (1u << (n))` | `n` atrofida **qavs** — `BIT(a + 1)` to'g'ri hisoblanishi uchun |
+| `(unsigned)toifa >= TOIFA_SONI` | `TOIFA_SONI` enum dan: toifa qo'shsangiz o'zi yangilanadi |
+| `ARRAY_SIZE(toifa_nomi)` | `sizeof(massiv) / sizeof(massiv[0])`: elementlar soni, **kod yozmay** |
+
+**Makro xavflari (10-bob):** makro — **matn almashtirish**, funksiya emas: argument **ikki marta hisoblanishi** mumkin (masalan, `MIN(a++, b)` da `a++` ikki marta bajariladi), tur tekshiruvi yo'q. Shuning uchun kodda oddiy funksiya yaxshiroq bo'lsa — funksiya ishlating; makro faqat **kerak** joyda (shartli izlar, X-makro, `__FILE__`).
+
+> **Eslab qoling:** `#define` — nom berish; `LOG` + `-DDEBUG` — qo'lda o'chirilmaydigan izlar; X-makro — bitta ro'yxatdan bir nechta tuzilma; `gcc -E` — preprotsessor natijasini ko'rish. Makro argumentini **qavsga** oling.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `LOG` ga `ombor_ochir` ni ham qo'shing (o'chirilgan mahsulot nomini yozsin).
+2. X-makroga to'rtinchi toifa (`GIGIENA`, "gigiena") qo'shing. Nechta joyni tahrirladingiz? `gcc -E` bilan natijani tekshiring.
+3. `ASSERT_OK(r)` makrosini yozing: `r != OK` bo'lsa `stderr` ga `fayl:qator` va xato kodini chiqarsin (`do { } while (0)` shaklida).
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Preprotsessor — **kompilyatordan oldin** ishlaydigan matn almashtirgich; natijani `gcc -E` ko'rsatadi.

@@ -28,6 +28,8 @@ def tekshir(bob, nom, bolim):
                     open(os.path.join(wd, f.group(1)), 'w').write(tana)
             elif til == 'console':
                 for q in tana.splitlines():
+                    if q.startswith('$ cd katta_loyiha'):
+                        break                              # katta loyiha: tools/katta_loyiha.py tekshiradi
                     if not re.match(r'\$ (gcc|make|ar)\b', q) or '# xato kutiladi' in q:
                         continue
                     buyruq = q[2:].split(' && ')[0]        # faqat yig'ish qismi

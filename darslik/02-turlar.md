@@ -806,6 +806,164 @@ Idishlar o'lchami: char 1, short 2, int 4, long 8 bayt
 **Sinab ko'ring:** `uint16_t km` ni `uint32_t` qiling — endi aylanadimi? `int8_t harorat = -15;` ni `uint8_t` qiling — nima
 chiqadi va nega (2.4)?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 2-bosqich: aniq turlar, pul tiyinda, toshishdan himoya
+
+**Oldingi bosqichdan:** hamma son `int` edi, narx so'mda. Ikki muammo bor: (1) so'mning **tiyin** qismi yo'q (4000 so'm 50 tiyin?); (2) `int` — 32 bit, katta ombor yig'indisida **toshib ketishi** mumkin; zaxira soni ham 16 bitdan ortiq bo'lmasligi kerak (qutini kichik va aniq tanlash).
+
+### Bu bosqichda nima qilamiz
+
+- **Pul — tiyinda, butun son sifatida** (`long`): 4000.00 so'm = `400000` tiyin. Nega `float` emas? Kasr sonlar 0.10 ni aniq saqlay olmaydi, xatolar yig'iladi (2-bob, "pul" misoli). Butun tiyinlar **aniq**.
+- **Zaxira soni — `uint16_t`** (aniq 16 bit, ishorasiz: 0…65535): zaxira manfiy bo'la olmaydi, 16 bit yetarli.
+- **Toshishdan himoya:** zaxirani oshirganda `uint16_t` ga sig'maydigan bo'lsa, jim aylanib ketmasligi uchun `qosh_soni` funksiyasi **tekshiradi**.
+
+**Nega `uint32_t` da hisoblaymiz?** `hozirgi + qoshiladi` ni ham 16 bitda hisoblasak, yig'indining o'zi toshib ketadi va biz buni **sezmay qolamiz**. Shuning uchun avval kattaroq (32 bitli) qutiga o'tkazib hisoblaymiz, so'ng sig'adimi-yo'qmi **tekshiramiz**.
+
+**O'zgargan fayllar:** `ombor_chop.h`, `ombor_chop.c`, `ombor.c`.
+
+```c
+/* ombor_chop.h - chiqarish funksiyalarining e'lonlari (2-bosqich: aniq turlar) */
+#ifndef OMBOR_CHOP_H
+#define OMBOR_CHOP_H
+
+#include <stdint.h>
+
+void chop_pul(long tiyin);                                  /* 400000 -> "4000.00" */
+void chop_sarlavha(void);
+void chop_qator(const char *nom, long narx, uint16_t soni);
+void chop_jami(long jami, int qqs_foiz);
+
+#endif
+```
+
+```c
+/* ombor_chop.c - chiqarish (2-bosqich: pul tiyinda, soni aniq 16 bitda) */
+#include <stdio.h>
+
+#include "ombor_chop.h"
+
+void chop_pul(long tiyin)
+{
+    printf("%ld.%02ld", tiyin / 100, tiyin % 100);          /* butun qism va tiyin */
+}
+
+void chop_sarlavha(void)
+{
+    printf("================ OMBOR ================\n");
+    printf("%-10s %10s %6s %14s\n", "Mahsulot", "Narx", "Soni", "Summa");
+    printf("---------------------------------------\n");
+}
+
+void chop_qator(const char *nom, long narx, uint16_t soni)
+{
+    printf("%-10s %10.2f %6u %14.2f\n", nom, narx / 100.0, soni, (narx * soni) / 100.0);
+}
+
+void chop_jami(long jami, int qqs_foiz)
+{
+    printf("---------------------------------------\n");
+    printf("%-27s ", "Jami qiymat:");
+    chop_pul(jami);
+    printf("\n%-27s %d%%\n", "QQS stavkasi:", qqs_foiz);
+    printf("%-27s ", "QQS summasi:");
+    chop_pul(jami * qqs_foiz / 100);
+    printf("\n");
+}
+```
+
+```c
+/* ombor.c - Ombor, 2-bosqich: pul tiyinda (long), soni aniq 16 bit (uint16_t), toshishdan himoya */
+#include <stdint.h>
+#include <stdio.h>
+
+#include "ombor_chop.h"
+
+/* sonni xavfsiz oshirish: uint16_t ga sig'maydigan bo'lsa, eng kattasida to'xtaymiz */
+static uint16_t qosh_soni(uint16_t hozirgi, uint16_t qoshiladi)
+{
+    uint32_t yigindi = (uint32_t)hozirgi + qoshiladi;   /* kattaroq qutida hisoblaymiz */
+    if (yigindi > UINT16_MAX) {
+        printf("  OGOHLANTIRISH: %u + %u = %u, 16 bitga sig'maydi -> %u da to'xtadi\n",
+               hozirgi, qoshiladi, yigindi, UINT16_MAX);
+        return UINT16_MAX;
+    }
+    return (uint16_t)yigindi;
+}
+
+int main(void)
+{
+    long non_narx = 400000;                             /* 4000.00 so'm = 400000 tiyin */
+    long sut_narx = 1200000;
+    long guruch_narx = 1800000;
+    uint16_t non_soni = 120, sut_soni = 45, guruch_soni = 8;
+
+    long jami = non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni;
+
+    chop_sarlavha();
+    chop_qator("Non", non_narx, non_soni);
+    chop_qator("Sut", sut_narx, sut_soni);
+    chop_qator("Guruch", guruch_narx, guruch_soni);
+    chop_jami(jami, 12);
+
+    printf("\nOmborga 500 dona non keldi:\n");
+    non_soni = qosh_soni(non_soni, 500);
+    printf("  non endi: %u dona\n", non_soni);
+
+    printf("Yana 65000 dona keldi (juda ko'p):\n");
+    uint16_t xato = non_soni + 65000;                   /* HIMOYASIZ: aylanib ketadi */
+    printf("  himoyasiz qo'shsak: %u (noto'g'ri! aylanib ketdi)\n", xato);
+    non_soni = qosh_soni(non_soni, 65000);
+    printf("  himoyali qo'shsak: %u dona\n", non_soni);
+    return 0;
+}
+```
+
+```console
+$ cd katta_loyiha/ombor/02_turlar
+$ gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor
+$ ./ombor
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+Omborga 500 dona non keldi:
+  non endi: 620 dona
+Yana 65000 dona keldi (juda ko'p):
+  himoyasiz qo'shsak: 84 (noto'g'ri! aylanib ketdi)
+  OGOHLANTIRISH: 620 + 65000 = 65620, 16 bitga sig'maydi -> 65535 da to'xtadi
+  himoyali qo'shsak: 65535 dona
+```
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `#include <stdint.h>` | `uint16_t`, `uint32_t`, `UINT16_MAX` (Asos bob, 2-bob) |
+| `long non_narx = 400000;` | 400000 tiyin = 4000.00 so'm |
+| `chop_pul(long tiyin)` | `tiyin / 100` — so'm, `tiyin % 100` — tiyin; `%02ld` — tiyinni 2 xonaga to'ldiradi (`5` → `05`) |
+| `narx / 100.0` (`chop_qator` da) | **faqat ko'rsatish uchun** kasrga o'giramiz; hisob-kitob butun tiyinlarda qoladi |
+| `uint32_t yigindi = (uint32_t)hozirgi + qoshiladi;` | **cast**: avval 32 bitga o'tkazamiz, shundan keyin qo'shamiz |
+| `yigindi > UINT16_MAX` | 65535 dan ortiqmi? ortiq bo'lsa — sig'maydi |
+| `uint16_t xato = non_soni + 65000;` | **himoyasiz** qo'shish — ataylab xato ko'rsatish uchun |
+
+**Nima ko'rdik:** 620 + 65000 = 65620, lekin 16 bitga sig'maydi: **himoyasiz** qo'shsak natija `84` (65620 − 65536 = 84) — jim, ogohlantirishsiz noto'g'ri son! Bu aniq "kilometr hisoblagichi aylanib ketishi" (Asos bob, A.6). **Himoyali** variant ogohlantirish beradi va `65535` da to'xtaydi. Haqiqiy dasturda bunday jim xatolar eng yomoni: omborda 84 ta non bor deb o'ylaysiz, aslida 65 mingdan ortiq.
+
+> **Eslab qoling:** pulni **butun** (tiyin) saqlang; turni **kerakli o'lchamda** tanlang (`uint16_t` — zaxira); toshishi mumkin bo'lgan hisobni **kattaroq qutida** bajarib, keyin tekshiring.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `chop_pul` ni **manfiy** tiyin (−150) bilan sinab ko'ring: nima chiqadi? (Maslahat: `%` va `/` manfiy sonlar bilan qanday ishlashini 3-bobda ko'rasiz; hozircha natijani kuzating.)
+2. `qosh_soni` o'xshash `ayir_soni` yozing: zaxiradan ayirganda manfiy bo'lib qolishdan (ishorasiz turda — aylanib 65535 ga ketishdan!) himoya qilsin.
+3. `sizeof` bilan `long`, `uint16_t`, `int` o'lchamlarini chiqaring va `non_narx * non_soni` qanday turda hisoblanishini o'ylang.
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. O'zgaruvchi — xotiradagi **aniq o'lchamli quti**: tur (hajm) + nom + qiymat. Qiymatni **doim** boshida bering.

@@ -1,0 +1,1 @@
+gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor

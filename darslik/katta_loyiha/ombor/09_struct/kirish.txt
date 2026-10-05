@@ -1,0 +1,14 @@
+1
+3
+limonad 6000 30 1
+3
+sovun 3000 5 2
+3
+kola 7000 10 7
+2
+sovun 2
+2
+sovun 3
+1
+4
+0

@@ -575,6 +575,522 @@ $ nm harorat.o | grep -i "yaxlitla\|olchovlar\|selsiy"
 
 **Sinab ko'ring:** `stantsiya.c` da `yaxlitla(1.26)` ni chaqiring — linker nima deydi va nega? `harorat.c` dagi `int olchovlar_soni = 0;` ni o'chiring — xato qaysi bosqichda chiqadi?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 11-bosqich: ko'p fayl, opaque tur va `Makefile`
+
+**Oldingi bosqichdan:** dastur bitta katta `ombor.c` (300 qator) + `ombor_chop.*`. Hamma narsa bir-biriga ko'rinadi: `main` ombor tuzilmasining ichiga to'g'ridan-to'g'ri tegishi mumkin. Dastur kattalashsa, bu chalkashlikka olib keladi.
+
+### Bu bosqichda nima qilamiz
+
+Dasturni **modullarga** ajratamiz — har modul o'z ishini biladi va **kichik interfeys** orqali gaplashadi:
+
+| Fayl | Rol | Tashqariga ko'rsatadigani |
+|---|---|---|
+| `pul.h` / `pul.c` | pulni formatlash (tiyin → "4000.00") | `pul_matn`, `pul_chiqar` |
+| `ombor.h` / `ombor.c` | **ombor kutubxonasi**: ma'lumot, xotira, qoidalar | `ombor_yarat`, `ombor_qosh`, `ombor_sot`... |
+| `log.h` | umumiy makrolar (`LOG`, `BIT`, `ARRAY_SIZE`) | faqat makrolar (sarlavha) |
+| `main.c` | **menyu**: foydalanuvchi bilan gaplashadi | — (faqat `ombor.h` ni ishlatadi) |
+| `Makefile` | qaysi fayl nimaga bog'liq va qanday yig'iladi | `make`, `make debug`, `make clean`... |
+
+**Opaque (yashirin) tur — eng muhim g'oya:** `ombor.h` da `typedef struct ombor Ombor;` yozilgan, lekin `struct ombor` ning **ichi** (`m`, `n`, `sig`) faqat `ombor.c` da. `main.c` esa `Ombor *` ni **faqat funksiyalar orqali** ishlatadi: ichiga tegolmaydi. Nega?
+
+- **Himoya:** `main` tuzilmaning ichini buzib qo'ya olmaydi (`o->n = 999` — kompilyator xato beradi: "incomplete type").
+- **Erkinlik:** ombor ichki tuzilmasini (masalan, massiv o'rniga xesh jadval) o'zgartirsangiz, `main.c` ga **tegmaysiz** va uni qayta yozmaysiz.
+- Linux ham shunday: `struct file`, `struct inode` ichiga drayverlar to'g'ridan-to'g'ri tegmaydi (9-bob).
+
+**Interfeys shartnomasi:** funksiyalar **natija kodi** qaytaradi (`OK` yoki manfiy xato); `ombor_xato(kod)` — kodni matnga aylantiradi; `main` xabarni o'zi chiqaradi.
+
+### Fayllar
+
+```c
+/* log.h - umumiy makrolar: LOG (faqat -DDEBUG bilan), ARRAY_SIZE, BIT */
+#ifndef LOG_H
+#define LOG_H
+
+#include <stdio.h>
+
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define BIT(n) (1u << (n))
+
+#ifdef DEBUG
+#define LOG(fmt, ...) fprintf(stderr, "[LOG %s:%d] " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#else
+#define LOG(fmt, ...) do { } while (0)
+#endif
+
+#endif
+```
+
+```c
+/* pul.h - pul bilan ishlash (tiyin <-> so'm) */
+#ifndef PUL_H
+#define PUL_H
+
+#include <stddef.h>
+
+/* 400000 tiyin -> "4000.00" (buferga yozadi) */
+void pul_matn(char *bufer, size_t hajm, long tiyin);
+
+/* narxni (tiyinda) ekranga chiqaradi: "4000.00" */
+void pul_chiqar(long tiyin);
+
+#endif
+```
+
+```c
+/* pul.c - pul formatlash (butun sonlarda: kasr xatosi yo'q) */
+#include <stdio.h>
+
+#include "pul.h"
+
+void pul_matn(char *bufer, size_t hajm, long tiyin)
+{
+    snprintf(bufer, hajm, "%ld.%02ld", tiyin / 100, tiyin % 100);
+}
+
+void pul_chiqar(long tiyin)
+{
+    char b[32];
+    pul_matn(b, sizeof(b), tiyin);
+    printf("%s", b);
+}
+```
+
+```c
+/* ombor.h - ombor kutubxonasining OCHIQ interfeysi. Ichki tuzilma bu yerda KO'RINMAYDI (opaque tur) */
+#ifndef OMBOR_H
+#define OMBOR_H
+
+#include <stdint.h>
+
+/* toifalar ro'yxati bir joyda: enum ham, nomlar jadvali ham undan hosil bo'ladi */
+#define TOIFALAR(X) \
+    X(OZIQ_OVQAT, "oziq-ovqat") \
+    X(ICHIMLIK, "ichimlik") \
+    X(UY_RUZGOR, "uy-ro'zg'or")
+
+#define X_ENUM(id, nom) id,
+enum toifa { TOIFALAR(X_ENUM) TOIFA_SONI };
+#undef X_ENUM
+
+/* funksiyalar natija kodlari: 0 - OK, manfiy - xato */
+enum { OK = 0, XOTIRA_YOQ = -1, NOM_BAND = -2, TOPILMADI = -3, NOTOGRI_MIQDOR = -4, YETARLI_EMAS = -5, NOTOGRI_TOIFA = -6 };
+
+typedef struct ombor Ombor;                     /* faqat nom: ichi ombor.c da */
+
+Ombor *ombor_yarat(void);
+void ombor_yoq(Ombor *o);
+int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa);
+int ombor_sot(Ombor *o, const char *nom, int miqdor, uint16_t *qoldi);
+int ombor_ochir(Ombor *o, const char *nom);
+int ombor_soni(const Ombor *o);
+void ombor_royxat(const Ombor *o);
+void ombor_hisobot(const Ombor *o);
+const char *toifa_nomi(enum toifa t);
+const char *ombor_xato(int kod);
+
+#endif
+```
+
+`ombor.h` dagi **X-makro** (`TOIFALAR`) — `enum` ni hosil qiladi; `#undef X_ENUM` — yordamchi makroni **olib tashlaydi**, sarlavhani kiritgan fayllar uni tasodifan ishlatmasin.
+
+```c
+/* ombor.c - ombor kutubxonasining ichki ishi: tuzilma, xotira, mantiq */
+#include <stdlib.h>
+#include <string.h>
+
+#include "log.h"
+#include "ombor.h"
+#include "pul.h"
+
+#define YANGI      BIT(0)
+#define TUGAYAPTI  BIT(2)
+
+#define X_NOM(id, nom) nom,
+static const char *const nomlar[] = { TOIFALAR(X_NOM) };
+#undef X_NOM
+
+struct mahsulot {
+    char *nom;
+    long narx;
+    uint16_t soni;
+    enum toifa toifa;
+    unsigned holat;
+};
+
+struct ombor {                                  /* TA'RIF faqat shu faylda: tashqaridan ko'rinmaydi */
+    struct mahsulot *m;
+    int n;
+    int sig;
+};
+
+const char *toifa_nomi(enum toifa t)
+{
+    return (unsigned)t < TOIFA_SONI ? nomlar[t] : "?";
+}
+
+Ombor *ombor_yarat(void)
+{
+    return calloc(1, sizeof(Ombor));            /* hammasi nolga: m = NULL, n = 0, sig = 0 */
+}
+
+void ombor_yoq(Ombor *o)
+{
+    if (!o)
+        return;
+    for (int i = 0; i < o->n; i++)
+        free(o->m[i].nom);
+    free(o->m);
+    free(o);
+}
+
+static struct mahsulot *topish(const Ombor *o, const char *nom)
+{
+    for (int i = 0; i < o->n; i++)
+        if (strcmp(o->m[i].nom, nom) == 0)
+            return &o->m[i];
+    return NULL;
+}
+
+static void holat_yangila(struct mahsulot *p)
+{
+    if (p->soni < 10)
+        p->holat |= TUGAYAPTI;
+    else
+        p->holat &= ~TUGAYAPTI;
+}
+
+int ombor_qosh(Ombor *o, const char *nom, long narx, uint16_t soni, enum toifa toifa)
+{
+    if ((unsigned)toifa >= TOIFA_SONI)
+        return NOTOGRI_TOIFA;
+    if (topish(o, nom))
+        return NOM_BAND;
+    if (o->n == o->sig) {
+        int yangi = o->sig ? o->sig * 2 : 2;
+        struct mahsulot *y = realloc(o->m, (size_t)yangi * sizeof(*y));
+        if (!y)
+            return XOTIRA_YOQ;
+        LOG("sig'im %d -> %d", o->sig, yangi);
+        o->m = y;
+        o->sig = yangi;
+    }
+    char *nusxa = strdup(nom);
+    if (!nusxa)
+        return XOTIRA_YOQ;
+    struct mahsulot *p = &o->m[o->n++];
+    p->nom = nusxa;
+    p->narx = narx;
+    p->soni = soni;
+    p->toifa = toifa;
+    p->holat = YANGI;
+    holat_yangila(p);
+    LOG("qo'shildi: %s (%d ta)", nom, o->n);
+    return OK;
+}
+
+int ombor_sot(Ombor *o, const char *nom, int miqdor, uint16_t *qoldi)
+{
+    struct mahsulot *p = topish(o, nom);
+    if (!p)
+        return TOPILMADI;
+    if (miqdor <= 0)
+        return NOTOGRI_MIQDOR;
+    if (miqdor > p->soni)
+        return YETARLI_EMAS;
+    p->soni -= miqdor;
+    holat_yangila(p);
+    if (qoldi)
+        *qoldi = p->soni;
+    LOG("sotildi: %s, %d dona", nom, miqdor);
+    return OK;
+}
+
+int ombor_ochir(Ombor *o, const char *nom)
+{
+    struct mahsulot *p = topish(o, nom);
+    if (!p)
+        return TOPILMADI;
+    int i = (int)(p - o->m);
+    free(p->nom);
+    memmove(&o->m[i], &o->m[i + 1], (size_t)(o->n - i - 1) * sizeof(*o->m));
+    o->n--;
+    return OK;
+}
+
+int ombor_soni(const Ombor *o)
+{
+    return o->n;
+}
+
+void ombor_royxat(const Ombor *o)
+{
+    printf("%-10s %-12s %10s %6s %s\n", "Mahsulot", "Toifa", "Narx", "Soni", "Holat");
+    printf("----------------------------------------------------\n");
+    long jami = 0;
+    for (int i = 0; i < o->n; i++) {
+        const struct mahsulot *p = &o->m[i];
+        char narx_matn[32];
+        pul_matn(narx_matn, sizeof(narx_matn), p->narx);
+        printf("%-10s %-12s %10s %6u %s%s\n", p->nom, toifa_nomi(p->toifa), narx_matn, p->soni,
+               (p->holat & YANGI) ? "[yangi] " : "", (p->holat & TUGAYAPTI) ? "[TUGAYAPTI]" : "");
+        jami += p->narx * p->soni;
+    }
+    printf("----------------------------------------------------\n");
+    printf("Jami qiymat: ");
+    pul_chiqar(jami);
+    printf(" so'm\n");
+}
+
+void ombor_hisobot(const Ombor *o)
+{
+    long toifa_jami[TOIFA_SONI] = { 0 };
+    for (int i = 0; i < o->n; i++)
+        toifa_jami[o->m[i].toifa] += o->m[i].narx * o->m[i].soni;
+    for (int t = 0; t < TOIFA_SONI; t++) {
+        printf("  %-12s ", toifa_nomi((enum toifa)t));
+        pul_chiqar(toifa_jami[t]);
+        printf(" so'm\n");
+    }
+}
+
+const char *ombor_xato(int kod)
+{
+    switch (kod) {
+    case XOTIRA_YOQ: return "xotira yetmadi";
+    case NOM_BAND: return "bunday nomli mahsulot allaqachon bor";
+    case TOPILMADI: return "bunday mahsulot topilmadi";
+    case NOTOGRI_MIQDOR: return "miqdor musbat bo'lishi kerak";
+    case YETARLI_EMAS: return "omborda yetarli emas";
+    case NOTOGRI_TOIFA: return "toifa 0, 1 yoki 2 bo'lishi kerak";
+    default: return "noma'lum xato";
+    }
+}
+```
+
+```c
+/* main.c - menyu: foydalanuvchi bilan gaplashadi, ombor kutubxonasini chaqiradi */
+#include <stdio.h>
+
+#include "ombor.h"
+
+int main(void)
+{
+    Ombor *ombor = ombor_yarat();
+    if (!ombor)
+        return 1;
+    ombor_qosh(ombor, "non", 400000, 120, OZIQ_OVQAT);
+    ombor_qosh(ombor, "sut", 1200000, 45, ICHIMLIK);
+    ombor_qosh(ombor, "guruch", 1800000, 8, OZIQ_OVQAT);
+
+    int tanlov;
+    while (printf("\n1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish\nTanlov:\n"),
+           scanf("%d", &tanlov) == 1 && tanlov != 0) {
+        char s[24];
+        long so_m;
+        int miqdor, toifa, r;
+        uint16_t qoldi;
+        switch (tanlov) {
+        case 1:
+            ombor_royxat(ombor);
+            break;
+        case 2:
+            printf("Mahsulot nomi va necha dona?\n");
+            if (scanf("%23s %d", s, &miqdor) != 2)
+                break;
+            r = ombor_sot(ombor, s, miqdor, &qoldi);
+            if (r == OK)
+                printf("  Sotildi: %d dona %s. Qoldi: %u dona\n", miqdor, s, qoldi);
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 3:
+            printf("Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?\n");
+            if (scanf("%23s %ld %d %d", s, &so_m, &miqdor, &toifa) != 4)
+                break;
+            r = ombor_qosh(ombor, s, so_m * 100, (uint16_t)miqdor, (enum toifa)toifa);
+            if (r == OK)
+                printf("  Qo'shildi: %s (%s)\n", s, toifa_nomi((enum toifa)toifa));
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 4:
+            printf("Qaysi mahsulot o'chirilsin?\n");
+            if (scanf("%23s", s) != 1)
+                break;
+            r = ombor_ochir(ombor, s);
+            if (r == OK)
+                printf("  O'chirildi: %s (qoldi %d ta)\n", s, ombor_soni(ombor));
+            else
+                printf("  XATO: %s\n", ombor_xato(r));
+            break;
+        case 5:
+            ombor_hisobot(ombor);
+            break;
+        default:
+            printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    ombor_yoq(ombor);
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+### Makefile
+
+**`Makefile`** — `make` dasturi uchun qoidalar: "`ombor` fayli `main.o`, `ombor.o`, `pul.o` ga bog'liq; ular o'zgarsagina qayta yig'iladi". Natijada faqat **o'zgargan** fayllar qayta yig'iladi — katta loyihada vaqtni tejaydi.
+
+```make
+# Makefile - Ombor: qaysi fayl nimaga bog'liq va qanday yig'iladi
+CC = gcc
+CFLAGS = -Wall -Wextra -g
+OBJ = main.o ombor.o pul.o
+
+ombor: $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
+
+-include $(OBJ:.o=.d)
+
+libombor.a: ombor.o pul.o
+	ar rcs $@ $^
+
+debug: CFLAGS += -fsanitize=address,undefined -DDEBUG
+debug: clean ombor
+
+run: ombor
+	./ombor < kirish.txt
+
+clean:
+	rm -f *.o *.d ombor libombor.a
+
+.PHONY: debug run clean
+```
+
+**Makefile qismlari:**
+
+| Qism | Vazifasi |
+|---|---|
+| `CC = gcc`, `CFLAGS = ...` | o'zgaruvchilar: kompilyator va bayroqlar bir joyda |
+| `ombor: $(OBJ)` + tab + `$(CC) ... -o $@` | **maqsad: bog'liqliklar**; `$@` — maqsad nomi (`ombor`) |
+| `%.o: %.c` | **namuna qoidasi**: har `X.o` `X.c` dan yig'iladi; `$<` — birinchi bog'liqlik (`X.c`) |
+| `-MMD` va `-include $(OBJ:.o=.d)` | kompilyator `.d` fayllarga **qaysi sarlavhalarga bog'liqligini** yozadi — sarlavha o'zgarsa tegishli `.c` qayta yig'iladi (11-bob) |
+| `libombor.a: ombor.o pul.o` + `ar rcs` | **statik kutubxona**: ikki `.o` ni bitta `.a` ga yig'adi |
+| `debug: CFLAGS += -fsanitize=... -DDEBUG` | maqsadga **xos** bayroqlar: `make debug` sanitizer va izlar bilan yig'adi |
+| `.PHONY: debug run clean` | bular **fayl nomi emas**, buyruq nomlari |
+
+> **Muhim:** `Makefile` da buyruq qatorlari **TAB** belgisi bilan boshlanadi (bo'shliq emas!). Aks holda `missing separator` xatosi (31-bob).
+
+### Yig'ish va ishga tushirish
+
+```console
+$ cd katta_loyiha/ombor/11_kop_fayl
+$ printf '1\n3\nsovun 3000 5 2\n2\nsovun 2\n4\nsut\n5\n1\n0\n' > kirish.txt
+$ make
+gcc -Wall -Wextra -g -MMD -c main.c -o main.o
+gcc -Wall -Wextra -g -MMD -c ombor.c -o ombor.o
+gcc -Wall -Wextra -g -MMD -c pul.c -o pul.o
+gcc -Wall -Wextra -g main.o ombor.o pul.o -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+sut        ichimlik       12000.00     45 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 1164000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Nom, narx (so'mda), soni va toifa (0-oziq-ovqat, 1-ichimlik, 2-uy-ro'zg'or)?
+  Qo'shildi: sovun (uy-ro'zg'or)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot nomi va necha dona?
+  Sotildi: 2 dona sovun. Qoldi: 3 dona
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Qaysi mahsulot o'chirilsin?
+  O'chirildi: sut (qoldi 3 ta)
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+  oziq-ovqat   624000.00 so'm
+  ichimlik     0.00 so'm
+  uy-ro'zg'or  9000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+Mahsulot   Toifa              Narx   Soni Holat
+----------------------------------------------------
+non        oziq-ovqat      4000.00    120 [yangi] 
+guruch     oziq-ovqat     18000.00      8 [yangi] [TUGAYAPTI]
+sovun      uy-ro'zg'or     3000.00      3 [yangi] [TUGAYAPTI]
+----------------------------------------------------
+Jami qiymat: 633000.00 so'm
+
+1) ro'yxat  2) sotish  3) qo'shish  4) o'chirish  5) hisobot  0) chiqish
+Tanlov:
+
+Xayr!
+```
+
+**Nima ko'rdik:** `make` hamma `.c` ni alohida yig'di (`-MMD -c`), keyin bog'ladi. Natija: `sovun` qo'shildi (5 dona — darrov `[TUGAYAPTI]`), 2 dona sotildi, `sut` o'chirildi, toifalar bo'yicha hisobot, yakuniy ro'yxat.
+
+**Faqat o'zgargan fayl qayta yig'iladi:**
+
+```console
+$ cd katta_loyiha/ombor/11_kop_fayl
+$ make
+make: 'ombor' is up to date.
+$ touch pul.c
+$ make
+gcc -Wall -Wextra -g -MMD -c pul.c -o pul.o
+gcc -Wall -Wextra -g main.o ombor.o pul.o -o ombor
+```
+
+Birinchi `make`: "`ombor` is up to date" (hech narsa o'zgarmagan — hech narsa yig'ilmadi). `touch pul.c` fayl vaqtini yangiladi; ikkinchi `make` **faqat** `pul.c` ni qayta yig'adi va qayta bog'laydi — `main.c` va `ombor.c` ga tegmaydi.
+
+**Statik kutubxona va sanitizer bilan yig'ish:**
+
+```console
+$ cd katta_loyiha/ombor/11_kop_fayl
+$ make libombor.a
+ar rcs libombor.a ombor.o pul.o
+$ ar t libombor.a
+ombor.o
+pul.o
+$ make debug
+rm -f *.o *.d ombor libombor.a
+gcc -Wall -Wextra -g -fsanitize=address,undefined -DDEBUG -MMD -c main.c -o main.o
+gcc -Wall -Wextra -g -fsanitize=address,undefined -DDEBUG -MMD -c ombor.c -o ombor.o
+gcc -Wall -Wextra -g -fsanitize=address,undefined -DDEBUG -MMD -c pul.c -o pul.o
+gcc -Wall -Wextra -g -fsanitize=address,undefined -DDEBUG main.o ombor.o pul.o -o ombor
+$ ./ombor < kirish.txt 2>&1 | grep -c LOG
+7
+$ make clean
+rm -f *.o *.d ombor libombor.a
+```
+
+`ar t` — kutubxona ichidagi `.o` larni ko'rsatadi (`ombor.o`, `pul.o`). `make debug` — `-fsanitize=address,undefined -DDEBUG` bilan toza qayta yig'adi; izlar (`LOG`) **ko'rindi** (chiqqan qatorlar soni), sanitizer esa hech narsa demadi: xotira xatosi yo'q. `make clean` — yig'ish natijalarini o'chiradi.
+
+> **Eslab qoling:** modul = `.h` (**interfeys**) + `.c` (**ichki ish**). **Opaque tur** — ichki tuzilmani yashiradi. `Makefile` — bog'liqlik va qoidalar: faqat o'zgarganini qayta yig'adi. `make debug` — bitta buyruq bilan sanitizerli yig'ish.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `ombor.h` dan `struct ombor` ning ichiga `main.c` da tegishga urinib ko'ring (`ombor->n`): kompilyator nima deydi?
+2. `Makefile` ga `test` maqsadini qo'shing: yig'adi va `kirish.txt` bilan ishga tushirib natijani `kutilgan.txt` bilan solishtiradi (`diff`).
+3. `ombor_ochir` dan keyin `ombor_soni` ni chaqirish — interfeysga yangi funksiya `ombor_bormi(o, nom)` qo'shing: `ombor.h` va `ombor.c` ni qanday o'zgartirdingiz? `main.c` ni qayta yig'ish kerakmi? (`make` nima qiladi?)
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Katta dasturni modullarga bo'ling: har modul = `.h` (e'lon, chizma) + `.c` (ta'rif); har `.c` o'z `.h` ini birinchi `#include` qiladi.

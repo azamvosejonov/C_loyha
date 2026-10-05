@@ -1,0 +1,22 @@
+3
+sovun 3000 5 2
+3
+limonad 6000 30 1
+6
+2
+1
+6
+1
+1
+7
+ombor.txt
+8
+yoq_fayl.txt
+8
+buzuq.txt
+2
+sovun 3
+8
+ombor.txt
+1
+0

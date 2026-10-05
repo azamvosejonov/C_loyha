@@ -698,6 +698,194 @@ Kartangizni oling. Xayr!
 
 **Sinab ko'ring:** `urinishlar` massivini `{ 1, 2, 3 }` qiling — karta bloklanadimi? `case 'b':` dagi `break;` ni o'chiring — balansni so'raganda nima bo'ladi va nega?
 
+<!-- katta:boshi -->
+## Katta loyiha: Ombor — 4-bosqich: menyu va tanlov (sikl, `switch`)
+
+**Oldingi bosqichdan:** dastur bir marta ishlab, jadval chiqarib tugardi. Haqiqiy ombor esa **foydalanuvchi bilan gaplashishi** kerak: "ro'yxatni ko'rsat", "shuncha sot", "chiqish". Buning uchun dastur **takrorlanishi** (sikl) va foydalanuvchi tanloviga qarab **tarmoqlanishi** (`switch`) lozim.
+
+### Bu bosqichda nima qilamiz
+
+1. **Menyu sikli:** `while (1)` — foydalanuvchi `0` (chiqish) tanlamaguncha takrorlanadi.
+2. **Tanlov:** `switch (tanlov)` — 1 → ro'yxat, 2 → sotish, 0 → chiqish, boshqasi → xato xabari.
+3. **Sotish tekshiruvlari:** mahsulot raqami to'g'rimi? miqdor musbatmi? omborda yetarlimi? Har biri uchun alohida `if` va tushunarli xato xabari.
+4. **Foydalanuvchi kiritishi:** `scanf` — klaviaturadan son o'qiydi. `&` belgisi (`&tanlov`) — "o'zgaruvchining **manzilini** ber, o'qilgan qiymatni o'sha yerga yoz". Manzil va ko'rsatkichlarni 7-bobda to'liq o'rganasiz; hozircha shunday yozilishini qabul qiling.
+
+**Nega `scanf` ning natijasini tekshiramiz?** `scanf` nechta qiymatni muvaffaqiyatli o'qiganini qaytaradi. Fayl tugasa yoki harf kiritilsa — kutilgan sondan kam qaytadi. Tekshirmasak, dastur cheksiz siklga tushib qolishi mumkin.
+
+**Muammo, ataylab qoldirilgan:** mahsulot raqami (1/2/3) bo'yicha zaxirani o'qish va kamaytirish uchun **ikki marta takrorlanadigan `switch`** yozishga to'g'ri keldi. Bu takror — ogohlik: 4-mahsulot qo'shsak yana hamma joyni tahrirlashimiz kerak. 5-bobda funksiyalar, 6-bobda massivlar buni hal qiladi.
+
+```c
+/* ombor.c - Ombor, 4-bosqich: menyu (sikl) va tanlov (switch), sotish tekshiruvlari bilan */
+#include <stdint.h>
+#include <stdio.h>
+
+#include "ombor_chop.h"
+
+int main(void)
+{
+    long non_narx = 400000, sut_narx = 1200000, guruch_narx = 1800000;
+    uint16_t non_soni = 120, sut_soni = 45, guruch_soni = 8;
+
+    int tanlov;
+    while (1) {                                         /* menyu: 0 tanlanguncha takrorlanadi */
+        printf("\n1) ro'yxat   2) sotish   0) chiqish\nTanlov:\n");
+        if (scanf("%d", &tanlov) != 1)                  /* son o'qilmasa (fayl tugadi) - chiqamiz */
+            break;
+
+        if (tanlov == 0)
+            break;
+
+        switch (tanlov) {
+        case 1:
+            chop_sarlavha();
+            chop_qator("Non", non_narx, non_soni);
+            chop_qator("Sut", sut_narx, sut_soni);
+            chop_qator("Guruch", guruch_narx, guruch_soni);
+            chop_jami(non_narx * non_soni + sut_narx * sut_soni + guruch_narx * guruch_soni, 12);
+            break;
+
+        case 2: {
+            int id, miqdor;
+            printf("Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?\n");
+            if (scanf("%d %d", &id, &miqdor) != 2)
+                return 1;
+
+            if (id < 1 || id > 3) {
+                printf("  XATO: bunday mahsulot yo'q\n");
+                break;
+            }
+            if (miqdor <= 0) {
+                printf("  XATO: miqdor musbat bo'lishi kerak\n");
+                break;
+            }
+
+            uint16_t mavjud;                            /* tanlangan mahsulotning zaxirasi */
+            switch (id) {
+            case 1: mavjud = non_soni; break;
+            case 2: mavjud = sut_soni; break;
+            default: mavjud = guruch_soni; break;
+            }
+            if (miqdor > mavjud) {
+                printf("  XATO: omborda faqat %u dona bor\n", mavjud);
+                break;
+            }
+            switch (id) {                               /* zaxirani kamaytiramiz */
+            case 1: non_soni -= miqdor; break;
+            case 2: sut_soni -= miqdor; break;
+            default: guruch_soni -= miqdor; break;
+            }
+            printf("  Sotildi: %d dona. Qoldi: %u dona\n", miqdor, mavjud - miqdor);
+            break;
+        }
+
+        default:
+            printf("  XATO: menyuda bunday band yo'q\n");
+        }
+    }
+    printf("\nXayr!\n");
+    return 0;
+}
+```
+
+Dasturni sinash uchun javoblar faylini tayyorlaymiz (foydalanuvchi klaviaturada yozadigan narsalar o'rniga):
+
+```console
+$ cd katta_loyiha/ombor/04_boshqaruv
+$ printf '1\n2\n1 20\n2\n3 100\n2\n9 1\n2\n2 -5\n7\n1\n0\n' > kirish.txt
+$ gcc -Wall -Wextra ombor.c ombor_chop.c -o ombor
+$ ./ombor < kirish.txt
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    120      480000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1164000.00
+QQS stavkasi:               12%
+QQS summasi:                139680.00
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  Sotildi: 20 dona. Qoldi: 100 dona
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: omborda faqat 8 dona bor
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: bunday mahsulot yo'q
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+Qaysi mahsulot (1-non, 2-sut, 3-guruch) va necha dona?
+  XATO: miqdor musbat bo'lishi kerak
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+  XATO: menyuda bunday band yo'q
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+================ OMBOR ================
+Mahsulot         Narx   Soni          Summa
+---------------------------------------
+Non           4000.00    100      400000.00
+Sut          12000.00     45      540000.00
+Guruch       18000.00      8      144000.00
+---------------------------------------
+Jami qiymat:                1084000.00
+QQS stavkasi:               12%
+QQS summasi:                130080.00
+
+1) ro'yxat   2) sotish   0) chiqish
+Tanlov:
+
+Xayr!
+```
+
+(`< kirish.txt` — klaviatura o'rniga fayldan o'qi. Siz `./ombor` ni o'zingiz ishga tushirib, klaviaturada yozsangiz ham bo'ladi. Fayl bo'lgani uchun javoblar ekranda ko'rinmaydi — shuning uchun natijani tushunish uchun kirish ketma-ketligini quyida tahlil qilamiz.)
+
+**Kiritilgan ketma-ketlik va natija:**
+
+| Kirish | Natijasi |
+|---|---|
+| `1` | ro'yxat chiqdi |
+| `2`, `1 20` | 1-mahsulot (non) dan 20 dona sotildi → qoldi 100 |
+| `2`, `3 100` | guruchda faqat 8 dona → **XATO: omborda faqat 8 dona bor** |
+| `2`, `9 1` | 9-raqamli mahsulot yo'q → **XATO: bunday mahsulot yo'q** |
+| `2`, `2 -5` | manfiy miqdor → **XATO: miqdor musbat bo'lishi kerak** |
+| `7` | menyuda 7 yo'q → **XATO: menyuda bunday band yo'q** (`default`) |
+| `1` | yangilangan ro'yxat: non 100 dona |
+| `0` | chiqish |
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `while (1) { ... }` | cheksiz sikl; ichidan `break` bilan chiqamiz |
+| `if (scanf("%d", &tanlov) != 1) break;` | son o'qilmasa (fayl tugadi / harf) — sikldan chiqish |
+| `switch (tanlov) { case 1: ... break; ... default: ... }` | tanlovga qarab bir tarmoqni bajaradi; **`break` unutilsa keyingi `case` ham bajariladi** (4-bobdagi "tushib ketish") |
+| `case 2: { ... }` | figurali qavs — `case` ichida **o'z o'zgaruvchilarini** (`id`, `miqdor`) e'lon qilish uchun |
+| ichki `switch (id)` | id bo'yicha mahsulotni tanlash: 3 marta takrorlanadi — kelajakda yo'qotamiz |
+| `miqdor > mavjud` | zaxiradan ko'p sotib bo'lmaydi |
+
+> **Eslab qoling:** menyu = `while` + `switch`. `scanf` natijasini **doim** tekshiring. Har `case` oxirida `break`. Kiritishni **tekshirmasdan** ishlatmang — foydalanuvchi har narsa yozishi mumkin.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. Menyuga `3) jami qiymat` bandini qo'shing (zaxira × narx yig'indisi).
+2. `case 1:` oxiridagi `break` ni o'chirib sinab ko'ring: nima bo'ladi? Nega?
+3. `scanf("%d", &tanlov)` ga "salom" kiriting (`printf 'salom\n' | ./ombor`): dastur nima qiladi? Nega cheksiz sikl bo'lmadi?
+<!-- katta:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. `if (shart)` — qavs **shart**; `elif` yo'q, `else if` bor; shartlar **tepadan pastga**, birinchi rost to'xtaydi.
