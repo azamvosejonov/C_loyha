@@ -31,7 +31,7 @@ jadvali bilan) → Nega shunday? → **Eslab qoling**" tartibida. Har bir kod bl
 
 Boblarni bitta **o'sib boradigan dastur** bog'laydi: **Ombor** (mahsulotlar ombori). Har bobning oxirida (0–12) "**Katta loyiha: Ombor — N-bosqich**" bo'limi bor: yangi tushuncha oldingi versiyadagi muammoni hal qiladi. To'liq tavsif va tayyor kodlar — [katta_loyiha/](katta_loyiha/README.md).
 
-13–31-boblarning har birida ham o'zining **katta loyihasi** bor (fuzzer, shell, fayl tizimi, mini-yadro, `malloc` kuzatuvchisi va h.k. — jadval: [katta_loyiha/README.md](katta_loyiha/README.md)). Har bobda: **umumiy fikr → kod → haqiqiy chiqish → tushuntirish → o'zingiz qo'shing (yechimsiz)**.
+10–16-boblarda esa yana bitta o'sib boruvchi dastur — **Kadrlar tizimi** (makrolardan binar faylgacha, 7 bosqich). 13–31-boblarning har birida ham o'zining **katta loyihasi** bor (fuzzer, shell, fayl tizimi, mini-yadro, `malloc` kuzatuvchisi va h.k. — jadval: [katta_loyiha/README.md](katta_loyiha/README.md)). Har bobda: **umumiy fikr → kod → haqiqiy chiqish → tushuntirish → o'zingiz qo'shing (yechimsiz)**.
 
 ## Birlashtiruvchi loyihalar
 

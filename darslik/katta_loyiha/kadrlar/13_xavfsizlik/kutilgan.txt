@@ -1,0 +1,3 @@
+urug 12345, 200000 ta kirish: xodim qabul 60681 / rad 139319; davomat qabul 44363 / rad 155637. Invariant buzilmadi, sanitizer jim.
+INVARIANT BUZILDI: qabul qilingan xodim noto'g'ri: id=9999 toifa=3 tarif=9223372036854775807  (qator: 9999 Sardor 4 1250000075045029632204205257760984218788542686)
+seed 3: xotira buzilishi aniqlandi (dastur to'xtadi)

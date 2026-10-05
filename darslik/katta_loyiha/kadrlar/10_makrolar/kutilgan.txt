@@ -1,0 +1,15 @@
+ID    Ism       Toifa               Brutto          Soliq         Qo'lga
+1042  Aziza     Mutaxassis       686263.72       82351.65      597049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00      411075.00
+3150  Dilnoza   Yetakchi         365634.75       43876.17      318102.23
+9999  Sardor    Rahbar        296250017.77    58760003.55   234527514.04
+Jami qo'lga tegadi: 235853740.70 so'm
+--- DEBUG (faqat jurnal, stderr) ---
+[kadrlar.c:98] soliq bo'laklari: 686263.72 + 0.00 + 0.00
+[kadrlar.c:118] Aziza: asosiy=600012.00 ustama=56251.12 bonus=30000.60
+[kadrlar.c:98] soliq bo'laklari: 472500.00 + 0.00 + 0.00
+[kadrlar.c:118] Bobur: asosiy=472500.00 ustama=0.00 bonus=0.00
+[kadrlar.c:98] soliq bo'laklari: 365634.75 + 0.00 + 0.00
+[kadrlar.c:118] Dilnoza: asosiy=281257.50 ustama=56251.50 bonus=28125.75
+[kadrlar.c:98] soliq bo'laklari: 3000000.00 + 5000000.00 + 288250017.77
+[kadrlar.c:118] Sardor: asosiy=200000012.00 ustama=56250003.37 bonus=40000002.40

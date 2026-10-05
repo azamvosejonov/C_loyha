@@ -773,6 +773,245 @@ Paket 3 (40 bayt):
 3. IHL > 5 bo'lgan paketni (sarlavhada **parametrlar** bor) qo'shing. Dastur TCP sarlavhasini **to'g'ri joydan** o'qiyaptimi?
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 16-bosqich: bitlar, bayroqlar va binar fayl
+
+**Oldingi bosqichdan:** xodim haqida ma'lumotni **matn** (`xodimlar.txt`) sifatida saqlardik: odam o'qiy oladi, lekin **katta** va o'qish **sekin**. Va "to'liq stavkami? masofadan ishlaydimi? sinov muddatidami?" kabi **ha/yo'q** belgilari uchun har biriga alohida `int` yaratish — isrof. Bu bosqich — 16-bobning hammasi: **bit maskalar** va **binar format**.
+
+### Bu bosqichda nima qilamiz
+
+| Yangi | Nima |
+|---|---|
+| **Bayroqlar** (`bayroq.h`) | beshta "ha/yo'q" belgi **bitta baytda** (`uint8_t`): to'liq stavka `T`, masofaviy `M`, rahbar huquqi `R`, sinov muddati `S`, kasal `K` |
+| Maoshga ta'siri | sinov muddatida asosiy ish haqi **80%**; masofaviyga oylik **50 000 so'm** kompensatsiya |
+| **Binar format** (`ikkilik.c`) | xodimlarni **48 baytlik qat'iy yozuvlar** ko'rinishida faylga yozish/o'qish |
+| **Nazorat yig'indisi** | har yozuvda **Fletcher-16**: bitta bayt buzilsa — rad etiladi |
+| `hex FAYL` | faylni **hexdump** ko'rinishida chiqarish — formatni "ko'z bilan" ko'rish |
+
+`xodimlar.txt` da beshinchi (ixtiyoriy) maydon — bayroq **harflari**: `1042 Aziza 2 2500050 TM`.
+
+### 1) Bayroqlar — bitta baytda 8 ta "ha/yo'q"
+
+Har bayroq — baytning **alohida biti**:
+
+```text
+bit raqami:   7 6 5 4 3 2 1 0
+              . . . K S R M T       T = 1<<0 = 0b00000001
+                                    M = 1<<1 = 0b00000010
+Aziza (T va M):                     0b00000011 = 3
+Bobur (T va S):                     0b00001001 = 9
+```
+
+Uchta amal (3-bob) hammasini hal qiladi:
+
+| Amal | Kod | Ma'nosi |
+|---|---|---|
+| bitni **yoqish** | `b \|= MASKA` | OR: boshqa bitlarga tegmaydi |
+| bitni **o'chirish** | `b &= ~MASKA` | AND + inversiya |
+| bit **yoqilganmi** | `(b & MASKA) != 0` | AND: faqat shu bitni "qoldiradi" |
+
+Bayroqlarning **nomi, harfi va bit raqami** bir jadvalda (X-makro, 10-bob):
+
+```c
+/* bayroq.h - xodim bayroqlari: BITTA baytda 8 ta "ha/yo'q" belgisi (16-bob: bit maskalar).
+   X-makro (10-bob) enum bitlarini va fayldagi harflarni BIR joydan hosil qiladi. */
+#ifndef BAYROQ_H
+#define BAYROQ_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+/* X(NOM, harf, bit_raqami): fayl matnida harf yoziladi; xotirada shu bit yoqiladi */
+#define BAYROQLAR(X)                            \
+    X(TOLIQ, 'T', 0)        /* to'liq stavka */ \
+    X(MASOFAVIY, 'M', 1)    /* masofadan ishlaydi */ \
+    X(RAHBAR, 'R', 2)       /* rahbarlik huquqi */ \
+    X(SINOV, 'S', 3)        /* sinov muddatida */ \
+    X(KASAL, 'K', 4)        /* kasallik ta'tilida */
+
+enum {
+#define X(nom, harf, bit) F_##nom = 1u << (bit),         /* 1u << 3 = 0b00001000 */
+    BAYROQLAR(X)
+#undef X
+};
+
+/* barcha ma'lum bitlar yig'indisi: bundan tashqari bit yoqilgan bo'lsa, ma'lumot yaroqsiz */
+enum {
+    F_HAMMASI = 0
+#define X(nom, harf, bit) | F_##nom
+    BAYROQLAR(X)
+#undef X
+};
+
+#define BAYROQ_YOQ(b, m) ((b) |= (uint8_t)(m))          /* bitni yoqish: OR */
+#define BAYROQ_OCH(b, m) ((b) &= (uint8_t)~(m))         /* bitni o'chirish: AND + inversiya */
+#define BAYROQ_BOR(b, m) (((b) & (m)) != 0)             /* bit yoqilganmi: AND */
+
+#define BAYROQ_MAKS_UZ 8
+
+/* bayroqlarni harflar qatori ko'rinishiga: yoqilgan bit - harf, o'chiq - '-'. Masalan T va R yoqiq: "T-R--" (5 belgi + '\0') */
+void bayroq_matn(uint8_t b, char *chiqish);
+
+/* "TMR" kabi harflarni bayroq baytiga aylantiradi. Noma'lum harf bo'lsa -1, aks holda 0 va *b ga yozadi */
+int bayroq_oqi(const char *harflar, uint8_t *b);
+
+#endif
+```
+
+Maoshga ta'sir — `xodim_hisobla` ichida shunchaki `if (BAYROQ_BOR(x->bayroq, F_SINOV)) ...`.
+
+### 2) Binar format — baytma-bayt shartnoma
+
+Matn faylida `1042` — 4 belgi (`'1'`,`'0'`,`'4'`,`'2'`); binarda — **2 bayt** (`0x0412`). Binar format — **kelishuv**: "0–1 baytlar id, 2-bayt toifa, ...". Kelishuv **aniq yozilgan** bo'lishi shart (`ikkilik.h` sarlavhasida):
+
+```text
+sarlavha (8 bayt):    "KDR1" (sehrli bayt)  |  versiya u16  |  xodimlar soni u16
+har xodim (48 bayt):  id u16 | toifa u8 | bayroq u8 | tarif u64 | oddiy_daq u32 | qosh_daq u32
+                      | ism (24 bayt) | nazorat u16 | zaxira u16
+```
+
+**Eng muhim qaror: `struct` ni to'g'ridan-to'g'ri `fwrite` qilmaymiz!** Sabab: (1) kompilyator `struct` maydonlari orasiga **to'ldirish** (padding) qo'yadi; (2) baytlar tartibi (endianness) **protsessorga bog'liq**; (3) `struct` o'zgarsa — eski fayllar **o'qilmay qoladi**. Buning o'rniga har maydonni **o'zimiz** baytlarga yozamiz — **little-endian** (past bayt birinchi), siljitish va maskalar bilan (2-bob/3-bob/Asos bob):
+
+```c
+static void yoz16(uint8_t *p, uint16_t v)
+{
+    p[0] = (uint8_t)(v & 0xFF);                 /* past bayt birinchi */
+    p[1] = (uint8_t)(v >> 8);
+}
+```
+
+```c
+static uint32_t oqi32(const uint8_t *p)
+{
+    uint32_t v = 0;
+    for (int i = 3; i >= 0; i--)
+        v = (v << 8) | p[i];                    /* yuqori bayt oxirida: teskari tartibda yig'amiz */
+    return v;
+}
+```
+
+`oqi32`: baytlarni **teskari** tartibda yig'amiz — `v = (v << 8) | p[i]` har qadamda natijani **8 bitga suradi** va yangi baytni **pastiga** qo'yadi. Natija protsessor turidan **mustaqil**.
+
+**Nazorat yig'indisi** — Fletcher-16: ikkita yig'indi (`s1` — baytlar yig'indisi, `s2` — `s1` larning yig'indisi), ikkalasi 255 modul bo'yicha. Bitta bayt o'zgarsa — deyarli doim boshqa natija; **tartib** o'zgarsa ham (oddiy yig'indidan farqi shu):
+
+```c
+uint16_t nazorat16(const uint8_t *b, size_t uzunlik)
+{
+    uint32_t s1 = 0, s2 = 0;
+    for (size_t i = 0; i < uzunlik; i++) {
+        s1 = (s1 + b[i]) % 255;
+        s2 = (s2 + s1) % 255;
+    }
+    return (uint16_t)((s2 << 8) | s1);
+}
+```
+
+Bitta xodimni yozish va o'qish — **o'qishda fayldan kelgan hamma narsa tekshiriladi** (13-bobdagi dushman qoidasi!): nazorat yig'indisi, ID/toifa/tarif oralig'i, **noma'lum bayroq bitlari** (`bayroq & ~F_HAMMASI`), ism oxiridagi `\0`:
+
+```c
+void yozuv_yoz(const struct xodim *x, uint8_t c[IKKILIK_YOZUV])
+{
+    memset(c, 0, IKKILIK_YOZUV);                /* zaxira va ism oxiri nollar bilan to'lgan bo'lsin: fayl har safar bir xil */
+    yoz16(c + 0, (uint16_t)x->id);
+    c[2] = (uint8_t)x->toifa;
+    c[3] = x->bayroq;
+    yoz64(c + 4, (uint64_t)x->tarif);
+    yoz32(c + 12, (uint32_t)x->oddiy_daq);
+    yoz32(c + 16, (uint32_t)x->qosh_daq);
+    memcpy(c + 20, x->ism, ISM_UZ);
+    yoz16(c + 44, nazorat16(c, 44));
+}
+```
+
+```c
+int yozuv_oqi(const uint8_t c[IKKILIK_YOZUV], struct xodim *x, const char **sabab)
+{
+    if (oqi16(c + 44) != nazorat16(c, 44)) {
+        *sabab = "nazorat yig'indisi mos emas (yozuv buzilgan)";
+        return -1;
+    }
+    memset(x, 0, sizeof(*x));
+    x->id = oqi16(c + 0);
+    x->toifa = (enum toifa)c[2];
+    x->bayroq = c[3];
+    x->tarif = (int64_t)oqi64(c + 4);
+    x->oddiy_daq = (int)oqi32(c + 12);
+    x->qosh_daq = (int)oqi32(c + 16);
+    memcpy(x->ism, c + 20, ISM_UZ);
+    x->ism[ISM_UZ - 1] = '\0';                  /* faylga ishonmaymiz: '\0' kafolatlanmagan */
+    if (x->id < 1000 || x->id > 9999 || x->toifa >= T_SONI || x->tarif <= 0 || x->tarif > TARIF_MAKS ||
+        x->oddiy_daq < 0 || x->qosh_daq < 0 || x->oddiy_daq + x->qosh_daq > OY_MAKS_DAQ || (x->bayroq & ~F_HAMMASI)) {
+        *sabab = "maydon qiymati yaroqsiz";
+        return -1;
+    }
+    return 0;
+}
+```
+
+Fayl bilan ishlovchi qismlar (`ikkilik_saqla`, `ikkilik_yukla`) — **sarlavhani** (sehrli bayt, versiya) tekshiradi va qisqa/buzilgan fayllarni **to'xtamasdan** rad etadi (`src/ikkilik.c` da).
+
+### Ishga tushirish
+
+Avval bayroqlar maoshga qanday ta'sir qilishini ko'ramiz (jadvalda yangi `Bayroq` ustuni: **yoqilgan bit — harf, o'chiq — `-`**):
+
+```console
+$ cd katta_loyiha/kadrlar/16_bitlar
+$ make -s
+$ ./bin/kadrlar royxat 2>/dev/null
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+1042  Aziza     Mutaxassis  TM---       736263.72       88351.65           640 549.43
+2087  Bobur     Boshlovchi  T--S-       378000.00       45360.00           328 860.00
+3150  Dilnoza   Yetakchi    T-R--       365634.75       43876.17           318 102.23
+9999  Sardor    Rahbar      T-R--    296250017.77    58760003.55       234 527 514.04
+Jami (4 xodim): brutto 297729916.24, soliq 58937591.37, qo'lga tegadi 235 815 025.70 so'm
+```
+
+Binar faylga saqlaymiz va **hexdump** bilan ichiga qaraymiz (birinchi 64 bayt: sarlavha va 1-xodim):
+
+```console
+$ cd katta_loyiha/kadrlar/16_bitlar
+$ ./bin/kadrlar bin-saqla k.bin 2>/dev/null
+4 xodim k.bin fayliga (binar) saqlandi
+$ ./bin/kadrlar hex k.bin 64 2>/dev/null
+0000  4b 44 52 31 01 00 04 00  12 04 01 03 d2 25 26 00  |KDR1.........%&.|
+0010  00 00 00 00 a0 05 00 00  5a 00 00 00 41 7a 69 7a  |........Z...Aziz|
+0020  61 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |a...............|
+0030  00 00 00 00 39 18 00 00  27 08 00 09 b0 10 30 00  |....9...'.....0.|
+```
+
+Faylni **qayta o'qiymiz**, keyin **bitta baytni buzamiz** (`dd` 20-baytga `0xFF` yozadi) va yana o'qiymiz:
+
+```console
+$ cd katta_loyiha/kadrlar/16_bitlar
+$ ./bin/kadrlar bin-yukla k.bin 2>&1 | grep -v '^data/\|^xodimlar:\|^davomat:' | head -3
+binar fayldan: 4 ta o'qildi, 0 ta rad etildi
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+1042  Aziza     Mutaxassis  TM---       736263.72       88351.65           640 549.43
+$ printf '\377' | dd of=k.bin bs=1 seek=20 conv=notrunc 2>/dev/null
+$ ./bin/kadrlar bin-yukla k.bin 2>&1 | grep -v '^data/\|^xodimlar:\|^davomat:' | head -4
+k.bin: 1-yozuv: nazorat yig'indisi mos emas (yozuv buzilgan)
+binar fayldan: 3 ta o'qildi, 1 ta rad etildi
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+2087  Bobur     Boshlovchi  T--S-       378000.00       45360.00           328 860.00
+```
+
+**Nima ko'rdik:**
+
+- **Bayroq ustuni:** `TM---` (Aziza: to'liq + masofaviy), `T--S-` (Bobur: to'liq + sinov). **Bobur** bruttosi `378000.00` — 31 500 so'm × 15 soat = 472 500 so'm **emas**: sinov muddati asosiyni **80%** ga tushirdi. **Aziza**ning brutto `736263.72` (oldingi bosqichda 686 263.72): **50 000** so'm masofaviy kompensatsiya qo'shildi.
+- **Hexdump, birinchi qator:** `4b 44 52 31` — **"KDR1"** (ASCII: `K`=0x4B, `D`=0x44, `R`=0x52, `1`=0x31 — o'ng tomondagi ustunda ham ko'rinadi). `01 00` — versiya 1 (little-endian: **past bayt birinchi**). `04 00` — 4 ta xodim.
+- **Ikkinchi qator** (1-xodim): `12 04` — `0x0412` = **1042** (Aziza ID si); `01` — toifa (0 dan: `1` = Mutaxassis); **`03`** — bayroqlar (`0b011` = T va M); `d2 25 26 00 00 00 00 00` — tarif = `0x2625D2` = **2 500 050** tiyin; `a0 05 00 00` = `0x05A0` = **1440** oddiy daqiqa; `5a 00 00 00` = **90** qo'shimcha daqiqa. Keyin `41 7a 69 7a 61` = **"Aziza"** (ASCII), nollar bilan to'ldirilgan.
+- **Qayta o'qish:** 4 ta xodim **bir xil** qaytdi (matn → binar → ob'ekt). 
+- **Buzilgan baytdan keyin:** `1-yozuv: nazorat yig'indisi mos emas (yozuv buzilgan)` — bitta bayt o'zgargani **aniqlandi**, yozuv **rad etildi**, qolgan uchtasi o'qildi. Nazorat yig'indisisiz buzilgan oddiy daqiqalar bilan **noto'g'ri maosh** hisoblab yuborgan bo'lardik.
+
+> **Eslab qoling:** bayroqlar — bitlarda: **yoqish `|=`**, **o'chirish `&= ~`**, **tekshirish `&`**. Binar formatda **har maydonni o'zingiz** baytlarga yozing (siljitish + maska), `struct` ni to'g'ridan-to'g'ri yozmang (padding, endianness). Format = **sehrli bayt + versiya + aniq o'lchamlar + nazorat yig'indisi**. Fayldan o'qilgan **hamma narsani tekshiring** — binar fayl ham dushman bo'lishi mumkin. `hexdump` — noma'lum formatni tushunishning birinchi vositasi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. Yangi bayroq qo'shing: `X(NAFAQA, 'N', 5)` (`BAYROQLAR` jadvalida). Nechta **joyni** o'zgartirdingiz? Fayl formatini o'zgartirmasdan ishladimi? (Maslahat: bayroq — hali **bitta bayt**da.)
+2. `hex k.bin 64` natijasida **Bobur**ning yozuvini toping (`8 + 48 = 56`-baytdan): uning ID si (`0x0827` = 2087), toifa va bayroq baytini qo'lda o'qing. Bayroq `0x09` — qaysi bitlar?
+3. **Versiya 2** formatini loyihalang: yozuvga `tug'ilgan_yil u16` qo'shilsin. `ikkilik_yukla` **versiya 1** va **2** ni ham o'qiy olishi uchun nima qilish kerak? (Shu sababli sarlavhada **versiya** maydoni bor.)
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. x86 — **little-endian**: `0x11223344` xotirada `44 33 22 11`; tarmoq — big-endian (`htonl`/`ntohl`); formatni qo'lda o'qishda baytlarni aniq tartibda yig'ing.

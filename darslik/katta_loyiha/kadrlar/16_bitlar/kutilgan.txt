@@ -1,0 +1,18 @@
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+1042  Aziza     Mutaxassis  TM---       736263.72       88351.65           640 549.43
+2087  Bobur     Boshlovchi  T--S-       378000.00       45360.00           328 860.00
+3150  Dilnoza   Yetakchi    T-R--       365634.75       43876.17           318 102.23
+9999  Sardor    Rahbar      T-R--    296250017.77    58760003.55       234 527 514.04
+Jami (4 xodim): brutto 297729916.24, soliq 58937591.37, qo'lga tegadi 235 815 025.70 so'm
+4 xodim k.bin fayliga (binar) saqlandi
+0000  4b 44 52 31 01 00 04 00  12 04 01 03 d2 25 26 00  |KDR1.........%&.|
+0010  00 00 00 00 a0 05 00 00  5a 00 00 00 41 7a 69 7a  |........Z...Aziz|
+0020  61 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |a...............|
+0030  00 00 00 00 39 18 00 00  27 08 00 09 b0 10 30 00  |....9...'.....0.|
+binar fayldan: 4 ta o'qildi, 0 ta rad etildi
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+1042  Aziza     Mutaxassis  TM---       736263.72       88351.65           640 549.43
+k.bin: 1-yozuv: nazorat yig'indisi mos emas (yozuv buzilgan)
+binar fayldan: 3 ta o'qildi, 1 ta rad etildi
+ID    Ism       Toifa       Bayroq         Brutto          Soliq               Qo'lga
+2087  Bobur     Boshlovchi  T--S-       378000.00       45360.00           328 860.00

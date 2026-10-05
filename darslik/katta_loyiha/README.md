@@ -51,6 +51,22 @@ Ikkinchi qism boblarida katta loyiha **bitta dastur** emas, har bobga **o'zining
 
 Ba'zi loyihalar qo'shimcha dastur talab qiladi (`17` — `nasm`, `21` — `valgrind`): ular `kerak.txt` da yozilgan, dastur yo'q bo'lsa tekshiruv bu bosqichni **o'tkazib yuboradi**.
 
+## Kadrlar tizimi (10–16-boblar): bitta dastur, 7 bosqich
+
+Kompaniya xodimlari va ularning **maoshi** (progressiv soliq, ustama, bonus). **Bo'sh `TODO` yo'q** — har bosqichda to'liq ishlaydigan kod va tushuntirish; dastur bobdan bobga **o'sib boradi** (bir faylli dasturdan papkali, testli, fuzzerli, parallel va binar fayl bilan ishlaydigan tizimgacha).
+
+| Bosqich | Bob | Papka (`kadrlar/`) | Yangi narsa |
+|---|---|---|---|
+| 10 | 10 | `10_makrolar` | bitta fayl: makrolar, X-makro, `-DDEBUG` jurnali, `_Static_assert` |
+| 11 | 11 | `11_kop_fayl` | `include/` + `src/`, opaque tur, `Makefile` (`-MMD`), statik kutubxona |
+| 12 | 12 | `12_stdlib` | fayldan o'qish (`strtoll`, `errno`), `qsort`, `snprintf`, hisobotni faylga saqlash |
+| 13 | 13 | `13_xavfsizlik` | toza parser, kirish chegaralari, **fuzzer**, zaif parser bilan solishtirish |
+| 14 | 14 | `14_tizim_chaqiruvlari` | `open`/`write`, `fork`/`exec`/`pipe`: CSV eksport va tashqi dastur |
+| 15 | 15 | `15_oqimlar` | `pthread`, parallel hisob, mutex, ThreadSanitizer |
+| 16 | 16 | `16_bitlar` | bit bayroqlari, binar fayl formati (little-endian, nazorat yig'indisi), hexdump |
+
+`birlashtiruvchi/02_kadrlar` — **shu masalaning TODO varianti** (funksiyalarni o'zingiz yozasiz). Uni **avval** yechmoqchi bo'lsangiz, bu loyihaning `pul`, `soliq`, `ombor` kodini oldindan o'qimang.
+
 ## Qanday ishlash kerak
 
 1. Bobdagi "**Katta loyiha**" bo'limini o'qing (kod + tushuntirish + natija).

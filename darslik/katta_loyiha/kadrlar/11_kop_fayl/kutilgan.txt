@@ -1,0 +1,16 @@
+ID    Ism       Toifa               Brutto          Soliq         Qo'lga
+1042  Aziza     Mutaxassis       686263.72       82351.65      597049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00      411075.00
+3150  Dilnoza   Yetakchi         365634.75       43876.17      318102.23
+9999  Sardor    Rahbar        296250017.77    58760003.55   234527514.04
+Jami (4 xodim): brutto 297774416.24, soliq 58942931.37, qo'lga tegadi 235853740.70 so'm
+=== MAOSH VARAQASI: Dilnoza (ID 3150, Yetakchi) ===
+Soatlik tarif:           18750.50 so'm
+Asosiy ish haqi:        281257.50 so'm
+Ustama (x1.5):           56251.50 so'm
+Toifa bonusi:            28125.75 so'm
+Brutto:                 365634.75 so'm
+Soliq:                   43876.17 so'm
+Kasaba:                   3656.35 so'm
+Qo'lga tegadi:          318102.23 so'm
+hisobot.o ombor.o pul.o soliq.o toifa.o xodim.o 

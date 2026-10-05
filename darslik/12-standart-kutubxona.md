@@ -1127,6 +1127,259 @@ sut;1200000;45;1;1
 3. `solishtir_nom` ni katta-kichik harfni farqlamaydigan qiling (`strcasecmp`, `<strings.h>`). `qsort` ning ikkala taqqoslagichini bir funksiyaga birlashtirib bo'ladimi? (Maslahat: global o'zgaruvchi kerak bo'ladi — bu yaxshimi? `qsort_r` ni qidiring.)
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 12-bosqich: fayllar, `qsort`, `errno`
+
+**Oldingi bosqichdan:** xodimlar ma'lumoti **kod ichida** edi (`boshlangich[]` massivi). Yangi xodim qo'shish uchun dasturni **qayta kompilyatsiya** qilish kerak. Haqiqiy dastur ma'lumotni **fayldan** oladi — va fayl **noto'g'ri** bo'lishi mumkinligini bilib ishlaydi.
+
+### Bu bosqichda nima qilamiz
+
+| Yangi | Nima |
+|---|---|
+| `data/xodimlar.txt`, `data/davomat.txt` | ma'lumot **matn fayllarida** (ataylab **noto'g'ri qatorlar** bilan!) |
+| `src/yukla.c` | fayldan o'qish: `fopen`, `fgets`, `strtoll`, `errno`; noto'g'ri qator — **sababi va qator raqami** bilan rad etiladi |
+| `src/vaqt.c` | kirish/chiqish vaqti (`0930` ko'rinishida) → ish daqiqalari |
+| `ombor_saralash` | `qsort` bilan saralash (ism yoki maosh bo'yicha) |
+| `pul_matn` | `1 234 567.89` ko'rinishidagi pul (`snprintf` bilan) |
+| `hisobot_saqla` | hisobotni **faylga** yozish va yozish xatolarini tekshirish |
+
+**Ma'lumot formati** (har qator — bitta yozuv; `#` bilan boshlangan qatorlar — izoh):
+
+```text
+# id ism toifa(1..4) tarif(tiyin/soat)
+1042 Aziza 2 2500050
+2087 Bobur 1 3150000
+3150 Dilnoza 3 1875050
+9999 Sardor 4 1250000075
+# quyidagilar ataylab noto'g'ri: dastur ularni sababi bilan rad etadi
+12 Qisqa 1 1000
+1042 Takror 1 1000
+4000 Nom 7 1000
+5000 Tarifsiz 2 0
+6000 Kam
+7000 Harf2 x 500
+```
+
+```text
+# id kun kirish chiqish (HHMM)
+1042 1 0900 1800
+1042 2 0830 1900
+1042 3 0900 1800
+2087 1 0800 1700
+2087 2 0800 1600
+3150 1 0900 2000
+3150 2 1000 1800
+9999 1 0900 1800
+9999 2 0900 2100
+5555 1 0900 1800
+1042 4 1800 0900
+1042 5 0975 1800
+```
+
+`xodimlar.txt`: `id ism toifa(1..4) tarif(tiyin/soat)`. `davomat.txt`: `id kun kirish chiqish` (vaqtlar `HHMM`). Quyidagi qatorlar **ataylab buzilgan** — tizim ularni **to'xtamasdan** o'tkazib yuborib, **sababini** aytishi kerak.
+
+### Yangi tushunchalar
+
+**1) Fayl bilan ishlash (12-bob).** `fopen(yol, "r")` → `NULL` bo'lsa **xato** (sababi `errno` da, matni `strerror(errno)`) → `fgets` bilan qator-qator o'qish → `fclose`. **Har bosqichning natijasini tekshiring.**
+
+**2) `strtoll` — `atoi` dan xavfsiz.** `atoi("12abc")` jimgina `12` beradi; `atoi("abc")` — `0`; katta sonda — noma'lum. `strtoll` esa **qayerda to'xtaganini** (`oxir`) va **toshganini** (`errno == ERANGE`) bildiradi:
+
+```c
+static int son_oqi(const char *s, long long *natija)
+{
+    char *oxir;
+    errno = 0;
+    long long v = strtoll(s, &oxir, 10);
+    if (oxir == s || *oxir != '\0' || errno == ERANGE)
+        return -1;
+    *natija = v;
+    return 0;
+}
+```
+
+Shart: `oxir == s` (hech narsa o'qilmadi) yoki `*oxir != '\0'` (son **keyin** yana belgi bor: `12abc`) yoki `ERANGE` (toshdi) — **xato**. Faqat butun matn son bo'lsa — qabul.
+
+**3) Noto'g'ri qator — dasturni to'xtatmaydi.** Haqiqiy ma'lumot **doim** kirlangan bo'ladi. Qoida: noto'g'ri qatorni **o'tkazib yubor**, **sababini** `fayl:qator: sabab` ko'rinishida `stderr` ga yoz, **hisobla** (`struct yuklash` — `qabul` va `rad`). `stderr` — xatolar uchun alohida oqim: `stdout` ni boshqa dasturga ulaganda xato xabarlari natijaga **aralashib ketmaydi**.
+
+```c
+int xodimlar_yukla(struct ombor *o, const char *fayl, struct yuklash *h)
+{
+    FILE *f = och(fayl);
+    if (!f)
+        return -1;
+    char qator[QATOR_UZ];
+    for (int raqam = 1; fgets(qator, sizeof(qator), f); raqam++) {
+        if (qator[0] == '#' || qator[0] == '\n')
+            continue;
+        char *soz[8];
+        if (bol(qator, soz, 8) != 4) {
+            rad_et(fayl, raqam, "maydonlar soni 4 emas", h);
+            continue;
+        }
+        long long id, toifa, tarif;
+        if (son_oqi(soz[0], &id) || id < 1000 || id > 9999) {
+            rad_et(fayl, raqam, "ID 1000..9999 oralig'ida son emas", h);
+            continue;
+        }
+        if (strlen(soz[1]) >= ISM_UZ) {
+            rad_et(fayl, raqam, "ism juda uzun", h);
+            continue;
+        }
+        if (son_oqi(soz[2], &toifa) || toifa < 1 || toifa > T_SONI) {
+            rad_et(fayl, raqam, "toifa 1..4 oralig'ida son emas", h);
+            continue;
+        }
+        if (son_oqi(soz[3], &tarif) || tarif <= 0) {
+            rad_et(fayl, raqam, "tarif musbat son emas", h);
+            continue;
+        }
+        struct xodim x = { .id = (int)id, .toifa = (enum toifa)(toifa - 1), .tarif = tarif };
+        snprintf(x.ism, sizeof(x.ism), "%s", soz[1]);
+        int r = ombor_qosh(o, &x);
+        if (r == -2) {
+            rad_et(fayl, raqam, "bu ID allaqachon bor", h);
+        } else if (r != 0) {
+            rad_et(fayl, raqam, "xotira yetmadi", h);
+        } else {
+            h->qabul++;
+        }
+    }
+    fclose(f);
+    return 0;
+}
+```
+
+**4) `qsort` — standart saralash.** Siz faqat **taqqoslagich** funksiyasini yozasiz: ikki elementga `void *` ko'rsatkichlar oladi va **manfiy / nol / musbat** qaytaradi. Maosh bo'yicha **kamayish** uchun:
+
+```c
+static int maosh_boyicha(const void *a, const void *b)
+{
+    int64_t p = sof_maosh(a), q = sof_maosh(b);
+    return (p < q) - (p > q);                   /* kamayish tartibi; ayirish EMAS: int64_t ayirmasi int ga sig'masligi mumkin */
+}
+```
+
+`(p < q) - (p > q)` — `-1`, `0` yoki `1`. **`p - q` yozmaymiz:** ikki `int64_t` ning ayirmasi `int` ga sig'masligi (va natija ishorasi buzilishi) mumkin — 2-bobdagi toshish tuzog'i.
+
+**5) `snprintf` — xavfsiz formatlash.** `pul_matn` pulni `1 234 567.89` ga aylantiradi. `snprintf(bufer, hajm, ...)` bufer hajmidan **chiqmaydi** (`sprintf` chiqib ketishi mumkin) va **kerak bo'lgan uzunlikni** qaytaradi:
+
+```c
+int pul_matn(char *bufer, size_t hajm, int64_t tiyin)
+{
+    char raqam[32];
+    int64_t som = tiyin / 100;
+    int n = snprintf(raqam, sizeof(raqam), "%lld", (long long)som);        /* "1234567" */
+    char chiq[48];
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        if (i > 0 && (n - i) % 3 == 0)
+            chiq[k++] = ' ';                    /* har uch raqamdan oldin bo'sh joy (oxiridan sanaganda) */
+        chiq[k++] = raqam[i];
+    }
+    chiq[k] = '\0';
+    return snprintf(bufer, hajm, "%s.%02lld", chiq, (long long)(tiyin % 100));
+}
+```
+
+**6) `assert` — ichki qoida.** `ombor_qosh` da `assert(o->soni < o->sigim)`: "bu yerda joy **doim** bor" degan **dastur xatosiga qarshi** tekshiruv (foydalanuvchi xatosi emas!). `-DNDEBUG` bilan o'chiriladi.
+
+**7) Faylga yozishni to'g'ri tekshirish.** Yozish xatosi (disk to'lgan) ba'zan **`fclose` da** bilinadi, chunki ma'lumot avval **buferda** turadi:
+
+```c
+int hisobot_saqla(struct ombor *o, const char *fayl)
+{
+    FILE *f = fopen(fayl, "w");
+    if (!f) {
+        fprintf(stderr, "%s: yozish uchun ochilmadi: %s\n", fayl, strerror(errno));
+        return -1;
+    }
+    hisobot_royxat(o, TARTIB_MAOSH, f);
+    hisobot_jami(o, f);
+    if (ferror(f) || fclose(f) != 0) {          /* disk to'lgan bo'lsa, xato aynan shu yerda bilinadi */
+        fprintf(stderr, "%s: yozishda xato: %s\n", fayl, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+```
+
+### Ishga tushirish
+
+Avval yig'amiz va **maosh bo'yicha** tartiblangan jadvalni olamiz (`stderr` ham ko'rinsin: `2>&1`):
+
+```console
+$ cd katta_loyiha/kadrlar/12_stdlib
+$ make -s
+$ ./bin/kadrlar royxat maosh 2>&1
+data/xodimlar.txt:7: ID 1000..9999 oralig'ida son emas
+data/xodimlar.txt:8: bu ID allaqachon bor
+data/xodimlar.txt:9: toifa 1..4 oralig'ida son emas
+data/xodimlar.txt:10: tarif musbat son emas
+data/xodimlar.txt:11: maydonlar soni 4 emas
+data/xodimlar.txt:12: toifa 1..4 oralig'ida son emas
+xodimlar: 4 ta qabul, 6 ta rad
+data/davomat.txt:11: bunday ID li xodim yo'q
+data/davomat.txt:12: vaqt noto'g'ri (HHMM, chiqish kirishdan keyin bo'lishi kerak)
+data/davomat.txt:13: vaqt noto'g'ri (HHMM, chiqish kirishdan keyin bo'lishi kerak)
+davomat: 9 ta qabul, 3 ta rad
+ID    Ism       Toifa               Brutto          Soliq               Qo'lga
+9999  Sardor    Rahbar        296250017.77    58760003.55       234 527 514.04
+1042  Aziza     Mutaxassis       686263.72       82351.65           597 049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00           411 075.00
+3150  Dilnoza   Yetakchi         365634.75       43876.17           318 102.23
+Jami (4 xodim): brutto 297774416.24, soliq 58942931.37, qo'lga tegadi 235 853 740.70 so'm
+```
+
+Ism bo'yicha tartib (xabarlarsiz), hisobotni faylga saqlash va xato holati:
+
+```console
+$ cd katta_loyiha/kadrlar/12_stdlib
+$ ./bin/kadrlar royxat ism 2>/dev/null | head -3
+ID    Ism       Toifa               Brutto          Soliq               Qo'lga
+1042  Aziza     Mutaxassis       686263.72       82351.65           597 049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00           411 075.00
+$ ./bin/kadrlar saqla hisobot.txt 2>/dev/null
+hisobot hisobot.txt fayliga saqlandi
+$ head -3 hisobot.txt
+ID    Ism       Toifa               Brutto          Soliq               Qo'lga
+9999  Sardor    Rahbar        296250017.77    58760003.55       234 527 514.04
+1042  Aziza     Mutaxassis       686263.72       82351.65           597 049.43
+$ ./bin/kadrlar saqla /yoq_papka/h.txt 2>&1 | tail -1
+/yoq_papka/h.txt: yozish uchun ochilmadi: No such file or directory
+$ ./bin/kadrlar saqla /yoq_papka/h.txt 2>/dev/null; echo "chiqish kodi: $?"
+chiqish kodi: 1
+$ KADRLAR_DATA=/yoq_papka ./bin/kadrlar royxat 2>&1; echo "chiqish kodi: $?"
+/yoq_papka/xodimlar.txt: ochilmadi: No such file or directory
+chiqish kodi: 2
+```
+
+**Nima ko'rdik:**
+
+- `xodimlar.txt` da **10 ta ma'lumot qatori**: 4 tasi to'g'ri, **6 tasi rad etildi** — har biri **o'z sababi** bilan: `ID 1000..9999 oralig'ida son emas` (`12`), `bu ID allaqachon bor` (takror), `toifa ...` (`7` va `x`), `tarif musbat son emas` (`0`), `maydonlar soni 4 emas` (yarim qator). `davomat.txt` da 12 ta yozuvdan 9 tasi qabul, **3 tasi rad**: noma'lum ID, chiqish kirishdan oldin, vaqt `0975` (75 daqiqa bo'lmaydi).
+- Jadval **maosh bo'yicha** tartiblandi (Sardor birinchi). `Qo'lga` ustuni **`234 527 514.04`** ko'rinishida — `pul_matn` ishladi.
+- Ism bo'yicha tartib (`strcmp`): `Aziza`, `Bobur`, `Dilnoza`, `Sardor`.
+- `hisobot.txt` da jadval **faylga yozilgan**. Mavjud bo'lmagan papkaga yozish urinishi: aniq xabar (`No such file or directory`) va **chiqish kodi 1** — skriptlar shu kod orqali xatoni bilib oladi.
+- Ma'lumot papkasi yo'q bo'lsa: dastur **qulamaydi**, sababini aytib `2` kodi bilan chiqadi.
+
+**Kodda nimalar bor:**
+
+| Qism | Vazifasi |
+|---|---|
+| `bol(qator, soz, maks)` | `strtok_r` bilan qatorni so'zlarga bo'ladi (`_r` — qayta kirishga xavfsiz variant) |
+| `rad_et(...)` | xabar chiqaradi va `h->rad` ni oshiradi — **bitta joyda** |
+| `davomat_yukla` | har yozuv uchun `ish_daqiqalari`: kunlik norma (8 soat) gacha — **oddiy**, ortig'i — **qo'shimcha** |
+| `hisobot_royxat(o, tartib, FILE *)` | chiqish — **`FILE *`**: `stdout` ham, fayl ham bo'lishi mumkin (shuning uchun `saqla` bir xil kodni ishlatadi) |
+| `ombor_top_yoz` | `ombor_top` ning o'zgartirish mumkin varianti (davomat xodimning daqiqalarini oshiradi) |
+
+> **Eslab qoling:** fayldan kelgan ma'lumotga **ishonmang**. `atoi` o'rniga `strtoll` + `errno`; noto'g'ri qatorni **sabab bilan** rad eting va **hisoblang**; xatolar `stderr` ga; `fopen`, `fclose` natijasini **tekshiring**. `qsort` taqqoslagichida **ayirma** emas, `(a > b) - (a < b)`. Chiqish `FILE *` bo'lsa, bitta funksiya ham ekranga, ham faylga yozadi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `data/xodimlar.txt` ga **uzun ism** (30 harf) qo'shing: qaysi xabar chiqadi? Bu tekshiruv kodning **qayerida** (`strlen(soz[1]) >= ISM_UZ`)?
+2. `royxat` ga **uchinchi tartib** qo'shing: **tarif** bo'yicha. Yangi taqqoslagich va `enum tartib` ga yangi qiymat — qaysi **uch joy**?
+3. `data/davomat.txt` ga **bir xodim uchun ko'p kunlik** yozuvlar qo'shing, qo'shimcha daqiqalar qanday yig'ilishini `varaqa` bilan tekshiring. 31 kundan ortiq yozsangiz nima bo'ladi? (13-bosqichda javobi bor.)
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. libc — tilning qismi emas, **tayyor funksiyalar to'plami**; har biri uchun tegishli sarlavha (`<stdio.h>`...) qo'shiladi.

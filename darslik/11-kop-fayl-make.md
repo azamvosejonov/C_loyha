@@ -1091,6 +1091,229 @@ rm -f *.o *.d ombor libombor.a
 3. `ombor_ochir` dan keyin `ombor_soni` ni chaqirish — interfeysga yangi funksiya `ombor_bormi(o, nom)` qo'shing: `ombor.h` va `ombor.c` ni qanday o'zgartirdingiz? `main.c` ni qayta yig'ish kerakmi? (`make` nima qiladi?)
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 11-bosqich: modullar, `Makefile`, kutubxona
+
+**Oldingi bosqichdan:** 10-bosqichda hamma narsa **bitta 160 qatorli** fayl edi. Dastur kattalashgan sari muammolar paydo bo'ladi: (1) bitta joyni o'zgartirsangiz, **butun fayl** qayta kompilyatsiya qilinadi; (2) kod aralashib ketadi — "soliq" qayerda tugab, "jadval" qayerda boshlanadi?; (3) bitta funksiyani alohida **sinab bo'lmaydi**; (4) har bir ma'lumot hammaga ochiq — kimdir `xodimlar[2].tarif` ni tasodifan buzishi mumkin.
+
+### Bu bosqichda nima qilamiz
+
+Dasturni **modullarga** bo'lamiz — har modul **bitta vazifa** qiladi va **o'z sarlavhasi** (`.h`) orqali tashqariga "shartnomasini" e'lon qiladi (11-bob). Natija **aynan bir xil jadval**, lekin kod tartibli:
+
+```text
+11_kop_fayl/
+├── Makefile
+├── include/                    SARLAVHALAR: har modulning "menyusi" (nima qila oladi)
+│   ├── config.h                umumiy doimiylar
+│   ├── toifa.h  pul.h  soliq.h  xodim.h  ombor.h  hisobot.h
+└── src/                        REALIZATSIYA: "qanday" qilishi
+    ├── toifa.c  pul.c  soliq.c  xodim.c  ombor.c  hisobot.c
+    └── main.c                  faqat "yig'ib ishlatadi"
+```
+
+| Modul | Vazifasi | Kimga tayanadi |
+|---|---|---|
+| `pul` | `foiz`, tiyin hisobi, `PUL_FMT` | — |
+| `toifa` | toifa nomi va bonusi (10-bobdagi X-makro) | — |
+| `soliq` | progressiv soliq | `pul`, `config` |
+| `xodim` | `struct xodim`, maosh hisobi, varaqa | `pul`, `soliq`, `toifa` |
+| `ombor` | xodimlar ombori (kengayadigan massiv) | `xodim` |
+| `hisobot` | jadval va yig'indi | `ombor`, `xodim` |
+| `main` | hammasini ishga tushiradi | hammasi |
+
+**Qoida:** pastki modullar (`pul`, `toifa`) **hech kimga tayanmaydi**; yuqoridagilar pastdagilarga tayanadi. **Aylana** (`pul` → `xodim` → `pul`) bo'lmasligi kerak.
+
+### Yangi tushunchalar
+
+**1) Sarlavha — shartnoma, `.c` — bajarilish.** `ombor.h` da faqat **nima qila olishi** yoziladi. Qanday ishlashi — `ombor.c` da. Boshqa modullar **faqat sarlavhani** ko'radi.
+
+**2) Include guard.** Har `.h` boshida `#ifndef OMBOR_H` / `#define OMBOR_H` ... `#endif` — sarlavha **ikki marta** qo'shilsa ham, ichi faqat **bir marta** kiradi (1-bob).
+
+**3) Opaque (yashirin) tur.** Eng muhim fikr bu bosqichda. `ombor.h` da faqat:
+
+```c
+struct ombor;
+```
+
+Ya'ni "bunday struct **bor**" deymiz, **ichini** ko'rsatmaymiz. Ta'rifi esa faqat `ombor.c` da:
+
+```c
+struct ombor {                                  /* ta'rif FAQAT shu faylda ko'rinadi */
+    struct xodim *a;                            /* heap dagi massiv */
+    size_t soni, sigim;
+};
+```
+
+Natija: boshqa fayllar `struct ombor` **o'zgaruvchisini yarata olmaydi** va maydonlariga tegolmaydi — faqat `ombor_yarat()`, `ombor_qosh()` ... orqali ishlaydi. Ertaga massivni bog'langan ro'yxatga almashtirsak, **boshqa fayllar buzilmaydi**.
+
+**4) Kengayadigan massiv.** Oldin xodimlar soni **qat'iy** edi. Endi `ombor_qosh` joy tugasa **ikki barobar** kattalashtiradi (`realloc`). Xavfsizlik qoidasi (8-bob): `realloc` natijasini **avval vaqtinchalik** o'zgaruvchiga oling — `NULL` qaytsa, eski massiv **yo'qolmasin**:
+
+```c
+int ombor_qosh(struct ombor *o, const struct xodim *x)
+{
+    if (ombor_top(o, x->id))
+        return -2;
+    if (o->soni == o->sigim) {                  /* joy tugadi: sig'imni ikki barobar oshiramiz */
+        size_t yangi = o->sigim ? o->sigim * 2 : 4;
+        struct xodim *b = realloc(o->a, yangi * sizeof(*b));    /* natijani AVVAL vaqtinchalik o'zgaruvchiga */
+        if (!b)
+            return -1;                          /* eski massiv o'z joyida saqlanib qoldi */
+        o->a = b;
+        o->sigim = yangi;
+    }
+    o->a[o->soni++] = *x;
+    return 0;
+}
+```
+
+**5) X-makro ikki faylda.** `toifa.h` da `TOIFALAR` jadvali va `enum`; `toifa.c` da undan **matn va bonus** massivlari. Jadvalni o'zgartirish — **faqat `toifa.h`** da.
+
+```c
+/* toifa.h - toifalar jadvali (X-makro, 10-bob). BIR joyda yoziladi; enum shu yerda, matn va bonus toifa.c da hosil bo'ladi */
+#ifndef TOIFA_H
+#define TOIFA_H
+
+#define TOIFALAR(X)                             \
+    X(BOSHLOVCHI, "Boshlovchi", 0)              \
+    X(MUTAXASSIS, "Mutaxassis", 5)              \
+    X(YETAKCHI, "Yetakchi", 10)                 \
+    X(RAHBAR, "Rahbar", 20)
+
+enum toifa {
+#define X(nom, matn, bonus) T_##nom,
+    TOIFALAR(X)
+#undef X
+    T_SONI
+};
+
+const char *toifa_matni(enum toifa t);          /* "Boshlovchi" ... yoki "?" (noto'g'ri toifa) */
+int toifa_bonusi(enum toifa t);                 /* asosiy ish haqiga foiz */
+
+#endif
+```
+
+**6) `Makefile` — kim kimga bog'liq.** `make` faqat **o'zgargan** fayllarni qayta kompilyatsiya qiladi. Buning uchun u har `.o` ning **qaysi `.c` va `.h`** ga bog'liqligini bilishi kerak: `-MMD` bayrog'i har kompilyatsiyada `.d` fayl yozadi (masalan `build/soliq.o: src/soliq.c include/pul.h ...`), `-include` ularni o'qiydi.
+
+```make
+# Kadrlar tizimi, 11-bosqich. Buyruqlar:  make   |  make toza
+CC = gcc
+# -MMD: har .c uchun .d fayl (qaysi .h ga bog'liqligi) hosil qilinadi
+CFLAGS = -Wall -Wextra -g -Iinclude -MMD -MP
+
+MANBA = $(wildcard src/*.c)
+OBJ = $(patsubst src/%.c,build/%.o,$(MANBA))
+# main.o dan tashqari hammasi kutubxonaga kiradi
+KUTUBXONA_OBJ = $(filter-out build/main.o,$(OBJ))
+
+bin/kadrlar: build/main.o libkadr.a
+	@mkdir -p bin
+	$(CC) $(CFLAGS) build/main.o libkadr.a -o $@
+
+# statik kutubxona = .o fayllar arxivi
+libkadr.a: $(KUTUBXONA_OBJ)
+	ar rcs $@ $^
+
+build/%.o: src/%.c
+	@mkdir -p build
+	$(CC) $(CFLAGS) -c $< -o $@
+
+toza:
+	rm -rf build bin libkadr.a
+
+# .d fayllar bo'lsa, ularni o'qiydi (sarlavha o'zgarsa - tegishli .c qayta kompilyatsiya qilinadi)
+-include $(OBJ:.o=.d)
+.PHONY: toza
+```
+
+**7) Statik kutubxona.** `ar rcs libkadr.a ...` — `main.o` dan tashqari hamma `.o` ni **bitta arxivga** yig'adi. Ertaga test dasturi yoki boshqa dastur shu `libkadr.a` ni **qayta ishlatadi** (13-bobdagi fuzzer ham shunday).
+
+### Yig'ish va tajribalar
+
+```console
+$ cd katta_loyiha/kadrlar/11_kop_fayl
+$ make
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/main.c -o build/main.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/hisobot.c -o build/hisobot.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/ombor.c -o build/ombor.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/pul.c -o build/pul.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/soliq.c -o build/soliq.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/toifa.c -o build/toifa.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/xodim.c -o build/xodim.o
+ar rcs libkadr.a build/hisobot.o build/ombor.o build/pul.o build/soliq.o build/toifa.o build/xodim.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP build/main.o libkadr.a -o bin/kadrlar
+$ ./bin/kadrlar
+ID    Ism       Toifa               Brutto          Soliq         Qo'lga
+1042  Aziza     Mutaxassis       686263.72       82351.65      597049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00      411075.00
+3150  Dilnoza   Yetakchi         365634.75       43876.17      318102.23
+9999  Sardor    Rahbar        296250017.77    58760003.55   234527514.04
+Jami (4 xodim): brutto 297774416.24, soliq 58942931.37, qo'lga tegadi 235853740.70 so'm
+$ ./bin/kadrlar varaqa 3150
+=== MAOSH VARAQASI: Dilnoza (ID 3150, Yetakchi) ===
+Soatlik tarif:           18750.50 so'm
+Asosiy ish haqi:        281257.50 so'm
+Ustama (x1.5):           56251.50 so'm
+Toifa bonusi:            28125.75 so'm
+Brutto:                 365634.75 so'm
+Soliq:                   43876.17 so'm
+Kasaba:                   3656.35 so'm
+Qo'lga tegadi:          318102.23 so'm
+```
+
+Endi **`make` ning aqli**. Bitta faylga tegamiz (`touch` — o'zgartirilgan vaqtni yangilaydi) va qayta yig'amiz:
+
+```console
+$ cd katta_loyiha/kadrlar/11_kop_fayl
+$ touch src/soliq.c
+$ make
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/soliq.c -o build/soliq.o
+ar rcs libkadr.a build/hisobot.o build/ombor.o build/pul.o build/soliq.o build/toifa.o build/xodim.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP build/main.o libkadr.a -o bin/kadrlar
+```
+
+Endi **sarlavhaga** tegamiz — undan foydalanuvchi hamma `.c` qayta kompilyatsiya qilinadi:
+
+```console
+$ cd katta_loyiha/kadrlar/11_kop_fayl
+$ touch include/soliq.h
+$ make
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/soliq.c -o build/soliq.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP -c src/xodim.c -o build/xodim.o
+ar rcs libkadr.a build/hisobot.o build/ombor.o build/pul.o build/soliq.o build/toifa.o build/xodim.o
+gcc -Wall -Wextra -g -Iinclude -MMD -MP build/main.o libkadr.a -o bin/kadrlar
+```
+
+Kutubxona ichida nima bor va **opaque tur** haqiqatan yopiqmi:
+
+```console
+$ cd katta_loyiha/kadrlar/11_kop_fayl
+$ ar t libkadr.a | tr '\n' ' '; echo
+hisobot.o ombor.o pul.o soliq.o toifa.o xodim.o 
+$ printf '#include "ombor.h"\nint main(void)\n{\n    struct ombor o;\n    return o.soni;\n}\n' > opaque.c
+$ gcc -Iinclude -c opaque.c -o opaque.o
+opaque.c: In function ‘main’:
+opaque.c:4:18: error: storage size of ‘o’ isn’t known
+    4 |     struct ombor o;
+      |                  ^
+```
+
+**Nima ko'rdik:**
+
+- **Birinchi `make`:** hamma `.c` alohida `.o` ga kompilyatsiya qilindi, so'ng `libkadr.a` yig'ildi va `main.o` bilan bog'landi. Natija — 10-bosqichdagi jadval **aynan o'zi**: refaktoring (qayta tashkil etish) **xatti-harakatni o'zgartirmaydi**.
+- **`touch src/soliq.c` dan keyin:** faqat **`soliq.c`** qayta kompilyatsiya qilindi (+ kutubxona va bog'lash). Qolgan 6 ta `.c` **tegilmadi**. 160 qatorli faylda bu foyda sezilmasdi, 100 000 qatorli loyihada — soatlar.
+- **`touch include/soliq.h` dan keyin:** `soliq.h` ni `#include` qiladigan fayllar (`soliq.c`, `xodim.c`) qayta kompilyatsiya qilindi — `-MMD` shuni bilib turdi. Bu `.d` fayllarsiz `make` sarlavha o'zgarishini **sezmas edi** (eng ko'p uchraydigan "nega o'zgarish ishlamayapti?" xatosi).
+- **`ar t`:** kutubxonada 6 ta `.o` — `main.o` yo'q.
+- **Opaque tur:** `error: storage size of ‘o’ isn’t known` — boshqa fayl `struct ombor` o'zgaruvchisini yarata olmadi. Aynan shuni xohlagandik.
+
+> **Eslab qoling:** sarlavha — **shartnoma**, `.c` — **bajarilish**. Har sarlavhada **include guard**. Ichki tuzilishni **opaque tur** bilan yashiring: faqat funksiyalar orqali kirish. `Makefile` da `-MMD -MP` + `-include *.d` — **to'g'ri** bog'liqlik uchun shart. Pastki modullar yuqorilarga **tayanmasin**.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `ombor_yarat()` dan keyin **`ombor_yoq_qil`** chaqirishni olib tashlab, `gcc -fsanitize=address` bilan yig'ing: ASan nimani topadi? (8-bob)
+2. `ombor.h` ga `ombor_ochir(o, id)` qo'shing: ID bo'yicha xodimni olib tashlasin (massivni **chapga suring**, `memmove`). Qaysi **uch fayl** o'zgardi?
+3. `make` ga `test` nishonini qo'shing: `bin/kadrlar` ni ishga tushirib, chiqishni `kutilgan.txt` bilan `diff` qilsin. (`.PHONY` ni unutmang.)
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. Katta dasturni modullarga bo'ling: har modul = `.h` (e'lon, chizma) + `.c` (ta'rif); har `.c` o'z `.h` ini birinchi `#include` qiladi.

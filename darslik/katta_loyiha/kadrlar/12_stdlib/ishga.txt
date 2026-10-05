@@ -1,0 +1,1 @@
+make > /dev/null && ./bin/kadrlar royxat maosh 2>&1 && ./bin/kadrlar saqla hisobot.txt 2>/dev/null && head -3 hisobot.txt && ./bin/kadrlar saqla /yoq_papka/h.txt 2>&1 | tail -1; ./bin/kadrlar saqla /yoq_papka/h.txt 2>/dev/null; echo "chiqish kodi: $?"

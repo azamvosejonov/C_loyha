@@ -1,0 +1,1 @@
+gcc -Wall -Wextra -g kadrlar.c -o kadrlar && gcc -Wall -Wextra -g -DDEBUG kadrlar.c -o kadrlar_debug

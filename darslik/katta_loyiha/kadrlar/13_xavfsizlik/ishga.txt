@@ -1,0 +1,1 @@
+make > /dev/null && make fuzz > /dev/null && ./bin/fuzz_xavfsiz 12345 200000 && ./bin/fuzz_zaif 1 200000 2>&1 | head -1 && (./bin/fuzz_zaif 3 200000 2>&1 | grep -q "overflow\|AddressSanitizer" && echo "seed 3: xotira buzilishi aniqlandi (dastur to'xtadi)")

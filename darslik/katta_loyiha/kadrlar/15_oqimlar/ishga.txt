@@ -1,0 +1,1 @@
+make > /dev/null && make tsan > /dev/null && ./bin/kadrlar sinov 20000 4 2>/dev/null && echo "--- TSan: to'g'ri variantlar ---" && (./bin/kadrlar_tsan sinov 2000 4 2>&1 | grep -c WARNING; true) && echo "--- TSan: poyga ---" && (./bin/kadrlar_tsan sinov 2000 4 poyga 2>&1 | grep SUMMARY | sed -E 's/:[0-9]+ in/ in/' | sort -u | head -1)

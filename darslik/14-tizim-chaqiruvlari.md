@@ -831,6 +831,240 @@ msh chiqish kodi: 3
 3. Quvurdagi `close` qatorlaridan birini oling (`close(quvur[1])`) va `echo a | wc -l` ni sinang: nega dastur "qotib" qoladi? (Maslahat: EOF qachon keladi?)
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 14-bosqich: tizim chaqiruvlari (`open`, `write`, `fork`, `exec`, `pipe`)
+
+**Oldingi bosqichdan:** biz fayl va ekran bilan `fopen`/`printf` orqali ishladik. Lekin ular — **kutubxona** funksiyalari: ichida **tizim chaqiruvlari** (`open`, `write`, ...) turadi. Bu bosqichda ularni **o'zimiz** chaqiramiz va **boshqa dasturni** ishga tushiramiz.
+
+### Bu bosqichda nima qilamiz
+
+Ikki yangi buyruq:
+
+| Buyruq | Nima qiladi |
+|---|---|
+| `eksport FAYL.csv` | hisobotni **CSV** (vergul bilan ajratilgan matn) ko'rinishida **yangi** faylga yozadi; fayl bor bo'lsa — **bosmaydi** |
+| `filtr DASTUR [ARG...]` | CSV ni **boshqa dastur**ning kirishiga **quvur** orqali beradi (`sort`, `wc` ...) va uning natijasini ko'rsatadi |
+
+Ya'ni bizning dastur — **kichik shell**: `kadrlar filtr sort` aslida `kadrlar_csv | sort` degani. 14-bobdagi hamma g'oya shu yerda.
+
+**CSV formati:** `id,ism,toifa,brutto,soliq,sof` (pul **tiyinda**, **butun son** — boshqa dasturlar bilan ishlash oson).
+
+```text
+1042,Aziza,2,68626372,8235165,59704943
+```
+
+### 1) `write` — "hammasini yozdim" deb o'ylamang
+
+`write(fd, p, n)` **kamroq** yozishi mumkin (quvur to'lgan, signal uzgan). Qaytgan son — **haqiqatan yozilgan** baytlar. To'g'ri usul — **sikl**: yozilganini o'tkazib yuborib, qolganini qayta yozish. `EINTR` (signal uzdi) — xato **emas**, qayta urinish kerak:
+
+```c
+int yoz_hammasi(int fd, const void *malumot, size_t uzunlik)
+{
+    const char *p = malumot;
+    while (uzunlik > 0) {
+        ssize_t n = write(fd, p, uzunlik);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;                       /* signal uzdi: qayta urinamiz */
+            return -1;
+        }
+        p += n;                                 /* n bayt yozildi: qolganini yozamiz */
+        uzunlik -= (size_t)n;
+    }
+    return 0;
+}
+```
+
+### 2) `open` — mavjud faylni tasodifan bosmaslik
+
+`open(yol, O_WRONLY | O_CREAT | O_EXCL, 0644)`: `O_CREAT` — yo'q bo'lsa yaratadi; **`O_EXCL`** — fayl **allaqachon bor** bo'lsa **xato** (`EEXIST`). Oddiy `fopen("w")` mavjud faylni **jimgina o'chirib tashlaydi**. `0644` — huquqlar: egasi o'qiydi/yozadi, boshqalar faqat o'qiydi. `close` natijasini ham tekshiramiz:
+
+```c
+int fayl_yarat_yoz(const char *yol, const void *malumot, size_t uzunlik)
+{
+    int fd = open(yol, O_WRONLY | O_CREAT | O_EXCL, 0644);      /* 0644: egasi o'qiy/yoza oladi, boshqalar faqat o'qiydi */
+    if (fd < 0)
+        return -1;
+    if (yoz_hammasi(fd, malumot, uzunlik) != 0) {
+        int xato = errno;                       /* close errno ni buzmasin */
+        close(fd);
+        errno = xato;
+        return -1;
+    }
+    return close(fd);                           /* close ham xato berishi mumkin (masalan, NFS da) */
+}
+```
+
+### 3) `fork` + `pipe` + `dup2` + `exec` — boshqa dastur ishga tushirish
+
+Bu butun terminal ishining asosi. Rasm:
+
+```text
+        OTA (kadrlar)                              BOLA
+   quvur yaratadi: [o'qish | yozish]
+   fork() ----------------------------------->  (ota nusxasi)
+   o'qish uchini yopadi                        yozish uchini yopadi
+                                               dup2(o'qish, 0): "stdin = quvur"
+   CSV ni yozish uchiga YOZADI --quvur-->      execvp("sort", ...): bola sortga AYLANADI
+   yozish uchini YOPADI (EOF!)                 sort stdin dan o'qiydi, natijani stdout ga yozadi
+   waitpid() - bola tugashini KUTADI
+```
+
+```c
+int dastur_ishlat(char *const argv[], const void *kirish, size_t uzunlik)
+{
+    int quvur[2];                               /* quvur[0] - o'qish uchi, quvur[1] - yozish uchi */
+    if (pipe(quvur) != 0)
+        return -1;
+
+    fflush(stdout);                             /* bufer bola jarayonga NUSXALANIB, ikki marta chiqib ketmasin */
+    signal(SIGPIPE, SIG_IGN);                   /* bola kirishni o'qimay chiqib ketsa, write() SIGPIPE bilan o'ldirmasin: EPIPE xatosi qaytsin */
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        int xato = errno;
+        close(quvur[0]);
+        close(quvur[1]);
+        errno = xato;
+        return -1;
+    }
+    if (pid == 0) {                             /* ---- BOLA ---- */
+        close(quvur[1]);                        /* yozish uchi bolaga kerak emas */
+        dup2(quvur[0], STDIN_FILENO);           /* endi fayl deskriptor 0 (stdin) quvurning o'qish uchi */
+        close(quvur[0]);
+        execvp(argv[0], argv);                  /* muvaffaqiyatli bo'lsa, bu yerga QAYTMAYDI */
+        xabar_yoz("kadrlar: dastur topilmadi yoki ishga tushmadi: ");
+        xabar_yoz(argv[0]);
+        xabar_yoz("\n");
+        _exit(127);                             /* exit EMAS: ota jarayonning buferlarini bola yopib yubormasin */
+    }
+
+    /* ---- OTA ---- */
+    close(quvur[0]);
+    int yozish = yoz_hammasi(quvur[1], kirish, uzunlik);
+    int yozish_xato = errno;
+    close(quvur[1]);                            /* bola "fayl tugadi" (EOF) ni ko'rishi uchun YOPISH SHART */
+
+    int holat;
+    while (waitpid(pid, &holat, 0) < 0)
+        if (errno != EINTR)
+            return -1;
+    if (yozish != 0 && yozish_xato != EPIPE) {  /* EPIPE - bola kirishni to'liq o'qimadi: bu normal bo'lishi mumkin */
+        errno = yozish_xato;
+        return -1;
+    }
+    if (WIFEXITED(holat))
+        return WEXITSTATUS(holat);
+    return 128 + WTERMSIG(holat);
+}
+```
+
+Nozik joylar (har biri real xato manbai):
+
+| Qator | Nega kerak |
+|---|---|
+| `fflush(stdout)` **fork dan oldin** | stdout buferi bolaga **nusxalanadi**; bo'lmasa matn ikki marta chiqadi |
+| bolada **yozish uchini yopish** | aks holda `sort` hech qachon **EOF** ni ko'rmaydi (quvurning yozish uchi hali ochiq!) — **abadiy** kutadi |
+| otada `close(quvur[1])` | xuddi shu sabab: EOF faqat **hamma** yozish uchlari yopilganda keladi |
+| `dup2(quvur[0], 0)` | fayl deskriptor `0` (stdin) endi quvurga qaraydi; `sort` buni bilmaydi ham |
+| `execvp` **qaytmaydi** | muvaffaqiyatli bo'lsa bola `sort` ga **almashadi**. Qaytsa — xato (dastur topilmadi) |
+| `_exit(127)` (`exit` emas) | `exit` ota jarayondan nusxalangan buferlarni **ikkinchi marta** chiqarib yuborardi |
+| `signal(SIGPIPE, SIG_IGN)` | bola kirishni o'qimay chiqib ketsa, `write` bizni **signal bilan o'ldirmasin**: `EPIPE` xatosi qaytsin |
+| `waitpid` | bolani **kutmasak** — u "zombi" bo'lib qoladi; chiqish kodini ham shu yerdan olamiz |
+
+**Chiqish kodi:** `WIFEXITED` — oddiy tugadi (`WEXITSTATUS` — kodi); aks holda signal bilan o'ldi (`128 + signal` — shell odati).
+
+CSV ni qurish: `snprintf` qaytargan uzunlikni **tekshiramiz** va bufer to'lsa **ikki barobar** kattalashtiramiz (`realloc`):
+
+```c
+char *eksport_csv(const struct ombor *o, size_t *uzunlik)
+{
+    size_t sigim = 128, n = 0;
+    char *bufer = malloc(sigim);
+    if (!bufer)
+        return NULL;
+
+    for (size_t i = 0; i < ombor_soni(o); i++) {
+        const struct xodim *x = ombor_ol(o, i);
+        struct natija r;
+        xodim_hisobla(x, &r);
+
+        char qator[128];
+        int k = snprintf(qator, sizeof(qator), "%d,%s,%d,%lld,%lld,%lld\n", x->id, x->ism, (int)x->toifa + 1,
+                         (long long)r.brutto, (long long)r.soliq, (long long)r.sof);
+        if (k < 0 || (size_t)k >= sizeof(qator)) {      /* snprintf: sig'masa kerak bo'lgan uzunlikni qaytaradi */
+            free(bufer);
+            return NULL;
+        }
+        while (n + (size_t)k > sigim) {         /* joy yetmasa, ikki barobar kattalashtiramiz */
+            char *yangi = realloc(bufer, sigim * 2);
+            if (!yangi) {
+                free(bufer);
+                return NULL;
+            }
+            bufer = yangi;
+            sigim *= 2;
+        }
+        for (int j = 0; j < k; j++)
+            bufer[n++] = qator[j];
+    }
+    *uzunlik = n;
+    return bufer;
+}
+```
+
+### Ishga tushirish
+
+```console
+$ cd katta_loyiha/kadrlar/14_tizim_chaqiruvlari
+$ make -s
+$ ./bin/kadrlar eksport h.csv 2>/dev/null
+168 bayt h.csv fayliga yozildi
+$ cat h.csv
+1042,Aziza,2,68626372,8235165,59704943
+2087,Bobur,1,47250000,5670000,41107500
+3150,Dilnoza,3,36563475,4387617,31810223
+9999,Sardor,4,29625001777,5876000355,23452751404
+$ ./bin/kadrlar eksport h.csv 2>&1 | tail -1
+h.csv: File exists
+```
+
+Endi `filtr` — CSV ni boshqa dasturga **quvur** orqali beramiz:
+
+```console
+$ cd katta_loyiha/kadrlar/14_tizim_chaqiruvlari
+$ ./bin/kadrlar filtr sort -t, -k6 -nr 2>/dev/null
+9999,Sardor,4,29625001777,5876000355,23452751404
+1042,Aziza,2,68626372,8235165,59704943
+2087,Bobur,1,47250000,5670000,41107500
+3150,Dilnoza,3,36563475,4387617,31810223
+$ ./bin/kadrlar filtr wc -l 2>/dev/null
+4
+$ ./bin/kadrlar filtr yoq_dastur 2>&1 | tail -1
+kadrlar: dastur topilmadi yoki ishga tushmadi: yoq_dastur
+$ ./bin/kadrlar filtr yoq_dastur 2>/dev/null; echo "chiqish kodi: $?"
+chiqish kodi: 127
+$ ./bin/kadrlar filtr sh -c 'exit 7' 2>/dev/null; echo "chiqish kodi: $?"
+chiqish kodi: 7
+```
+
+**Nima ko'rdik:**
+
+- `eksport`: **168 bayt** yozildi; `cat` — to'rt qator CSV. Pul **tiyinda** (`68626372` = 686 263.72 so'm).
+- **Ikkinchi `eksport`:** `h.csv: File exists` — `O_EXCL` mavjud hisobotni **bosmadi**. Oddiy `fopen("w")` esa uni jimgina yo'q qilardi.
+- `filtr sort -t, -k6 -nr`: `sort` **vergul bo'yicha** (`-t,`), **6-ustun** (sof maosh) bo'yicha, **son** (`-n`) sifatida, **teskari** (`-r`) tartibda saraladi — Sardor birinchi. Bu **bizning kodimiz emas**, tashqi dastur: kadrlar faqat **ma'lumotni uzatdi**.
+- `filtr wc -l` — `4`: to'rt qator.
+- Mavjud bo'lmagan dastur: bola `execvp` dan qaytdi, xabar yozdi va **127** bilan chiqdi — ota buni `waitpid` orqali oldi. `sh -c 'exit 7'` — kod **7** ham to'g'ri uzatildi.
+
+> **Eslab qoling:** `write` kamroq yozishi mumkin — **sikl** kerak; `EINTR` — qayta urinish. `O_EXCL` — mavjud faylni bosmaslik. Boshqa dastur: **`pipe` → `fork` → bolada `dup2` + `execvp`, otada yozish + `close` (EOF!) + `waitpid`**. `fork` dan oldin `fflush`, bolada xatoda `_exit`. Quvurning **ortiqcha ochiq uchi** — dasturlar qotib qolishining eng ko'p sababi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `filtr` ni `./bin/kadrlar filtr cat` bilan sinang (CSV o'zi chiqadi). Keyin `dastur_ishlat` ichidagi **otadagi** `close(quvur[1])` qatorini **vaqtincha o'chiring**: nima bo'ladi? Nega `Ctrl-C` kerak bo'ladi?
+2. `filtr` ga **chiqishni faylga yo'naltirish** qo'shing: bolada `execvp` dan **oldin** `open` + `dup2(fd, 1)` (stdout). (Shell dagi `> fayl` aynan shu!)
+3. `eksport` ga `-` argumentini qo'shing: `eksport -` CSV ni **stdout ga** (`fd 1`) `yoz_hammasi` bilan yozsin. Nega bu yerda `fayl_yarat_yoz` kerak emas?
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Syscall** — dasturning yadrodan so'rovi (`write`, `open`, `fork`...); dastur apparatga o'zi tega olmaydi. Xato — manfiy/−1 + `errno`.

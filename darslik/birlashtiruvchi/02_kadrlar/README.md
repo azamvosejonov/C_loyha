@@ -5,6 +5,8 @@
 > **Vaqt:** bir necha kun. Shoshilmang: bitta TODO — bitta o'tirish.
 > **Yechim repoda yo'q.** Har funksiya uchun **aniq shart, misollar, maslahat** va **avtomatik test** bor.
 
+> **Bu masalaning to'liq, bosqichma-bosqich varianti** ham bor: 10–16-boblardagi **Kadrlar tizimi** (`katta_loyiha/kadrlar/`). U yerda kod **tayyor** va tushuntirilgan. **Avval shu TODO loyihani o'zingiz yechib ko'ring**, keyin 10–16-boblardagi kod bilan **solishtiring** — o'rganishning eng yaxshi usuli shu.
+
 ## Dastur nima qiladi
 
 Kichik kompaniyaning **xodimlar ro'yxati** (`data/xodimlar.txt`) va **ish davomati** (`data/davomat.txt` — kim qachon kelib-ketgan) o'qiladi. Shulardan har xodim uchun **oylik maosh** hisoblanadi: asosiy ish haqi, ustama (ortiqcha ish 1.5 barobar), toifa bonusi, **progressiv soliq** (daromad oshgan sari soliq foizi oshadi), kasaba badali. Natija — jadval, **maosh varaqasi**, reyting, umumiy hisobot.

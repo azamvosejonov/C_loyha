@@ -743,6 +743,148 @@ WARNING: ThreadSanitizer: data race (pid=N)
 3. `matmul.c` da `T` ni 16 ga oshiring va `time` bilan o'lchang: 4 yadroli mashinada 8 va 16 oqim 4 oqimdan tezmi? Nega?
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 15-bosqich: oqimlar va parallel hisob
+
+**Oldingi bosqichdan:** 4 xodimning maoshini hisoblash bir lahza. Lekin kompaniyada **200 000 xodim** bo'lsa-chi? Hisob **mustaqil**: har xodimning maoshi boshqasiga bog'liq emas. Bunday ish **parallel** bajarilsa, ko'p yadroli protsessorda tezlashadi.
+
+**Parallellikning ikki xavfi (15-bob):** (1) ishni **noto'g'ri bo'lish**, (2) **bir xotiraga bir vaqtda yozish** (ma'lumot poygasi). Bu bosqichda **to'g'ri**, **to'g'ri-lekin-sekin** va **ataylab xatoli** variantni yozib, uchalasini solishtiramiz.
+
+### Bu bosqichda nima qilamiz
+
+`parallel.c` modulida **barcha xodimlar bo'yicha yig'indi** (jami brutto, soliq, sof maosh ...) ni hisoblaydigan **to'rt** funksiya:
+
+| Funksiya | G'oya | Natija |
+|---|---|---|
+| `jami_ketma_ket` | bitta oqim | **etalon** (to'g'ri javob) |
+| `jami_parallel` | ish **bo'laklarga** bo'linadi, **har oqim o'z yig'indisiga** yozadi, oxirida qo'shiladi | to'g'ri va **tez** |
+| `jami_qulf` | hamma oqim **bitta umumiy** yig'indiga yozadi, har yozish **mutex** bilan | to'g'ri, lekin oqimlar **navbat kutadi** |
+| `jami_poyga` | umumiy yig'indiga **qulfsiz** yozadi | **XATO** (poyga) — ThreadSanitizer uchun |
+
+Yangi buyruq: `sinov N OQIMLAR [poyga]` — `N` ta sinov xodimini yaratib, variantlarni **etalon bilan** solishtiradi.
+
+### Ishni bo'lish
+
+`n` ta xodimni `T` oqimga: `t`-oqim `[n·t/T, n·(t+1)/T)` oralig'ini oladi. Butun bo'lishda bo'laklar **bir-biriga tegmaydi** va **hammasini qoplaydi** (`t = T` da oxir = `n`). Har oqimga topshiriq — `struct ish`:
+
+```c
+struct ish {
+    const struct xodim *a;
+    size_t bosh, oxir;                          /* shu oqim [bosh, oxir) oralig'ini hisoblaydi */
+    struct natija *jami;                        /* nimaga yozadi: o'z yig'indisiga (parallel) yoki umumiyga (qulf, poyga) */
+    pthread_mutex_t *qulf;                      /* NULL - qulfsiz */
+    int bolishilgan;                            /* 1 - jami boshqa oqimlar bilan UMUMIY (poyga/qulf variantlari) */
+};
+```
+
+Oqimning ishi — o'z oralig'ini hisoblab, **natijani qo'shish**:
+
+```c
+static void *oqim_ishi(void *arg)
+{
+    struct ish *s = arg;
+    for (size_t i = s->bosh; i < s->oxir; i++) {
+        struct natija r;
+        xodim_hisobla(&s->a[i], &r);
+        if (s->qulf)
+            pthread_mutex_lock(s->qulf);
+        qosh(s->jami, &r);                      /* bolishilgan bo'lsa va qulf bo'lmasa: POYGA */
+        if (s->qulf)
+            pthread_mutex_unlock(s->qulf);
+    }
+    return NULL;
+}
+```
+
+### Umumiy mexanizm: ishga tushirish, kutish, yig'ish
+
+```c
+static int yurgiz(const struct xodim *a, size_t n, int T, struct natija *jami, int bolishilgan, pthread_mutex_t *qulf)
+{
+    if (T < 1 || T > MAKS_OQIM)
+        return -1;
+    struct natija bolak[MAKS_OQIM];             /* har oqim uchun o'z yig'indisi (faqat bolishilmagan variantda ishlatiladi) */
+    struct ish ish[MAKS_OQIM];
+    pthread_t oqim[MAKS_OQIM];
+    memset(bolak, 0, sizeof(bolak));
+    memset(jami, 0, sizeof(*jami));
+
+    int ishga = 0, xato = 0;
+    for (int t = 0; t < T; t++) {
+        ish[t] = (struct ish){ a, n * (size_t)t / (size_t)T, n * (size_t)(t + 1) / (size_t)T,
+                               bolishilgan ? jami : &bolak[t], qulf, bolishilgan };
+        if (pthread_create(&oqim[t], NULL, oqim_ishi, &ish[t]) != 0) {
+            xato = 1;
+            break;
+        }
+        ishga++;
+    }
+    for (int t = 0; t < ishga; t++)
+        pthread_join(oqim[t], NULL);            /* ishga tushganlarning HAMMASINI kutamiz (xato bo'lsa ham) */
+    if (xato)
+        return -1;
+    if (!bolishilgan)
+        for (int t = 0; t < T; t++)
+            qosh(jami, &bolak[t]);              /* yig'indilarni bitta oqimda (asosiy) qo'shamiz: poyga yo'q */
+    return 0;
+}
+```
+
+Muhim joylar:
+
+| Qism | Nega |
+|---|---|
+| `struct natija bolak[MAKS_OQIM]` | **har oqimga o'z** yig'indisi: oqimlar hech narsani **bo'lishmaydi** → **poyga yo'q**, qulf kerak emas |
+| `pthread_join` **hamma ishga tushganlar uchun** | `pthread_create` bittasida xato bersa ham, ishga tushganlarni **kutamiz** (aks holda ular yopilgan xotiraga yozadi) |
+| yig'ish **asosiy oqimda** | oqimlar tugagach (`join` dan keyin) bitta oqim qo'shadi — bu yerda poyga mumkin emas |
+| `bolishilgan` + `qulf` | bir xil kod **uch xil** variant uchun: `jami` kimga yozishini va qulf bor-yo'qligini tanlash |
+
+**Poyga qayerda?** `qosh(s->jami, &r)` bir nechta oqimdan **bitta** `jami` ga: `jami->sof += r.sof` aslida **uch qadam** — o'qi, qo'sh, yoz. Ikki oqim bir vaqtda o'qisa, ikkalasi **eski qiymat**ni o'qiydi va bir qo'shilma **yo'qoladi**. **Mutex** buni bir vaqtda faqat bitta oqimga ruxsat berib hal qiladi (lekin boshqalar kutadi).
+
+### Yig'ish va ishga tushirish
+
+```console
+$ cd katta_loyiha/kadrlar/15_oqimlar
+$ make -s
+$ ./bin/kadrlar sinov 20000 4 2>/dev/null
+20000 xodim, 4 oqim
+ketma-ket (etalon): qo'lga tegadi 2222152533128 tiyin
+parallel (bo'lak)    etalon bilan MOS
+qulf bilan           etalon bilan MOS
+```
+
+**ThreadSanitizer** (TSan) poygalarni topadi. U oddiy yig'ishdan **alohida** yig'iladi (`make tsan`; ASan bilan birga ishlamaydi):
+
+```console
+$ cd katta_loyiha/kadrlar/15_oqimlar
+$ make -s tsan
+$ ./bin/kadrlar_tsan sinov 2000 4 2>&1 | grep -c WARNING
+0
+$ ./bin/kadrlar_tsan sinov 2000 4 poyga 2>&1 | grep SUMMARY | sed -E 's/:[0-9]+ in/ in/' | sort -u | head -1
+SUMMARY: ThreadSanitizer: data race src/parallel.c in qosh
+```
+
+(Birinchi buyruq `0` chiqaradi va `grep -c` nol topilganda `1` kodi bilan tugaydi — bu kutilgan.)
+
+**Nima ko'rdik:**
+
+- **20 000 sinov xodimi, 4 oqim:** `parallel (bo'lak)` va `qulf bilan` — ikkalasi **etalon bilan MOS** (jami sof maosh, brutto, soliq — **bir tiyingacha** teng). Parallel dastur **to'g'ri**.
+- **TSan, to'g'ri variantlar:** `0` ogohlantirish — bo'lakli variantda oqimlar **boshqa-boshqa** xotiraga yozadi, qulfli variantda mutex himoya qiladi.
+- **TSan, poyga varianti:** `data race ... in qosh` — TSan **aynan qaysi funksiya** ichida ikki oqim bir joyga qulfsiz yozganini ko'rsatdi. Bu poyga **har doim** noto'g'ri yig'indi bermaydi (ba'zan "omadi kelib" etalon bilan mos chiqadi) — shu sababli uni **ko'z bilan topib bo'lmaydi**, TSan kerak.
+
+**Sinov xodimlari qanday yaratiladi?** `sinov_xodimlari(n)` — oddiy tasodif generatori (LCG, 13-bosqichdagi kabi): **har safar bir xil** ketma-ketlik, shuning uchun natijalar takrorlanadi va etalon bilan solishtirish mumkin. **Parallel dasturni sinashda ishonchli etalon va takrorlanuvchan ma'lumot — shart.**
+
+**Bu yerda ham xavfsizlik:** oqimlar soni `1..MAKS_OQIM` oraliqida tekshiriladi (`yurgiz` boshida) — foydalanuvchi `sinov 100 100000` deb stek massivlaridan chiqib ketmasin.
+
+> **Eslab qoling:** parallellikning eng yaxshi usuli — **bo'lishilmaydigan** qilish: har oqim **o'z** natijasini hisoblaydi, keyin **bitta oqimda** qo'shiladi. Umumiy o'zgaruvchi bo'lsa — **mutex** (to'g'ri, lekin sekinroq) yoki atomik. Parallel natijani **doim** ketma-ket etalon bilan solishtiring va **TSan** bilan sinang. `pthread_create` xatosini tekshiring, ishga tushganlarni **hammasini `join` qiling**.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `time ./bin/kadrlar sinov 2000000 1`, `... 2`, `... 4`, `... 8` ni o'lchang (`2>/dev/null` bilan). Tezlik **chiziqli** oshyaptimi? Yadrolaringizdan ko'p oqimda nima bo'ladi? (`nproc` — yadrolar soni.)
+2. `jami_qulf` ni `time` bilan `jami_parallel` ga **solishtiring**: farq qancha? Nega? (Maslahat: qulf **har xodim** uchun olinadi.)
+3. Ko'p yig'indini **atomik** (`__atomic_fetch_add`) qo'shadigan **to'rtinchi** variant yozing. TSan uni to'g'ri deb hisoblaydimi? Mutex bilan tezligini solishtiring.
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **Oqim** — jarayon ichidagi bajaruvchi; **xotirani bo'lishadi** (shuning uchun tez va xavfli). `pthread_create` / `pthread_join`; `-pthread`.

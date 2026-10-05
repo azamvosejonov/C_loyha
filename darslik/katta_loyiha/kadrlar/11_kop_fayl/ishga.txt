@@ -1,0 +1,1 @@
+make > /dev/null && ./bin/kadrlar && ./bin/kadrlar varaqa 3150 && ar t libkadr.a | tr "\n" " " && echo

@@ -1,0 +1,12 @@
+# id ism toifa(1..4) tarif(tiyin/soat)
+1042 Aziza 2 2500050
+2087 Bobur 1 3150000
+3150 Dilnoza 3 1875050
+9999 Sardor 4 1250000075
+# quyidagilar ataylab noto'g'ri: dastur ularni sababi bilan rad etadi
+12 Qisqa 1 1000
+1042 Takror 1 1000
+4000 Nom 7 1000
+5000 Tarifsiz 2 0
+6000 Kam
+7000 Harf2 x 500

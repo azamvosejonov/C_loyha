@@ -1,0 +1,8 @@
+20000 xodim, 4 oqim
+ketma-ket (etalon): qo'lga tegadi 2222152533128 tiyin
+parallel (bo'lak)    etalon bilan MOS
+qulf bilan           etalon bilan MOS
+--- TSan: to'g'ri variantlar ---
+0
+--- TSan: poyga ---
+SUMMARY: ThreadSanitizer: data race src/parallel.c in qosh

@@ -710,6 +710,240 @@ urug 12345, 200000 ta kirish: 80734 ta to'g'ri o'qildi, 119266 ta rad etildi, 0 
 3. Fuzzerni kengaytiring: har 1000 kirishdan keyin **progress** (`... 1000 ta tekshirildi`) chiqaring. Urug'ni (`argv[1]`) o'zgartirib turli xatolar topiladimi?
 <!-- katta:oxiri -->
 
+<!-- kadrlar:boshi -->
+## Katta loyiha: Kadrlar tizimi — 13-bosqich: xavfsizlik va fuzzer
+
+**Oldingi bosqichdan:** 12-bosqichda parser fayldan o'qirdi va noto'g'ri qatorlarni rad etardi. Lekin ikki muammo qoldi: (1) tekshiruv fayl o'qish kodi **ichida** aralashgan — uni **alohida sinab bo'lmaydi**; (2) biz faqat **o'zimiz o'ylagan** noto'g'ri qatorlarni sinadik. Haqiqiy dushman esa **ko'pgina kutilmagan** kirishni yuboradi: 300 harfli ism, `99999999999999999999` tarif, manfiy ishora...
+
+**Qoida (13-bob):** tashqaridan kelgan **hamma** narsa — dushman. Tekshiruvni **chegarada** (ma'lumot tizimga kirgan joyda) qiling; undan keyin ichkaridagi kod **ishonib** ishlay oladi.
+
+### Bu bosqichda nima qilamiz
+
+1. **Parserni toza funksiyaga ajratamiz:** `xodim_tahlil(qator, &x, &sabab)` — bitta qatorni oladi va faylga, ekranga **tegmaydi**. Shuning uchun uni **test va fuzz** qilish oson.
+2. **Hamma chegarani bir joyga** yig'amiz (`config.h`: `TARIF_MAKS`, `OY_MAKS_DAQ`, `QATOR_UZ`) va **toshishning mumkin emasligini kompilyatsiya vaqtida isbotlaymiz** (`_Static_assert`).
+3. **Juda uzun qatorni** to'g'ri qayta ishlaymiz (qolgan qismini tashlab yuboramiz).
+4. **Fuzzer** yozamiz: tasodifiy buzilgan **ikki yuz mingta** qator parserga yuboriladi, sanitizer xotira xatolarini, biz esa **invariantlarni** (qabul qilingan natija **yaroqli** bo'lishi shart) tekshiramiz.
+5. Taqqoslash uchun **ataylab zaif** parser yozamiz — fuzzer uni topib olishini ko'ramiz.
+
+### Chegaralar — bir joyda
+
+```c
+/* KIRISH CHEGARALARI: tashqaridan kelgan ma'lumotga ISHONMAYMIZ. Hamma chegara shu yerda, parser va hisob ular bilan mos */
+#define QATOR_UZ 256                            /* fayl qatorining eng uzun hajmi */
+#define TARIF_MAKS 100000000000LL               /* eng yuqori tarif: 1 mlrd so'm/soat (tiyinda) */
+#define OY_MAKS_DAQ (31 * 24 * 60)              /* bir oyda bo'lishi mumkin bo'lgan eng ko'p daqiqa */
+```
+
+`pul.c` da shu chegaralar **toshib ketmasligi** kafolatlanadi — tekshiruv **kompilyatsiya vaqtida**:
+
+```c
+_Static_assert(TARIF_MAKS <= INT64_MAX / OY_MAKS_DAQ / 2, "tarif * daqiqa * 3 int64_t dan oshib ketishi mumkin");
+```
+
+Ma'nosi: eng katta tarif × eng ko'p daqiqa × 3 (ustama koeffitsiyenti) `int64_t` ga **sig'adi**. Kimdir `TARIF_MAKS` ni 100 barobar oshirsa — dastur **yig'ilmaydi**, jimgina noto'g'ri ishlamaydi.
+
+### Toza parser
+
+Xavfsiz parserning to'rt qoidasi: **uzunlikni tekshir** → **belgilarni tekshir** → **oraliqni tekshir** → **chegaradan chiqma**. Mana u:
+
+```c
+int xodim_tahlil(const char *qator, struct xodim *x, const char **sabab)
+{
+    char nusxa[QATOR_UZ];
+    if (strlen(qator) >= sizeof(nusxa)) {       /* strcpy EMAS: avval uzunlikni tekshiramiz */
+        *sabab = "qator juda uzun";
+        return -1;
+    }
+    memcpy(nusxa, qator, strlen(qator) + 1);
+
+    char *soz[8];
+    if (bol(nusxa, soz, 4) != 4) {
+        *sabab = "maydonlar soni 4 emas";
+        return -1;
+    }
+    long long id, toifa, tarif;
+    if (son_oqi(soz[0], &id) || id < 1000 || id > 9999) {
+        *sabab = "ID 1000..9999 oralig'ida son emas";
+        return -1;
+    }
+    if (strlen(soz[1]) >= ISM_UZ) {
+        *sabab = "ism juda uzun";
+        return -1;
+    }
+    if (son_oqi(soz[2], &toifa) || toifa < 1 || toifa > T_SONI) {
+        *sabab = "toifa 1..4 oralig'ida son emas";
+        return -1;
+    }
+    if (son_oqi(soz[3], &tarif) || tarif <= 0 || tarif > TARIF_MAKS) {
+        *sabab = "tarif 1..TARIF_MAKS oralig'ida son emas";
+        return -1;
+    }
+    memset(x, 0, sizeof(*x));
+    x->id = (int)id;
+    x->toifa = (enum toifa)(toifa - 1);
+    x->tarif = tarif;
+    memcpy(x->ism, soz[1], strlen(soz[1]) + 1);         /* uzunlik yuqorida tekshirilgan */
+    return 0;
+}
+```
+
+Nimalar o'zgardi:
+
+| Eski usul | Yangi usul | Nega |
+|---|---|---|
+| `strcpy(nusxa, qator)` | `strlen` tekshiruvi + `memcpy` | uzun qator buferdan chiqib ketmasin |
+| `sscanf("%s", ism)` | so'zni `strtok_r` bilan ajratib, `strlen(soz[1]) >= ISM_UZ` tekshiruvi | ism `ism[24]` ga sig'sin |
+| `atoi` | `strtoll` + `son_oqi` (12-bosqich) | harf, toshish aniqlansin |
+| oraliqsiz | `1000 ≤ id ≤ 9999`, `1 ≤ toifa ≤ 4`, `0 < tarif ≤ TARIF_MAKS` | keyingi kod "yaroqli" deb ishonsin |
+
+**Uzun qator** — alohida muammo: `fgets` bufer to'lguncha o'qiydi va **qatorning qolgan qismi** keyingi `fgets` ga "yangi qator" bo'lib kirib qoladi. Shuning uchun uzun qatorni **oxirigacha o'qib tashlaymiz**:
+
+```c
+static int qator_ol(FILE *f, char *qator, size_t hajm)
+{
+    if (!fgets(qator, (int)hajm, f))
+        return 0;
+    if (strchr(qator, '\n') == NULL && !feof(f)) {
+        int c;
+        while ((c = fgetc(f)) != '\n' && c != EOF)
+            ;
+        return -1;
+    }
+    return 1;
+}
+```
+
+### Fuzzer
+
+**Fuzzing** — dasturga **minglab tasodifiy buzilgan** kirishni yuborib, qulashini yoki noto'g'ri natija berishini kutish. Bizning fuzzerimiz: (1) haqiqiy qatorlardan **urug'** oladi, (2) `buz()` bilan buzadi (uzun ism, ko'p raqam, bitta belgini almashtirish, manfiy ishora, juda katta son), (3) parserga beradi, (4) agar parser **qabul qilsa** — natija **invariantlarga** mos bo'lishini tekshiradi (ID, toifa, tarif, ism uzunligi). **Bir xil urug' = bir xil ketma-ketlik**: topilgan xatoni qayta ishlab chiqarish mumkin. Har qatordan **oldin** `oxirgi_kirish.txt` ga yoziladi — dastur qulasa, aynan qaysi qator sababchi ekanini bilamiz.
+
+```c
+int main(int argc, char **argv)
+{
+    unsigned long urug_son = argc > 1 ? strtoul(argv[1], NULL, 10) : 1;
+    long n = argc > 2 ? atol(argv[2]) : 1000;
+    holat = urug_son;
+
+    static const char *const xodim_urug[] = { "1042 Aziza 2 2500050", "2087 Bobur 1 3150000", "9999 Sardor 4 1250000075" };
+    long qabul = 0, rad = 0;
+#ifndef ZAIF
+    static const char *const davomat_urug[] = { "1042 1 0900 1800", "3150 2 1000 1800", "9999 31 0000 2359" };
+    long d_qabul = 0, d_rad = 0;
+#endif
+    for (long i = 0; i < n; i++) {
+        char qator[QATOR_UZ * 2];
+        struct xodim x;
+        const char *sabab;
+
+        buz(qator, sizeof(qator), xodim_urug, 3);
+        FILE *f = fopen("oxirgi_kirish.txt", "w");      /* qulasa, qaysi qator sababchi ekanini bilamiz */
+        if (f) {
+            fputs(qator, f);
+            fclose(f);
+        }
+        if (XODIM_TAHLIL(qator, &x, &sabab) == 0) {
+            qabul++;
+            int yaroqli = x.id >= 1000 && x.id <= 9999 && x.toifa >= 0 && x.toifa < T_SONI && x.tarif > 0 &&
+                          x.tarif <= TARIF_MAKS && strlen(x.ism) < ISM_UZ;
+            if (!yaroqli) {
+                printf("INVARIANT BUZILDI: qabul qilingan xodim noto'g'ri: id=%d toifa=%d tarif=%lld  (qator: %.60s)\n", x.id,
+                       (int)x.toifa, (long long)x.tarif, qator);
+                return 1;
+            }
+        } else {
+            rad++;
+        }
+
+#ifndef ZAIF
+        buz(qator, sizeof(qator), davomat_urug, 3);
+        int id, kirish, chiqish;
+        if (davomat_tahlil(qator, &id, &kirish, &chiqish, &sabab) == 0) {
+            d_qabul++;
+            if (id < 1000 || id > 9999 || kirish < 0 || kirish > 2359 || chiqish < 0 || chiqish > 2359) {
+                printf("INVARIANT BUZILDI: davomat: id=%d kirish=%d chiqish=%d\n", id, kirish, chiqish);
+                return 1;
+            }
+        } else {
+            d_rad++;
+        }
+#endif
+    }
+    printf("urug %lu, %ld ta kirish: xodim qabul %ld / rad %ld", urug_son, n, qabul, rad);
+#ifndef ZAIF
+    printf("; davomat qabul %ld / rad %ld", d_qabul, d_rad);
+#endif
+    printf(". Invariant buzilmadi, sanitizer jim.\n");
+    return 0;
+}
+```
+
+**Zaif parser** — taqqoslash uchun ataylab to'rtta xato bilan (hech qachon bunday yozmang):
+
+```c
+/* parser_zaif.c - ATAYLAB ZAIF variant (hech qachon bunday yozmang!). Faqat fuzzer unga qarshi ishlashini ko'rsatish uchun. */
+#include <stdio.h>
+#include <string.h>
+
+#include "yukla.h"
+
+int xodim_tahlil_zaif(const char *qator, struct xodim *x, const char **sabab)
+{
+    char nusxa[64];
+    strcpy(nusxa, qator);                       /* XATO 1: qator 64 baytdan uzun bo'lsa stek buziladi */
+
+    int toifa;
+    long long tarif;
+    if (sscanf(nusxa, "%d %s %d %lld", &x->id, x->ism, &toifa, &tarif) != 4) {   /* XATO 2: %s uzunlik chegarasiz: ism[24] dan chiqib ketadi */
+        *sabab = "format noto'g'ri";
+        return -1;
+    }
+    x->toifa = (enum toifa)(toifa - 1);         /* XATO 3: toifa oralig'i tekshirilmagan */
+    x->tarif = tarif;                           /* XATO 4: tarif musbatmi, juda kattami - tekshirilmagan */
+    x->oddiy_daq = x->qosh_daq = 0;
+    return 0;
+}
+```
+
+### Ishga tushirish
+
+Fuzzerlar **sanitizer** (ASan + UBSan) bilan yig'iladi: `make fuzz`.
+
+```console
+$ cd katta_loyiha/kadrlar/13_xavfsizlik
+$ make -s
+$ make -s fuzz
+$ ./bin/fuzz_xavfsiz 12345 200000
+urug 12345, 200000 ta kirish: xodim qabul 60681 / rad 139319; davomat qabul 44363 / rad 155637. Invariant buzilmadi, sanitizer jim.
+$ ./bin/fuzz_zaif 1 200000 2>&1 | head -1
+INVARIANT BUZILDI: qabul qilingan xodim noto'g'ri: id=9999 toifa=3 tarif=9223372036854775807  (qator: 9999 Sardor 4 1250000075045029632204205257760984218788542686)
+$ ./bin/fuzz_zaif 3 200000 2>&1 | grep -c "overflow\|AddressSanitizer"
+1
+```
+
+**Nima ko'rdik:**
+
+- **Xavfsiz parser:** 200 000 ta buzilgan qator — **60 681 ta qabul**, **139 319 ta rad**; davomat parseri ham shunday. **Sanitizer jim**, invariantlar **buzilmadi**: qabul qilingan har natija **yaroqli**.
+- **Zaif parser, urug' 1:** `INVARIANT BUZILDI` — parser qatorni **qabul qildi**, lekin `tarif = 9223372036854775807` (eng katta `int64_t`): `sscanf` juda katta sonni jimgina **kesib qo'ydi**. Bunday tarif keyin ko'paytirishda **toshadi** — "yaroqli ko'rinadigan, lekin zaharli" ma'lumot.
+- **Zaif parser, urug' 3:** qator **64 baytdan uzun** (`oxirgi_kirish.txt` da uzun ism) — `strcpy` **steki buzdi** va tizim dasturni to'xtatdi (`*** buffer overflow detected ***` yoki ASan xabari). Ikkala holatda ham fuzzer xatoni **soniyalarda** topdi — qo'lda sinasangiz, balki **hech qachon**.
+
+**Zaif parserdagi 4 xato:**
+
+| # | Zaif kod | Muammo | Davosi |
+|---|---|---|---|
+| 1 | `strcpy(nusxa, qator)` | uzun qator **stek**ni buzadi | `strlen` tekshiruvi |
+| 2 | `sscanf("%s", x->ism)` | `ism[24]` dan chiqib ketadi | so'z uzunligini tekshirish |
+| 3 | `toifa - 1` tekshiruvsiz | `enum` oralig'idan chiqadi → jadvaldan **tashqariga** o'qish | `1..T_SONI` oralig'i |
+| 4 | tarif chegarasiz | keyin **toshish** | `0 < tarif ≤ TARIF_MAKS` |
+
+> **Eslab qoling:** tashqi kirish = dushman. **Chegarada** tekshiring: uzunlik → belgilar → oraliq. Tekshiruvni **toza funksiyaga** ajrating (fayl/ekransiz) — shunda uni **fuzz** qilish mumkin. Chegaralarni bir joyga yig'ib, **`_Static_assert`** bilan "toshish mumkin emas"ligini isbotlang. **Invariant** — "qabul qilingan har natija shu shartlarni bajaradi": fuzzer shuni tekshiradi. Sanitizer + fuzzer — eng arzon xavfsizlik testi.
+
+**O'zingiz qo'shing (yechimsiz):**
+
+1. `xodim_tahlil` dan `strlen(soz[1]) >= ISM_UZ` tekshiruvini **vaqtincha** olib tashlab, `make fuzz && ./bin/fuzz_xavfsiz 1 200000` ni ishga tushiring: **qaysi** sanitizer xabari chiqadi va fuzzer uni **tez** topdimi?
+2. `fuzz.c` dagi `buz()` ga **yangi usul** qo'shing: qator o'rtasiga **`\0`** (null bayt) kiritish. (Maslahat: `snprintf` bilan emas, `memset` bilan.) Parser bunga qanday javob beradi?
+3. `config.h` da `TARIF_MAKS` ni **100 barobar** oshiring (`10000000000000LL` ga) va `make` qiling: `_Static_assert` nima deydi? Nega bu jimgina noto'g'ri ishlashdan **yaxshi**?
+<!-- kadrlar:oxiri -->
+
 ## Bob xulosasi (yodlash uchun)
 
 1. **UB** — standart natijani **kafolatlamagan** holat (toshish, chegaradan chiqish, NULL...). Dastur ishlashi ham, qulashi ham, jim noto'g'ri bo'lishi ham mumkin.

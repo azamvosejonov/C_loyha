@@ -1,0 +1,23 @@
+data/xodimlar.txt:7: ID 1000..9999 oralig'ida son emas
+data/xodimlar.txt:8: bu ID allaqachon bor
+data/xodimlar.txt:9: toifa 1..4 oralig'ida son emas
+data/xodimlar.txt:10: tarif musbat son emas
+data/xodimlar.txt:11: maydonlar soni 4 emas
+data/xodimlar.txt:12: toifa 1..4 oralig'ida son emas
+xodimlar: 4 ta qabul, 6 ta rad
+data/davomat.txt:11: bunday ID li xodim yo'q
+data/davomat.txt:12: vaqt noto'g'ri (HHMM, chiqish kirishdan keyin bo'lishi kerak)
+data/davomat.txt:13: vaqt noto'g'ri (HHMM, chiqish kirishdan keyin bo'lishi kerak)
+davomat: 9 ta qabul, 3 ta rad
+ID    Ism       Toifa               Brutto          Soliq               Qo'lga
+9999  Sardor    Rahbar        296250017.77    58760003.55       234 527 514.04
+1042  Aziza     Mutaxassis       686263.72       82351.65           597 049.43
+2087  Bobur     Boshlovchi       472500.00       56700.00           411 075.00
+3150  Dilnoza   Yetakchi         365634.75       43876.17           318 102.23
+Jami (4 xodim): brutto 297774416.24, soliq 58942931.37, qo'lga tegadi 235 853 740.70 so'm
+hisobot hisobot.txt fayliga saqlandi
+ID    Ism       Toifa               Brutto          Soliq               Qo'lga
+9999  Sardor    Rahbar        296250017.77    58760003.55       234 527 514.04
+1042  Aziza     Mutaxassis       686263.72       82351.65           597 049.43
+/yoq_papka/h.txt: yozish uchun ochilmadi: No such file or directory
+chiqish kodi: 1
