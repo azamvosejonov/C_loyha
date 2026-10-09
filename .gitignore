@@ -3,6 +3,10 @@ build/
 *.d
 .lab/
 
+# Xato ovchisi (tools/ovchi.py) va mustaqil yadro (tools/mustaqil.py) holati - har bir o'quvchining o'ziniki
+.ovchi/
+.mustaqil.json
+
 # Mashqlar holati (tools/mashq.py) - har bir o'quvchining o'ziniki
 .mashq/
 
@@ -10,3 +14,5 @@ build/
 darslik/katta_loyiha/*/*/ombor
 darslik/katta_loyiha/*/*/*.a
 darslik/katta_loyiha/*/*/ombor.txt
+
+__pycache__/

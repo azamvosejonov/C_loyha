@@ -696,6 +696,10 @@ topmaguningizcha "tuzatmang". Belgini (alomatni) yashirish xatoni tuzatish degan
 
 ## 11. O'z yadroingizni noldan yozish rejasi
 
+> **Batafsil va avtomatik tekshiriladigan variant:** [mustaqil/README.md](mustaqil/README.md) — 1–13-qadamlar B0–B12
+> bosqichlari sifatida: nima o'qish (SDM, Multiboot2), dizayn savollari, aniq protokol va `tools/mustaqil.py` (QEMU'da
+> tekshiradi, xato bo'lsa logni tahlil qilib maslahat beradi). Debug ko'nikmasi uchun: `tools/ovchi.py` (xato ovchisi).
+
 Bu reja — kodni yopib qo'yib, yangi papkada **o'zingiz** yozish uchun. Har bir bosqichning aniq
 **tekshiruv nuqtasi** bor: u ishlamaguncha keyingisiga o'tmang. Qiyin joyga kelsangiz, avval tegishli
 hujjatni o'qing, kodga esa eng oxirida qarang.

@@ -382,5 +382,10 @@ yadrolarda aynan shunday zaifliklar bo'lgan.
 
 ## Keyingi qadam
 
-19 ta lab'ni (va darslikdagi M1–M4 ni) tugatganingizdan keyin `QOLLANMA.md` ning 11-bo'limiga o'ting va butun yadroni yangi papkada
-**noldan** yozing. Endi har bir qatlamning eng qiyin qismini qo'lingiz o'zi biladi.
+19 ta lab'ni (va darslikdagi M1–M4 ni) tugatganingizdan keyin [mustaqil/README.md](../mustaqil/README.md) ga o'ting va butun
+yadroni yangi papkada **noldan** yozing (`tools/mustaqil.py` har bosqichni tekshiradi). Endi har bir qatlamning eng qiyin
+qismini qo'lingiz o'zi biladi.
+
+Lab'lar **yozishni** o'rgatadi; yadroda esa eng ko'p vaqt **xato qidirishga** ketadi. Shuning uchun parallel ravishda
+`tools/ovchi.py` — xato ovchisini ham qiling: MyOS'ga yashirin xato kiritiladi (EOI, `swapgs`, IST, COW hisoblagichi...),
+siz faqat alomatni bilasiz va uni QEMU logi, monitor va gdb bilan topasiz.

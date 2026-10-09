@@ -332,6 +332,8 @@ lab-check:
 	@tools/host_libctest.sh
 	@tools/myos_mashq.sh --ci
 	@tools/lab.py selfcheck
+	@tools/mustaqil.py selftest
+	@tools/ovchi.py selfcheck
 	@tools/mashq.py selfcheck
 	@sh darslik/misollar/tekshir.sh
 	@tools/katta_loyiha.py

@@ -103,20 +103,24 @@ chaqirilishini og'zaki tushuntiring (o'zingizga yoki kimgadir).
 
 ## 6-oy: noldan yadro + haqiqiy apparat (21–26-haftalar)
 
-Yangi, bo'sh papkada, **MyOS'ga qaramasdan** ([QOLLANMA.md](QOLLANMA.md), 11-bo'lim). Qotib qolsangiz —
-avval darslik, `docs/`, Intel qo'llanmasi; MyOS kodi — oxirgi chora.
+Yangi, bo'sh papkada, **MyOS'ga qaramasdan** — [mustaqil/README.md](mustaqil/README.md) (B0–B12, har bosqichda: nima
+o'qish, dizayn savollari, aniq protokol). Har bosqichni `tools/mustaqil.py tekshir Bn` tekshiradi. Qotib qolsangiz —
+avval spetsifikatsiya (Intel SDM, Multiboot2), keyin darslik va `docs/`; MyOS kodi — faqat bosqich o'tgandan keyin solishtirish uchun.
 
 | Hafta | Maqsad |
 |---|---|
-| 21 | Multiboot2 + GRUB yuklash, ekranga matn, serial port, `kprintf` |
-| 22 | GDT, IDT, istisno ishlovchilari (page fault xabari bilan) |
-| 23 | Fizik xotira (memblock → buddy), sahifalash, yuqori yarmi |
-| 24 | Heap (`kmalloc`), taymer, klaviatura |
-| 25 | Yadro oqimlari va kontekst almashish; **MyOS'ni haqiqiy kompyuterda yuklash** ([YAKUNIY.md](YAKUNIY.md), I qism) |
-| 26 | User rejimi + birinchi syscall (agar ulgurmasangiz — keyingi oyga). Takror, xulosa, keyingi reja |
+| 21 | B0–B3: Multiboot2 + GRUB yuklash, serial port, long mode, `kprintf`, Multiboot2 ma'lumoti |
+| 22 | B4: GDT, IDT, istisno ishlovchilari |
+| 23 | B5–B6: fizik xotira, sahifalash (map/unmap, #PF) |
+| 24 | B7–B9: taymer, klaviatura, heap (`kmalloc`) |
+| 25 | B10: yadro oqimlari va kontekst almashish; **MyOS'ni haqiqiy kompyuterda yuklash** ([YAKUNIY.md](YAKUNIY.md), I qism) |
+| 26 | B11–B12: user rejimi, syscall, ELF (agar ulgurmasangiz — keyingi oyga). Takror, xulosa, keyingi reja |
 
-**6-nazorat (yakuniy):** o'z yadroingiz QEMU'da yuklanadi, page fault'ni ushlaydi, taymer va klaviatura
-uzilishlari ishlaydi, `kmalloc` bor. Buni 6 oy oldin qila olmasdingiz.
+**Har hafta yana 1–2 ta xato ovi** (`tools/ovchi.py royxat`): MyOS'ga yashirin xato kiritiladi, siz uni alomatdan
+topasiz. O'z yadroingizda ham xuddi shunday xatolarni qilasiz — bu yerda ularni tanishni o'rganasiz.
+
+**6-nazorat (yakuniy):** `tools/mustaqil.py hammasi` — kamida **B0–B9 OK**: o'z yadroingiz QEMU'da yuklanadi,
+page fault'ni ushlaydi, taymer va klaviatura uzilishlari ishlaydi, `kmalloc` bor. Buni 6 oy oldin qila olmasdingiz.
 
 ## 6 oydan keyin
 

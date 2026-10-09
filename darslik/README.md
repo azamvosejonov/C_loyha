@@ -175,11 +175,13 @@ Qisqa javob va batafsil tushuntirish qaysi bobda ekani.
 ## Darslikdan keyin
 
 ```text
-darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ + MyOS kodi → labs → virtual_kompyuter → noldan yadro
+darslik 00-18 → mashqlar 01-30 → darslik 19-31 → mashqlar 31-48 → docs/ + MyOS kodi → labs + ovchi → mustaqil (B0-B12) → virtual_kompyuter
 ```
 
 - [mashqlar/README.md](../mashqlar/README.md) — 48 ta mashq, avtomatik tekshiruv bilan.
 - [QOLLANMA.md](../QOLLANMA.md) — loyihaning to'liq qo'llanmasi va noldan yadro yozish rejasi.
+- [mustaqil/](../mustaqil/README.md) — **o'z yadroingiz noldan**: B0–B12 bosqichlari, `tools/mustaqil.py` ularni QEMU'da
+  tekshiradi. `tools/ovchi.py` — xato ovchisi: yadrodagi yashirin xatoni alomatdan topish.
 - [labs/README.md](../labs/README.md) — yadro ichidagi 19 ta laboratoriya.
 - [YAKUNIY.md](../YAKUNIY.md) — haqiqiy kompyuterda ishlatish va tizimni kengaytirish.
 - [virtual_kompyuter/](../virtual_kompyuter/README.md) — **eng chuqur loyiha**: RISC-V kompyuterni (protsessor, MMU,

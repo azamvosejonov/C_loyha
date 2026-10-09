@@ -19,7 +19,11 @@ Hech qanday tashqi kutubxona yo'q: har bir bayt shu repozitoriyada yozilgan.
 >    tarixi, noldan yadro yozish rejasi. Keyin `docs/` — yadroning har bir qatlami.
 > 4. [labs/](labs/README.md) — 19 ta laboratoriya: yadro funksiyasini yopib, o'zingiz yozasiz (`tools/lab.py`).
 >    `printf` va `malloc` esa repoda **bo'sh** — o'zingiz yozasiz: [darslik/32-printf-malloc.md](darslik/32-printf-malloc.md).
-> 5. [YAKUNIY.md](YAKUNIY.md) — haqiqiy kompyuterga o'rnatish va tizimni kengaytirish ("Endi o'zing davom et").
+> 5. [mustaqil/](mustaqil/README.md) — **o'z yadroingizni noldan**, MyOS'ga qaramasdan: 13 bosqich (B0–B12), har biri
+>    `tools/mustaqil.py` bilan QEMU'da avtomatik tekshiriladi (yadroingiz ichiga qaramaydi — faqat serial, QEMU logi va
+>    registrlar), xato bo'lsa maslahat beradi. Yonida **xato ovchisi** (`tools/ovchi.py`): MyOS'ga yashirin xato kiritiladi,
+>    siz uni faqat alomatdan topasiz.
+> 6. [YAKUNIY.md](YAKUNIY.md) — haqiqiy kompyuterga o'rnatish va tizimni kengaytirish ("Endi o'zing davom et").
 
 ```
 MyOS'ga xush kelibsiz! 'help' - buyruqlar, 'cat /README.txt' - qo'llanma.
@@ -137,7 +141,9 @@ user/
 rootfs/      /etc/rc, /etc/motd, /README.txt -> initrd.tar ga qo'shiladi
 docs/        har bir qatlam bo'yicha batafsil tushuntirish
 virtual_kompyuter/  RISC-V emulyatori + firmware + Linux yuklash + kitob (alohida loyiha)
-tools/       test.sh, mkdisk.py (MBR + ext2 disk), gdbinit, psf2c.py (shrift), screenshot.sh
+mustaqil/    o'z yadroingizni noldan yozish: B0-B12 bosqichlari, protokol, B12 test dasturi
+tools/       test.sh, mkdisk.py (MBR + ext2 disk), gdbinit, psf2c.py (shrift), screenshot.sh,
+             lab.py (lab'lar), mustaqil.py (o'z yadroingiz testi), ovchi.py (xato ovchisi)
 ```
 
 ## Xotira xaritasi (bir qarashda)
