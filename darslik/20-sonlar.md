@@ -800,6 +800,76 @@ $ ./float_lab
 
 ## Mashq
 
+### Isitish: bitlar ichida sonlar ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–20-boblar kerak (ikkiga to'ldirish, ishora kengayishi, IEEE 754, qat'iy nuqta).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 20-bob, isitish: ikkiga to'ldirish, ishora kengayishi, qirqish, float bitlari, qat'iy nuqta. */
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    /* 1) -1 ning bitlari: 1111 1111. Ishorasiz o'qilsa - 255 (20.3). (Namuna - tayyor.) */
+    int8_t m = -1;
+    uint8_t u = (uint8_t)m;
+    printf("-1 -> uint8_t: %u (0x%02x)\n", u, u);
+
+    /* 2) TODO: int8_t kichik = (int8_t)0x80; int32_t katta = kichik;  - ishora kengayishi (20.4):
+     *    yangi yuqori bitlar ishora biti (1) bilan to'ldiriladi -> 0xffffff80 = -128.
+     *    printf("int8_t 0x80 -> int32_t: %d (0x%08x)\n", katta, (uint32_t)katta);
+     *    Natija: int8_t 0x80 -> int32_t: -128 (0xffffff80) */
+
+    /* 3) TODO: (uint8_t)300 - qirqish: faqat pastki 8 bit qoladi: 300 = 1 0010 1100 -> 0010 1100 = 44.
+     *    Natija: 300 -> uint8_t: 44 */
+
+    /* 4) float ning bitlari: memcpy bilan (union yoki ko'rsatkich cast emas - 13.3). 1.0 = 1.0 * 2^0:
+     *    ishora 0, eksponenta 127 (0x7f), mantissa 0 -> 0x3f800000 (20.6). (Namuna - tayyor.) */
+    float f = 1.0f;
+    uint32_t bitlar;
+    memcpy(&bitlar, &f, sizeof(bitlar));
+    printf("1.0f bitlari: 0x%08x\n", bitlar);
+
+    /* 5) TODO: 0.1 + 0.2 == 0.3 natijasini %d bilan chiqaring. 0.1 ikkilikda cheksiz kasr - aniq saqlanmaydi.
+     *    Kasr sonlarni == bilan solishtirmang: fabs(a - b) < 1e-9.
+     *    Natija: 0.1 + 0.2 == 0.3 ? 0 */
+
+    /* 6) Q16.16 qat'iy nuqta (20.7): son * 65536 butun son sifatida. Ko'paytmada 32 bit kasr hosil bo'ladi -
+     *    64 bitda ko'paytirib, 16 ga suramiz. Yadroda float yo'q - shuning uchun shunday hisoblanadi.
+     *    TODO: int32_t r = (int32_t)(((int64_t)a * b) >> 16); keyin butun qism r >> 16,
+     *          kasr qism ((r & 0xFFFF) * 100) >> 16 ni "%d.%02d" bilan chiqaring.
+     *    Natija: Q16.16: 2.5 * 1.5 = 3.75 */
+    int32_t a = (int32_t)(2.5 * 65536), b = (int32_t)(1.5 * 65536);
+    (void)a;                            /* 6-qadamni yozgach, bu ikki qatorni o'chiring */
+    (void)b;
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/20_qat_nuqta/isitish.txt`):
+
+```text
+-1 -> uint8_t: 255 (0xff)
+int8_t 0x80 -> int32_t: -128 (0xffffff80)
+300 -> uint8_t: 44
+1.0f bitlari: 0x3f800000
+0.1 + 0.2 == 0.3 ? 0
+Q16.16: 2.5 * 1.5 = 3.75
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/20_qat_nuqta/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **41** (float bitlari) — float'ni sign/eksponenta/mantissaga ajratish va butun sonni qo'lda float'ga aylantirish (yaxlitlash bilan).
 - **04** (bitlar) va **03** (toshish) — bu bob bilan qayta ko'ring.
 - Qo'shimcha: `union { float f; uint32_t u; }` bilan 1.0, −2.5, 0.1 ning bitlarini chiqarib, qo'lda hisoblaganingiz bilan solishtiring.

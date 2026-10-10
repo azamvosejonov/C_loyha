@@ -1,0 +1,5 @@
+0x11223344 xotirada: 44 33 22 11 (little-endian)
+registr 0xa5: [7:4] = 0xa, [3:0] = 0x5
+[3:0] = 0xc qilindi: 0xac
+yuqoriga_tekislash(5000, 4096) = 8192
+bitmap 0x0000000f: birinchi bo'sh bit = 4

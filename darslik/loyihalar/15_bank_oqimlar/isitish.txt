@@ -1,0 +1,2 @@
+mutex bilan: 400000 (kutilgan 400000)
+har oqim natijasi: 0 1 4 9

@@ -1091,6 +1091,79 @@ qayta o'qing: 25-bob
 
 ## Mashq
 
+### Isitish: errno lug'ati ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–31-boblar kerak (`errno`, `strerror`, 31.5).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 31-bob, isitish: errno kodlarining nomi, inglizcha matni (strerror) va o'zbekcha tarjimasi. */
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+struct atama {
+    int kod;
+    const char *nom;                    /* E + qisqartma: NOENT = "No ENTry", EXIST, ACCES = ACCESs, INVAL = INVALid */
+    const char *uzbek;
+};
+
+/* TODO: yana ikki yozuv qo'shing: {EACCES, "EACCES", "ruxsat yo'q"} va {EINVAL, "EINVAL", "noto'g'ri argument"} (31.5). */
+static const struct atama lugat[] = {
+    {ENOENT, "ENOENT", "fayl yoki katalog yo'q"},
+    {EEXIST, "EEXIST", "allaqachon mavjud"},
+};
+
+/* Lug'atdan kodni topib, uchala ko'rinishda chiqaradi. (Namuna - tayyor.) */
+static void tushuntir(const char *nima, int kod)
+{
+    for (size_t i = 0; i < sizeof(lugat) / sizeof(lugat[0]); i++)
+        if (lugat[i].kod == kod) {
+            printf("%s: %s (%s) -> %s\n", nima, lugat[i].nom, strerror(kod), lugat[i].uzbek);
+            return;
+        }
+    printf("%s: %d (%s) -> lug'atda yo'q\n", nima, kod, strerror(kod));
+}
+
+int main(void)
+{
+    /* Har syscall xato bo'lsa -1 qaytaradi va sababni errno ga yozadi. errno ni DARHOL o'qing - keyingi
+     * chaqiruv uni o'zgartirishi mumkin (12.4). */
+    if (open("bunday_fayl_yoq.txt", O_RDONLY) < 0)
+        tushuntir("open(\"bunday_fayl_yoq.txt\")", errno);
+    if (mkdir(".", 0755) < 0)
+        tushuntir("mkdir(\".\")", errno);
+
+    /* TODO: fcntl(1, 9999) - mavjud bo'lmagan buyruq raqami -> EINVAL. Xato bo'lsa tushuntir("fcntl(1, 9999)", errno).
+     *       Natija: fcntl(1, 9999): EINVAL (Invalid argument) -> noto'g'ri argument */
+
+    tushuntir("qo'lda", EACCES);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/31_hexdump/isitish.txt`):
+
+```text
+open("bunday_fayl_yoq.txt"): ENOENT (No such file or directory) -> fayl yoki katalog yo'q
+mkdir("."): EEXIST (File exists) -> allaqachon mavjud
+fcntl(1, 9999): EINVAL (Invalid argument) -> noto'g'ri argument
+qo'lda: EACCES (Permission denied) -> ruxsat yo'q
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/31_hexdump/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - 31.4 dagi xatolardan 3 tasini **o'zingiz** hosil qiling (kodni o'zgartirib) va xabarni tarjima qilib daftarga yozing.
 - Haqiqiy yadro kodidan (`~/C_loyha/kernel/mm/pmm.c`) 5 ta funksiya nomini tanlab, 31.2 dagi usulda tarjima qiling.
 - 31.3 dagi 10 ta atama uchun o'z hayotiy o'xshatishingizni yozing.

@@ -1,0 +1,5 @@
+Ism: Aziz
+Yosh: 20
+Kelasi yili: 21
+Bir yilda: 365 kun, 8760 soat
+Qo'shtirnoq: "salom"

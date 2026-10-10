@@ -719,6 +719,64 @@ Hammasi: TO'G'RI
 
 ## Mashq
 
+### Isitish: inline assembly ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–17-boblar kerak (inline assembly, 17.5).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 17-bob, isitish: inline assembly (GCC, AT&T sintaksisi: "buyruq manba, maqsad"). */
+#include <stdio.h>
+
+int main(void)
+{
+    /* 1) %0, %1, %2 - quyidagi operandlar tartibi bo'yicha. "=&r" - chiqish registri (& - kirishlar o'qib
+     *    bo'linmasdan oldin yoziladi, shuning uchun ular bilan bitta registr bo'lmasin), "r" - kirish (17.5).
+     *    (Namuna - tayyor.) */
+    int a = 7, b = 35, natija;
+    __asm__("movl %1, %0\n\taddl %2, %0" : "=&r"(natija) : "r"(a), "r"(b));
+    printf("asm add: %d + %d = %d\n", a, b, natija);
+
+    /* 2) TODO: __asm__("shll $3, %0" : "+r"(x));  "+r" - ham kirish, ham chiqish. $3 - konstanta.
+     *    Chapga 3 ga surish = 8 ga ko'paytirish.
+     *    Natija: asm shl: 5 << 3 = 40 */
+    int x = 5;
+    (void)x;                            /* 2-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 3) TODO: __asm__("xchgl %0, %1" : "+r"(p), "+r"(q));  - ikki registrni almashtiradi.
+     *    (xchg xotira operandi bilan - atomik; spinlock shunday qurilgan, 15.6.)
+     *    Natija: asm xchg: p = 2, q = 1 */
+    int p = 1, q = 2;
+    (void)p;                            /* 3-qadamni yozgach, bu ikki qatorni o'chiring */
+    (void)q;
+
+    /* 4) TODO: __asm__("movq $-1, %0" : "=r"(v));  - q - 64 bit (l - 32 bit). Barcha bitlar 1 = -1.
+     *    Natija: asm movq $-1: -1 */
+    long v = 0;
+    printf("asm movq $-1: %ld\n", v);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/17_alu/isitish.txt`):
+
+```text
+asm add: 7 + 35 = 42
+asm shl: 5 << 3 = 40
+asm xchg: p = 2, q = 1
+asm movq $-1: -1
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/17_alu/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - 3–4 ta kichik funksiyani (`strlen`, `max`, massiv yig'indisi) `gcc -O0 -S -masm=intel` va `-O2` bilan kompilyatsiya qilib, har bir qatorni izohlang.
 - `gdb` da `layout asm` va `stepi` bilan dasturni buyruqma-buyruq bajaring, `info registers` ni kuzating.
 - `kernel/proc/switch.asm` ni o'qib, har bir qatorni o'z so'zingiz bilan yozing.

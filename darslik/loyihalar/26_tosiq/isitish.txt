@@ -1,0 +1,3 @@
+ticket lock bilan: 200000
+CAS bilan: 200000
+chiptalar: kelgan 200000, xizmat 200000

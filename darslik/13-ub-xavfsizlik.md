@@ -982,6 +982,87 @@ Yo'q — ishorasiz arifmetika modulli va **aniqlangan** (2.5).
 
 ## Mashq
 
+### Isitish: UB'siz yozish ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–13-boblar kerak (toshishni oldindan tekshirish, chegara, `memcpy`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 13-bob, isitish: UB'siz yozish - toshishni OLDINDAN tekshirish, chegara, memcpy. */
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+/* a + b ni hisoblashdan OLDIN tekshiramiz: toshgandan keyin tekshirish kech - signed toshish UB,
+ * kompilyator tekshiruvni butunlay olib tashlashi mumkin (13.2). 0 - muvaffaqiyat, -1 - toshadi.
+ * TODO: b > 0 bo'lsa a > INT_MAX - b da, b < 0 bo'lsa a < INT_MIN - b da -1 qaytaring;
+ *       aks holda *natija = a + b; return 0; */
+static int xavfsiz_qosh(int a, int b, int *natija)
+{
+    (void)a;
+    (void)b;
+    (void)natija;
+    return -1;
+}
+
+/* Chegara tekshiruvi bilan o'qish: i >= n bo'lsa -1. size_t - manfiy bo'lmaydi, shuning uchun i < 0 tekshiruvi kerak emas.
+ * (Namuna - tayyor.) */
+static int ol(const int *a, size_t n, size_t i, int *natija)
+{
+    if (i >= n)
+        return -1;
+    *natija = a[i];
+    return 0;
+}
+
+int main(void)
+{
+    int r;
+
+    /* 1) Toshadigan holat - funksiya -1 qaytaradi, r ga hech narsa yozilmaydi. (Namuna - tayyor.) */
+    if (xavfsiz_qosh(INT_MAX, 1, &r) != 0)
+        printf("xavfsiz_qosh(INT_MAX, 1): toshadi\n");
+
+    /* 2) TODO: xavfsiz_qosh(100, 23, &r) == 0 bo'lsa - "xavfsiz_qosh(100, 23): %d\n" va r.
+     *    Natija: xavfsiz_qosh(100, 23): 123 */
+
+    int massiv[5] = {10, 20, 30, 40, 50};
+    if (ol(massiv, 5, 7, &r) != 0)
+        printf("indeks 7: chegaradan tashqari (uzunlik 5)\n");
+    if (ol(massiv, 5, 4, &r) == 0)
+        printf("indeks 4: %d\n", r);
+
+    /* 3) TODO: baytlar + 1 dan 4 bayt - uint32_t. *(uint32_t *)(baytlar + 1) DEMANG: tekislanmagan murojaat
+     *    va strict aliasing - UB (13.3). To'g'ri: memcpy(&qiymat, baytlar + 1, sizeof(qiymat));
+     *    x86 little-endian: kichik bayt birinchi -> 0x04030201 (16-bob).
+     *    Natija: memcpy bilan o'qildi: 0x04030201 */
+    unsigned char baytlar[] = {0xAA, 0x01, 0x02, 0x03, 0x04};
+    (void)baytlar;                      /* 3-qadamni yozgach, bu qatorni o'chiring */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/13_parse_uint/isitish.txt`):
+
+```text
+xavfsiz_qosh(INT_MAX, 1): toshadi
+xavfsiz_qosh(100, 23): 123
+indeks 7: chegaradan tashqari (uzunlik 5)
+indeks 4: 50
+memcpy bilan o'qildi: 0x04030201
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/13_parse_uint/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **01, 03, 04** — toshish va surish UB'lari (sanitizer ushlaydi).
 - **09, 12** — tashqi kirishni qat'iy tekshirish.
 - **18** — xotira UB'larini hisobotdan topish.

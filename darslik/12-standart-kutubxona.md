@@ -1418,6 +1418,75 @@ Ikkalasi ham tayyor funksiyalarni "ulash" uchun. C'da `#include` e'lonlarni ko'c
 
 ## Mashq
 
+### Isitish: qsort, strtol, errno ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–12-boblar kerak (`qsort`, `strtol`, `errno`, `printf` formatlari).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 12-bob, isitish: standart kutubxona - qsort, strtol, errno, printf formatlari. */
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* qsort taqqoslash funksiyasi: manfiy - a oldin, 0 - teng, musbat - b oldin (12.5).
+ * TODO: x va y ni olib, (x > y) - (x < y) ni qaytaring.
+ *       `return x - y;` DEMANG: katta sonlarda toshadi (masalan INT_MIN - 1, 13-bob). */
+static int taqqosla(const void *a, const void *b)
+{
+    (void)a;
+    (void)b;
+    return 0;
+}
+
+int main(void)
+{
+    int sonlar[] = {13, 2, 21, 8, 5};
+    size_t n = sizeof(sonlar) / sizeof(sonlar[0]);
+
+    /* 1) qsort - har qanday turni saralaydi: massiv, nechta, bitta elementning hajmi, taqqoslash. (Namuna - tayyor.) */
+    qsort(sonlar, n, sizeof(sonlar[0]), taqqosla);
+    printf("saralangan:");
+    for (size_t i = 0; i < n; i++)
+        printf(" %d", sonlar[i]);
+    printf("\n");
+
+    /* 2) TODO: long v = strtol("42abc", &oxiri, 10); - oxiri raqam BO'LMAGAN birinchi belgini ko'rsatadi.
+     *    atoi dan farqi: qayerda to'xtaganini bilasiz, shuning uchun xatoni tekshira olasiz (12.5).
+     *    Natija: strtol("42abc"): 42, qolgan: "abc" */
+    char *oxiri = NULL;
+    (void)oxiri;                        /* 2-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 3) TODO: FILE *f = fopen("bunday_fayl_yoq.txt", "r"); NULL bo'lsa - errno da sabab raqami,
+     *    strerror(errno) - uning matni (12.4). Aks holda fclose(f).
+     *    Natija: fopen: xato 2 (No such file or directory) */
+
+    /* 4) printf: kenglik 6, 2 xona; '-' - chapga tekislash; '0' - oldiga nol (12.2). (Namuna - tayyor.) */
+    printf("[%6.2f] [%-6.2f] [%03d]\n", 3.14159, 3.14159, 7);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/12_csv_hisobot/isitish.txt`):
+
+```text
+saralangan: 2 5 8 13 21
+strtol("42abc"): 42, qolgan: "abc"
+fopen: xato 2 (No such file or directory)
+[  3.14] [3.14  ] [007]
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/12_csv_hisobot/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **11** (son → satr — `printf` yuragi), **12** (`strtol` o'xshashi), **19** (`qsort`), **24** (parsing).
 - Qo'shimcha: `va_list` bilan o'z mini-`printf`ingizni yozing: `%d`, `%s`, `%x`, `%c`, `%%` — chiqarish uchun faqat `putchar` ishlating. Keyin MyOS `kernel/lib/kprintf.c` bilan solishtiring.
 

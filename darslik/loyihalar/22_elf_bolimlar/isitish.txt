@@ -1,0 +1,5 @@
+sehrli raqam: 7f 45 4c 46 (\x7fELF)
+sinf: 64-bit, bayt tartibi: little-endian
+tur: 3 (DYN - PIE)
+mashina: 62 (x86-64)
+kirish nuqtasi 0 emasmi: 1

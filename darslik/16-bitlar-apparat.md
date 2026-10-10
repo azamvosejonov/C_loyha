@@ -1050,6 +1050,69 @@ ID    Ism       Toifa       Bayroq         Brutto          Soliq               Q
 
 ## Mashq
 
+### Isitish: baytlar, maydonlar, tekislash ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–16-boblar kerak (bayt tartibi, maskalar, tekislash, bitmap).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 16-bob, isitish: bayt tartibi, registr maydonlari, tekislash, bitmap. */
+#include <stdint.h>
+#include <stdio.h>
+
+/* a - ikkining darajasi: x ni a ga karrali eng yaqin kattaroq songa (16.8). */
+#define TEKISLA(x, a) (((x) + (a) - 1) & ~((a) - 1))
+
+int main(void)
+{
+    /* 1) Sonning baytlarini xotiradagi TARTIBDA ko'rish: unsigned char * - har qanday obyektni baytma-bayt
+     *    o'qishning ruxsat etilgan yo'li (16.1). (Namuna - tayyor.) */
+    uint32_t son = 0x11223344;
+    const unsigned char *b = (const unsigned char *)&son;
+    printf("0x%08x xotirada: %02x %02x %02x %02x (little-endian)\n", son, b[0], b[1], b[2], b[3]);
+
+    /* 2) TODO: 8 bitli "registr"dagi ikki maydon: [7:4] = (reg >> 4) & 0xF, [3:0] = reg & 0xF (16.2).
+     *    Natija: registr 0xa5: [7:4] = 0xa, [3:0] = 0x5 */
+    uint8_t reg = 0xA5;
+
+    /* 3) TODO: [3:0] maydonini 0xC ga almashtiring, qolgan bitlarga TEGMASDAN:
+     *    avval maydonni tozalang (& ~0x0Fu), keyin yangi qiymatni qo'ying (| 0x0Cu); natija uint8_t ga cast.
+     *    Natija: [3:0] = 0xc qilindi: 0xac */
+    (void)reg;                          /* 2-3-qadamlarni yozgach, bu qatorni o'chiring */
+
+    /* 4) TODO: printf("yuqoriga_tekislash(5000, 4096) = %d\n", TEKISLA(5000, 4096));
+     *    Qo'lda: 5000 + 4095 = 9095, pastki 12 bitni nolga -> 8192.
+     *    Natija: yuqoriga_tekislash(5000, 4096) = 8192 */
+
+    /* 5) Bitmap: 1 - band. Birinchi bo'sh (0) bit = ~bm dagi birinchi 1: __builtin_ctz - "oxiridagi nollar soni"
+     *    (16.7). DIQQAT: __builtin_ctz(0) - UB; ~bm == 0 bo'lsa - bo'sh joy yo'q. (Namuna - tayyor.) */
+    uint32_t bm = 0x0000000Fu;
+    int birinchi_nol = __builtin_ctz(~bm);
+    printf("bitmap 0x%08x: birinchi bo'sh bit = %d\n", bm, birinchi_nol);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/16_crc_gray/isitish.txt`):
+
+```text
+0x11223344 xotirada: 44 33 22 11 (little-endian)
+registr 0xa5: [7:4] = 0xa, [3:0] = 0x5
+[3:0] = 0xc qilindi: 0xac
+yuqoriga_tekislash(5000, 4096) = 8192
+bitmap 0x0000000f: birinchi bo'sh bit = 4
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/16_crc_gray/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **04** (bitlar), **21** (bitmap), **22** (halqa bufer).
 - Qo'shimcha: MyOS `kernel/drivers/ahci.c` dagi `rd`/`wr` va maskalarni toping; har bir `#define` bitini qurilma spetsifikatsiyasi bilan solishtiring.
 

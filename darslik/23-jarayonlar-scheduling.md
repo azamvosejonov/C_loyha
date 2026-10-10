@@ -698,6 +698,71 @@ Juda kichik kvant — vaqtning ko'pi kontekst almashishga ketadi (23.4 da o'lcha
 
 ## Mashq
 
+### Isitish: FIFO, SJF, Round Robin ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–23-boblar kerak (rejalashtirish algoritmlari, aylanish vaqti).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 23-bob, isitish: uchta ishni FIFO, SJF va Round Robin bilan rejalashtirish. Hammasi 0-vaqtda keladi. */
+#include <stdio.h>
+
+#define N 3
+static const char nom[N] = {'A', 'B', 'C'};
+static const int davom[N] = {5, 3, 1};          /* har ishga kerak bo'lgan vaqt birligi */
+
+/* Aylanish vaqti (turnaround) = tugash - kelish; kelish 0, demak tugash vaqtining o'zi (23.5). */
+static void natija(const char *sarlavha, const char *jadval, const int *tugash)
+{
+    printf("%-5s %s o'rtacha aylanish %.2f\n", sarlavha, jadval, (tugash[0] + tugash[1] + tugash[2]) / 3.0);
+}
+
+int main(void)
+{
+    char jadval[32];                    /* har vaqt birligida qaysi ish ishladi: "AAAAABBBC" */
+    int tugash[N], t = 0, k = 0;
+
+    /* 1) FIFO: kelish tartibida, oxirigacha. (Namuna - tayyor.) */
+    for (int i = 0; i < N; i++) {
+        for (int s = 0; s < davom[i]; s++)
+            jadval[k++] = nom[i];
+        t += davom[i];
+        tugash[i] = t;
+    }
+    jadval[k] = '\0';
+    natija("FIFO:", jadval, tugash);
+
+    /* 2) TODO: SJF - eng qisqasi birinchi. tartib[] = {0, 1, 2} ni davom bo'yicha o'sish tartibida saralang
+     *    (3 ta element - oddiy ichma-ich sikl yetadi), keyin FIFO dagi kabi, lekin i o'rniga p = tartib[i].
+     *    t = k = 0 dan boshlang. Qisqa ishlar kutmaydi -> o'rtacha kamayadi.
+     *    Natija: SJF:  CBBBAAAAA o'rtacha aylanish 4.67 */
+
+    /* 3) TODO: Round Robin, kvant = 2: qoldi[i] = davom[i]; har aylanishda har tugamagan ish
+     *    min(qoldi, kvant) vaqt ishlaydi; qoldi 0 bo'lsa - tugash[i] = t. Hamma tugaguncha takrorlang.
+     *    Javob vaqti yaxshi, aylanish - FIFO dek (23.6).
+     *    Natija: RR2:  AABBCAABA o'rtacha aylanish 7.33 */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/23_srtf/isitish.txt`):
+
+```text
+FIFO: AAAAABBBC o'rtacha aylanish 7.33
+SJF:  CBBBAAAAA o'rtacha aylanish 4.67
+RR2:  AABBCAABA o'rtacha aylanish 7.33
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/23_srtf/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **35** (Round Robin simulyatsiyasi).
 - Qo'shimcha: 35-mashq kodingizga SJF va STCF variantlarini qo'shing va 23.6-dagi misol bilan tekshiring.
 - MyOS: `kernel/proc/process.c` dagi `sched_tick` va `scheduler_loop` ni o'qib, kvant qanday hisoblanishini toping; `spin` dasturidan ikkitasini ishga tushirib `ps` bilan kuzating.

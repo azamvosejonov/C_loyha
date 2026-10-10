@@ -1355,6 +1355,80 @@ Bog'liqlikda `.h` ham bo'lsa va u yangilangan bo'lsa. Shu uchun `.h` bog'liqlikl
 
 ## Mashq
 
+### Isitish: `extern`, `static` va Makefile ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–11-boblar kerak (`extern`, `static`, Makefile). To'rt faylni **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini
+to'ldiring. Skelet hozir ham `make` bilan ogohlantirishsiz yig'iladi.
+
+```c
+/* hisob.h - modulning "vitrinasi": boshqa fayllar faqat shuni ko'radi (11.2). */
+#pragma once
+
+extern int chaqiruvlar;                 /* extern - "bu o'zgaruvchi BOSHQA faylda ta'riflangan", joy ajratmaydi */
+int qosh(int a, int b);
+```
+
+```c
+/* hisob.c - modulning ichki qismi. */
+#include "hisob.h"
+
+int chaqiruvlar = 0;                    /* TA'RIF: xotira faqat shu yerda ajratiladi (bitta faylda!) */
+
+/* TODO: static int sanab_qoy(void) - chaqiruvlar ni 1 ga oshirib qaytarsin.
+ *       static - "faqat shu faylda ko'rinadi": main.c uni chaqira olmaydi, nm da kichik 't' (11.2). */
+
+int qosh(int a, int b)
+{
+    /* TODO: sanab_qoy(); ni chaqiring - har qosh chaqiruvi sanalsin.
+     *       Natija: chaqiruvlar: 2 */
+    return a + b;
+}
+```
+
+```c
+/* main.c - modulni ishlatadi: faqat hisob.h dagi e'lonlarni biladi. */
+#include <stdio.h>
+#include "hisob.h"
+
+int main(void)
+{
+    printf("qosh(2, 3) = %d\n", qosh(2, 3));
+    printf("qosh(10, -4) = %d\n", qosh(10, -4));
+    printf("chaqiruvlar: %d\n", chaqiruvlar);   /* extern tufayli hisob.c dagi o'zgaruvchini ko'ramiz */
+    return 0;
+}
+```
+
+```make
+# Makefile - 11-bob, isitish. Qoida: "maqsad: bog'liqliklar", keyingi qatorda TAB + buyruq (11.4).
+CC = gcc
+CFLAGS = -Wall -Wextra -g
+
+# isitish main.o va hisob.o dan yig'iladi. .o qoidalarini make o'zi biladi (yashirin qoida: .c -> .o).
+isitish: main.o hisob.o
+	$(CC) $(CFLAGS) main.o hisob.o -o isitish
+
+# TODO: main.o hisob.o: hisob.h   - sarlavha o'zgarsa, ikkala .o ham qayta yig'ilsin.
+#       Usiz: hisob.h ni o'zgartirsangiz, make "hamma narsa yangi" deb o'ylaydi.
+# TODO: clean maqsadi: rm -f *.o isitish   va   .PHONY: clean  (clean - fayl emas, buyruq nomi).
+```
+
+**Kutilgan natija** (`darslik/loyihalar/11_kitob_moduli/isitish.txt`):
+
+```text
+qosh(2, 3) = 5
+qosh(10, -4) = 6
+chaqiruvlar: 2
+```
+
+```console
+$ make
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/11_kitob_moduli/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - 11.2 va 11.3 dagi fayllarni o'zingiz yozib, har bir xatoni (a, b, c) ko'ring. Har xabarni so'zlab tushuntiring.
 - `Makefile.avto` ga `-MMD -MP` qo'shing va `.h` ni o'zgartirib, faqat kerakli `.c` lar qayta yig'ilishini tekshiring.
 - MyOS `Makefile` ini oching va 11.5 jadvalidagi har bir qismni toping.

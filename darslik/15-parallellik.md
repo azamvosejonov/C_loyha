@@ -923,6 +923,80 @@ Bitta o'zgaruvchi (hisoblagich, bayroq) — atomik. Bir nechta bog'liq o'zgaruvc
 
 ## Mashq
 
+### Isitish: oqimlar va mutex ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–15-boblar kerak (`pthread_create`, `pthread_join`, mutex).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 15-bob, isitish: 4 ta oqim, umumiy hisoblagich va mutex. */
+#include <pthread.h>
+#include <stdio.h>
+
+static long hisob = 0;                                  /* HAMMA oqimlar uchun umumiy */
+static pthread_mutex_t qulf = PTHREAD_MUTEX_INITIALIZER;
+
+struct ish {                                            /* har oqimning o'z argumenti va natijasi */
+    int raqam;
+    long natija;
+};
+
+static void *oqim(void *arg)
+{
+    struct ish *w = arg;                                /* void * -> asl turi (7.7) */
+    for (int i = 0; i < 100000; i++) {
+        /* TODO: hisob++ ni pthread_mutex_lock(&qulf) va pthread_mutex_unlock(&qulf) orasiga oling.
+         *       Hozir (qulfsiz) natija har safar boshqacha va 400000 dan kam: hisob++ - aslida 3 amal
+         *       (o'qi, oshir, yoz), ikki oqim bir vaqtda o'qisa, bitta oshirish yo'qoladi (15.2). */
+        hisob++;
+    }
+    (void)&qulf;                        /* qulfni ishlatgach, bu qatorni o'chiring */
+    w->natija = (long)w->raqam * w->raqam;              /* o'z struct'iga yozadi - qulf kerak emas */
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t t[4];
+    struct ish ishlar[4];
+
+    /* 1) 4 ta oqim. &i ni BERMAYMIZ - oqim ishga tushguncha i o'zgarib ketadi; har oqimga o'z struct'i.
+     *    (Namuna - tayyor.) */
+    for (int i = 0; i < 4; i++) {
+        ishlar[i].raqam = i;
+        pthread_create(&t[i], NULL, oqim, &ishlar[i]);
+    }
+
+    /* 2) TODO: i = 0..3: pthread_join(t[i], NULL) - oqim tugashini kutish. join'siz main oqimlardan oldin
+     *    tugab qoladi: hisob hali tayyor emas, natijalar esa yozilmagan bo'lishi mumkin.
+     *    Natija: har oqim natijasi: 0 1 4 9 */
+
+    printf("mutex bilan: %ld (kutilgan 400000)\n", hisob);
+    printf("har oqim natijasi:");
+    for (int i = 0; i < 4; i++)
+        printf(" %ld", ishlar[i].natija);
+    printf("\n");
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/15_bank_oqimlar/isitish.txt`):
+
+```text
+mutex bilan: 400000 (kutilgan 400000)
+har oqim natijasi: 0 1 4 9
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined -pthread isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/15_bank_oqimlar/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **29** — oqimlar va mutex (poyga holatini o'z ko'zingiz bilan ko'rish).
 - **34** — o'z spinlock'ingiz (atomiklar bilan).
 - MyOS: `kernel/lib/spinlock.c` ni o'qing, keyin spinlock lab'ini bajaring (`tools/lab.py boshla spinlock`).

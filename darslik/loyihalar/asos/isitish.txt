@@ -1,0 +1,5 @@
+255 = 0xff = 0377 (sakkizlik)
+0x41 = 65 = 'A'
+"Hi" baytlari: 0x48 0x69
+200 + 100 (1 bayt): 44
+13 ikkilikda: 1101

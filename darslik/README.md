@@ -41,8 +41,8 @@ Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashti
 
 | Bob | Mavzu | Mashqlar |
 |---|---|---|
-| [Asos](asos-kompyuter-ichi.md) | **Kompyuter ichi (0-bobdan OLDIN o'qing)**: bit, bayt, ikkilik, o'n oltilik (`0x`, `0b`), oldidagi nollar, toshish, ma'no va tur, matn, xotira, qo'shish kalitlar bilan, jismoniy saqlash; katta loyiha — `konv` | — |
-| [00](00-kirish.md) | **Kirish**: C nima, o'rnatish, birinchi dastur — har bir belgi (`#include`, `main`, `void`, `{}`, `;`, `return`) | — |
+| [Asos](asos-kompyuter-ichi.md) | **Kompyuter ichi (0-bobdan OLDIN o'qing)**: bit, bayt, ikkilik, o'n oltilik (`0x`, `0b`), oldidagi nollar, toshish, ma'no va tur, matn, xotira, qo'shish kalitlar bilan, jismoniy saqlash; katta loyiha — `konv` | Isitish |
+| [00](00-kirish.md) | **Kirish**: C nima, o'rnatish, birinchi dastur — har bir belgi (`#include`, `main`, `void`, `{}`, `;`, `return`) | Isitish |
 | [01](01-kompilyatsiya.md) | **Kompilyatsiya**: preprotsessor → kompilyator → assembler → linker; e'lon va ta'rif; gdb | Isitish |
 | [02](02-turlar.md) | **Turlar**: `int`, `char`, `size_t`, `uint32_t`, signed/unsigned, toshish, cast | Isitish |
 | [03](03-operatorlar.md) | **Operatorlar**: arifmetika, `&&` va `&`, bitli amallar, `++`, ustuvorlik tuzoqlari | Isitish, 04 |
@@ -53,41 +53,41 @@ Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashti
 | [08](08-xotira.md) | **Xotira**: stek, heap, statik; `malloc`/`free`; leak, use-after-free | Isitish, 14, 15, 18 |
 | [09](09-struct.md) | **Struct, union, enum**: tekislash, `packed`, opaque turlar | Isitish, 13, 16, 17, 19, 20, 22 |
 | [10](10-preprotsessor.md) | **Preprotsessor**: makrolar, `do { } while (0)`, `#x`, `container_of` | Isitish, 23 |
-| [11](11-kop-fayl-make.md) | **Ko'p faylli dasturlar va Make**: `extern`, `static`, kutubxonalar, Makefile | — |
-| [12](12-standart-kutubxona.md) | **Standart kutubxona**: `printf` to'liq, `FILE *` buferlash, `errno`, `qsort` | 11, 12, 19, 24 |
-| [13](13-ub-xavfsizlik.md) | **Aniqlanmagan xatti-harakat (UB)** va xavfsiz kod | 01, 03, 04, 09, 12, 18 |
-| [14](14-tizim-chaqiruvlari.md) | **Tizim chaqiruvlari**: fd, `open/read/write`, `fork/exec/wait`, `pipe`, signallar | 25–28 |
-| [15](15-parallellik.md) | **Parallellik**: oqimlar, poyga holati, mutex, spinlock, atomiklar | 29, 34 |
-| [16](16-bitlar-apparat.md) | **Bitlar va apparat**: endianness, `volatile`, MMIO, port I/O, bitmap | 04, 21, 22 |
-| [17](17-assembly.md) | **Assembly**: registrlar, chaqirish qoidalari, stek kadri, inline asm | — |
-| [18](18-yadroga-koprik.md) | **Yadroga ko'prik**: freestanding C, linker skripti, MyOS'ni o'qish | 31–40 |
+| [11](11-kop-fayl-make.md) | **Ko'p faylli dasturlar va Make**: `extern`, `static`, kutubxonalar, Makefile | Isitish |
+| [12](12-standart-kutubxona.md) | **Standart kutubxona**: `printf` to'liq, `FILE *` buferlash, `errno`, `qsort` | Isitish, 11, 12, 19, 24 |
+| [13](13-ub-xavfsizlik.md) | **Aniqlanmagan xatti-harakat (UB)** va xavfsiz kod | Isitish, 01, 03, 04, 09, 12, 18 |
+| [14](14-tizim-chaqiruvlari.md) | **Tizim chaqiruvlari**: fd, `open/read/write`, `fork/exec/wait`, `pipe`, signallar | Isitish, 25–28 |
+| [15](15-parallellik.md) | **Parallellik**: oqimlar, poyga holati, mutex, spinlock, atomiklar | Isitish, 29, 34 |
+| [16](16-bitlar-apparat.md) | **Bitlar va apparat**: endianness, `volatile`, MMIO, port I/O, bitmap | Isitish, 04, 21, 22 |
+| [17](17-assembly.md) | **Assembly**: registrlar, chaqirish qoidalari, stek kadri, inline asm | Isitish |
+| [18](18-yadroga-koprik.md) | **Yadroga ko'prik**: freestanding C, linker skripti, MyOS'ni o'qish | Isitish, 34, 39, 40 |
 
-**Isitish** — 1–10-boblardagi eng oson mashq: faqat shu va oldingi boblarda o'tilgan narsa kerak, natija `diff` bilan
-tekshiriladi. Mashq raqami esa o'sha bobda **to'liq** yechish mumkin bo'lgan joyda turibdi (oldin bobda tilga olinsa ham).
+**Isitish** — har bobdagi eng oson mashq: izohli kod skeleti, `TODO` larni o'zingiz yozasiz; faqat shu va oldingi boblarda
+o'tilgan narsa kerak, natija `diff` bilan tekshiriladi. Mashq raqami esa o'sha bobda **to'liq** yechish mumkin bo'lgan joyda turibdi (oldin bobda tilga olinsa ham).
 
 ### II qism: kompyuter tizimlari va operatsion tizimlar
 
 | Bob | Mavzu | Mashqlar |
 |---|---|---|
-| [19](19-terminal-git.md) | **Terminal va Git**: fayllar, qidirish, quvurlar, ruxsatlar, commit, `git bisect` | — |
-| [20](20-sonlar.md) | **Sonlar**: ikkilik/o'n oltilik, ikkiga to'ldirish, ishora kengayishi, IEEE 754 float | 41 |
-| [21](21-kesh.md) | **Xotira ierarxiyasi va kesh**: lokallik, kesh qatori, soxta bo'lishish, TLB | — |
-| [22](22-boglash.md) | **Bog'lash va ELF**: belgilar, relokatsiya, statik/dinamik, PLT/GOT, `exec` | 36 |
-| [23](23-jarayonlar-scheduling.md) | **Jarayonlar va rejalashtirish**: holatlar, kontekst almashish, FIFO/SJF/RR/MLFQ/CFS | 35 |
-| [24](24-virtual-xotira.md) | **Virtual xotira**: sahifalash, page fault, almashtirish algoritmlari, COW, `mmap` | 31, 43 |
-| [25](25-xotira-ajratish.md) | **Xotira ajratish**: fragmentatsiya, bo'sh ro'yxatlar, chegara teglari, buddy, slab | 30, 32, 33 |
-| [26](26-parallellik-chuqur.md) | **Parallellik chuqur**: qulflarni qurish, semaforlar, klassik masalalar, deadlock | 44, 45, 48 |
-| [27](27-fayl-tizimlari.md) | **Qurilmalar va fayl tizimlari**: DMA, disklar, inode, FFS, jurnal | 37 |
-| [28](28-algoritmlar.md) | **Algoritmlar**: O-belgi, xesh, daraxtlar, heap, graflar, saralash | 42, 46, 47, 48 |
-| [29](29-debug-vositalari.md) | **Debug vositalari**: gdb chuqur, sanitizer, valgrind, strace, perf | — |
-| [30](30-yadro-arxitekturasi.md) | **Yadro arxitekturasi**: monolit/mikroyadro, Linux xaritasi, modul, patch | — |
-| [31](31-lugat.md) | **Lug'at**: ingliz atamalari, koddagi qisqartmalar, xato xabarlari tarjimasi | — |
+| [19](19-terminal-git.md) | **Terminal va Git**: fayllar, qidirish, quvurlar, ruxsatlar, commit, `git bisect` | Isitish |
+| [20](20-sonlar.md) | **Sonlar**: ikkilik/o'n oltilik, ikkiga to'ldirish, ishora kengayishi, IEEE 754 float | Isitish, 41 |
+| [21](21-kesh.md) | **Xotira ierarxiyasi va kesh**: lokallik, kesh qatori, soxta bo'lishish, TLB | Isitish |
+| [22](22-boglash.md) | **Bog'lash va ELF**: belgilar, relokatsiya, statik/dinamik, PLT/GOT, `exec` | Isitish, 36 |
+| [23](23-jarayonlar-scheduling.md) | **Jarayonlar va rejalashtirish**: holatlar, kontekst almashish, FIFO/SJF/RR/MLFQ/CFS | Isitish, 35 |
+| [24](24-virtual-xotira.md) | **Virtual xotira**: sahifalash, page fault, almashtirish algoritmlari, COW, `mmap` | Isitish, 31, 43 |
+| [25](25-xotira-ajratish.md) | **Xotira ajratish**: fragmentatsiya, bo'sh ro'yxatlar, chegara teglari, buddy, slab | Isitish, 30, 32, 33 |
+| [26](26-parallellik-chuqur.md) | **Parallellik chuqur**: qulflarni qurish, semaforlar, klassik masalalar, deadlock | Isitish, 44, 45, 48 |
+| [27](27-fayl-tizimlari.md) | **Qurilmalar va fayl tizimlari**: DMA, disklar, inode, FFS, jurnal | Isitish, 37 |
+| [28](28-algoritmlar.md) | **Algoritmlar**: O-belgi, xesh, daraxtlar, heap, graflar, saralash | Isitish, 42, 46, 47, 48 |
+| [29](29-debug-vositalari.md) | **Debug vositalari**: gdb chuqur, sanitizer, valgrind, strace, perf | Isitish |
+| [30](30-yadro-arxitekturasi.md) | **Yadro arxitekturasi**: monolit/mikroyadro, Linux xaritasi, modul, patch | Isitish |
+| [31](31-lugat.md) | **Lug'at**: ingliz atamalari, koddagi qisqartmalar, xato xabarlari tarjimasi | Isitish |
 
 ### III qism: amaliyot — MyOS kodini o'zingiz yozasiz
 
 | Bob | Mavzu | Mashqlar |
 |---|---|---|
-| [32](32-printf-malloc.md) | **`printf` va `malloc` ni yozish**: format dvigateli, `kprintf`, heap, free list, split, coalescing — kod repoda bo'sh, testlar tayyor | M1–M4 |
+| [32](32-printf-malloc.md) | **`printf` va `malloc` ni yozish**: format dvigateli, `kprintf`, heap, free list, split, coalescing — kod repoda bo'sh, testlar tayyor | Isitish, M1–M4 |
 
 ### Bu darslik qaysi kitoblar o'rnini bosadi
 

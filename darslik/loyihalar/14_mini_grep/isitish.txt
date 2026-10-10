@@ -1,0 +1,4 @@
+write() bilan: salom
+faylga 11 bayt yozildi
+o'qildi: "dunyo" (5 bayt)
+bola chiqish kodi: 7

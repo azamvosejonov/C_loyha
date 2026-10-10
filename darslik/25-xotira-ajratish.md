@@ -638,6 +638,76 @@ Har sinov alohida jarayonda (xato bo'lsa faqat o'sha jarayon o'ladi):
 
 ## Mashq
 
+### Isitish: bump allocator va buddy ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–25-boblar kerak (tekislash, allocator, buddy).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 25-bob, isitish: eng oddiy allocator - "bump" (faqat oldinga suriladi) + buddy manzili. */
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#define ARENA 256
+static unsigned char arena[ARENA] __attribute__((aligned(16)));    /* "heap" - oddiy massiv */
+static size_t ishlatilgan = 0;
+
+/* TODO: n ni 16 ga karrali qilib yaxlitlang: hajm = (n + 15) & ~(size_t)15 (malloc 16 ga tekislaydi, 25.1).
+ *       n == 0 yoki hajm > ARENA - ishlatilgan bo'lsa - NULL. Aks holda p = arena + ishlatilgan;
+ *       ishlatilgan += hajm; return p.   (free yo'q: bump allocator faqat hammasini birdaniga "tashlaydi".)
+ *       DIQQAT: ishlatilgan + hajm > ARENA deb yozmang - katta n da toshadi; ayirmani solishtiring. */
+static void *ajrat(size_t n)
+{
+    (void)n;
+    return NULL;
+}
+
+static void korsat(const char *nom, size_t n)
+{
+    unsigned char *p = ajrat(n);
+    if (!p)
+        printf("%s = NULL (%zu bayt: joy yetmadi)\n", nom, n);
+    else
+        printf("%s = +%td (%zu bayt -> %zu)\n", nom, p - arena, n, (n + 15) & ~(size_t)15);
+}
+
+int main(void)
+{
+    korsat("a", 10);
+    korsat("b", 20);
+    korsat("c", 1);
+    printf("qoldi: %zu bayt\n", ARENA - ishlatilgan);
+    korsat("d", 256);
+
+    /* Buddy (25.8): 2^k baytli blokning "egizagi" = manzil XOR 2^k. 0xc0 ^ 0x40 = 0x80. (Namuna - tayyor.) */
+    uintptr_t blok = 0xc0;
+    printf("buddy(0x%lx, 64 bayt) = 0x%lx\n", (unsigned long)blok, (unsigned long)(blok ^ 64));
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/25_fit_siyosat/isitish.txt`):
+
+```text
+a = +0 (10 bayt -> 16)
+b = +16 (20 bayt -> 32)
+c = +48 (1 bayt -> 16)
+qoldi: 192 bayt
+d = NULL (256 bayt: joy yetmadi)
+buddy(0xc0, 64 bayt) = 0x80
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/25_fit_siyosat/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **30** (mini malloc) — endi chegara teglari yoki aniq ro'yxat bilan qayta yozib, tezligini solishtiring.
 - **32** (buddy), **33** (slab).
 - MyOS: `user/libc/malloc.c` ni o'qing — qaysi dizayn tanlangan va nega?

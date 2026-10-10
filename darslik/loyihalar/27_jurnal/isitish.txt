@@ -1,0 +1,5 @@
+fayl hajmi: 3000 bayt -> 3 blok (1024 bayt)
+blok bitmap: 11100000
+stat: hajm 5, havolalar 1
+link dan keyin havolalar: 2 (inode bitta, nom ikkita)
+rename: yangi bor, eski yo'q

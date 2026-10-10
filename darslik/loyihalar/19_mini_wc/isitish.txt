@@ -1,0 +1,5 @@
+qatorlar: 6
+olma: 3 marta
+eng ko'p: olma (3)
+noyob mevalar: 3
+royxat.txt ichida: 2 ta nom

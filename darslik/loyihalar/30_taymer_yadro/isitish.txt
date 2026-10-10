@@ -1,0 +1,6 @@
+syscall 0 (getpid) -> 42
+salom
+syscall 1 (write) -> 6
+syscall 2 (qosh) -> 42
+syscall 7 -> -38 (ENOSYS)
+syscall -1 -> -38 (ENOSYS)

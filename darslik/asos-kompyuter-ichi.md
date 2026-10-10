@@ -947,6 +947,65 @@ $ ./konv < kirish.txt
 
 ## Mashq
 
+### Isitish: bir son — turli yozuvlar ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat Asos bobning o'zi kifoya (A.3–A.8): C'ni hali bilmasangiz ham, har qatorni o'qing.
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - Asos bob, isitish: bir son - turli yozuvlar. C'ni hali bilmasangiz ham: har qatorni o'qing. */
+#include <stdio.h>
+
+int main(void)
+{
+    /* 1) Bitta son, uch yozuv: %d - o'nlik, %x - o'n oltilik, %o - sakkizlik (A.3, A.4). (Namuna - tayyor.)
+     *    255 = 1111 1111 = 0xff: to'rt bit - bitta hex raqam. */
+    int son = 255;
+    printf("%d = 0x%x = 0%o (sakkizlik)\n", son, son, son);
+
+    /* 2) TODO: 0x41 ni uch xil chiqaring: printf("0x%x = %d = '%c'\n", kod, kod, kod);
+     *    Bir xil bitlar (0100 0001): son sifatida 65, harf sifatida 'A' (A.7, A.8).
+     *    Natija: 0x41 = 65 = 'A' */
+    int kod = 0x41;
+    (void)kod;                          /* 2-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 3) Matn - baytlar qatori (A.8). "Hi" xotirada: 0x48 ('H'), 0x69 ('i'), 0x00 (oxiri). (Namuna - tayyor.) */
+    char matn[] = "Hi";
+    printf("\"%s\" baytlari: 0x%x 0x%x\n", matn, matn[0], matn[1]);
+
+    /* 4) TODO: bitta baytli quti to'lsa (A.6): quti = quti + 100; keyin %d bilan chiqaring.
+     *    200 + 100 = 300, lekin bayt faqat 0..255 ni sig'diradi: 300 - 256 = 44 qoladi.
+     *    Natija: 200 + 100 (1 bayt): 44 */
+    unsigned char quti = 200;
+    (void)quti;                         /* 4-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 5) TODO: 13 ni ikkilikda: bit = 3, 2, 1, 0 uchun (13 >> bit) & 1 ni %d bilan (A.3).
+     *    printf("13 ikkilikda: "); for (int bit = 3; bit >= 0; bit--) ...; oxirida printf("\n").
+     *    Natija: 13 ikkilikda: 1101 */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/asos/isitish.txt`):
+
+```text
+255 = 0xff = 0377 (sakkizlik)
+0x41 = 65 = 'A'
+"Hi" baytlari: 0x48 0x69
+200 + 100 (1 bayt): 44
+13 ikkilikda: 1101
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/asos/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - `konv` ga 1–4-kengaytirishlardan kamida ikkitasini qo'shing.
 - Daftarga 10 ta hex sonni (`0x3C`, `0xE7`, `0x1F`, ...) qo'lda ikkilikka yoying, keyin `konv` bilan tekshiring.
 - `bayt_korgich` ga o'zingizning 3 ta o'zgaruvchingizni qo'shing (`uint32_t`, `char[]`, `double`) va natijani oldindan **taxmin qiling**: nechta bayt? qaysi tartibda?

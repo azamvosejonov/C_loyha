@@ -602,6 +602,67 @@ Statik dastur libc'ning kerakli qismlarini **ichiga ko'chiradi** (ba'zan `printf
 
 ## Mashq
 
+### Isitish: o'z ELF sarlavhangiz ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–22-boblar kerak (ELF sarlavhasi, PIE).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 22-bob, isitish: o'z ELF sarlavhangizni o'qing (/proc/self/exe - ishlayotgan dasturning fayli). */
+#include <stdio.h>
+
+int main(void)
+{
+    unsigned char h[64];                /* ELF64 sarlavhasi - 64 bayt (22.1; man 5 elf) */
+    FILE *f = fopen("/proc/self/exe", "rb");
+    if (!f || fread(h, 1, sizeof(h), f) != sizeof(h))
+        return 1;
+    fclose(f);
+
+    /* 1) Birinchi 4 bayt: 0x7f 'E' 'L' 'F'. (Namuna - tayyor.) */
+    printf("sehrli raqam: %02x %02x %02x %02x (\\x7fELF)\n", h[0], h[1], h[2], h[3]);
+
+    /* 2) TODO: h[4] - sinf (1 = 32-bit, 2 = 64-bit), h[5] - bayt tartibi (1 = little-endian, 2 = big-endian).
+     *    printf("sinf: %s, bayt tartibi: %s\n", ...) - ternar operator bilan matn tanlang.
+     *    Natija: sinf: 64-bit, bayt tartibi: little-endian */
+
+    /* 3) TODO: e_type - 16-baytdan 2 bayt, little-endian: tur = h[16] | h[17] << 8.
+     *    2 = EXEC (qat'iy manzilli), 3 = DYN (PIE - istalgan manzilga yuklanadi, 22.6). -pie bilan yig'amiz.
+     *    printf("tur: %u (%s)\n", tur, tur == 2 ? "EXEC" : tur == 3 ? "DYN - PIE" : "boshqa");
+     *    Natija: tur: 3 (DYN - PIE) */
+
+    /* 4) TODO: e_machine - 18-baytdan 2 bayt: 62 = x86-64.
+     *    Natija: mashina: 62 (x86-64) */
+
+    /* 5) e_entry - 24-baytdan 8 bayt: kirish nuqtasi (_start). Baytlarni oxiridan yig'amiz. (Namuna - tayyor.) */
+    unsigned long kirish = 0;
+    for (int i = 7; i >= 0; i--)
+        kirish = kirish << 8 | h[24 + i];
+    printf("kirish nuqtasi 0 emasmi: %d\n", kirish != 0);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/22_elf_bolimlar/isitish.txt`):
+
+```text
+sehrli raqam: 7f 45 4c 46 (\x7fELF)
+sinf: 64-bit, bayt tartibi: little-endian
+tur: 3 (DYN - PIE)
+mashina: 62 (x86-64)
+kirish nuqtasi 0 emasmi: 1
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined -fPIE -pie isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/22_elf_bolimlar/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - Uch faylli dasturingiz (1-bob) uchun `nm`, `readelf -S`, `objdump -dr` chiqishlarini o'qing.
 - MyOS'da: `readelf -l build/kernel.elf` — segmentlar manzillari (`0xffffffff80...`) va linker skripti bilan solishtiring.
 - **36-mashq** (ELF tahlilchisi) — agar hali qilmagan bo'lsangiz.

@@ -1,0 +1,4 @@
+Salom, yadro!
+uzunlik: 13
+255 = 0xff
+4096 = 0x1000

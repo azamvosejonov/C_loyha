@@ -1391,6 +1391,91 @@ noma'lum buyruq: sakra
 
 ## Mashq
 
+### Isitish: qidiruv, saralash, xesh ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–28-boblar kerak (ikkilik qidiruv, saralash, xesh).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 28-bob, isitish: ikkilik qidiruv, qo'yib saralash, xesh funksiya. */
+#include <stdio.h>
+
+/* Ikkilik qidiruv: har qadamda oraliq yarmiga qisqaradi - O(log n) (28.4). (Namuna - tayyor.)
+ * orta = chap + (ong - chap) / 2 - (chap + ong) / 2 katta sonlarda toshadi. */
+static int ikkilik_qidir(const int *a, int n, int x, int *qadam)
+{
+    int chap = 0, ong = n - 1;
+    *qadam = 0;
+    while (chap <= ong) {
+        int orta = chap + (ong - chap) / 2;
+        (*qadam)++;
+        if (a[orta] == x)
+            return orta;
+        if (a[orta] < x)
+            chap = orta + 1;
+        else
+            ong = orta - 1;
+    }
+    return -1;
+}
+
+/* TODO: qo'yib saralash (insertion sort, 28.5): i = 1..n-1: x = a[i]; chapdagi x dan kattalarni bittadan
+ *       o'ngga suring (j = i - 1, j >= 0 && a[j] > x); keyin a[j + 1] = x. Deyarli saralangan massivda - O(n). */
+static void qoyib_saralash(int *a, int n)
+{
+    (void)a;
+    (void)n;
+}
+
+/* TODO: djb2 xesh (28.3): h = 5381; har belgi uchun h = h * 33 + (unsigned char)belgi.
+ *       % 16 - 16 ta "savat"dan qaysi biriga tushishi. */
+static unsigned long djb2(const char *s)
+{
+    (void)s;
+    return 0;
+}
+
+int main(void)
+{
+    int tartibli[] = {2, 3, 5, 8, 13, 21, 34, 55};
+    int qadam, i = ikkilik_qidir(tartibli, 8, 21, &qadam);
+    printf("ikkilik qidiruv: 21 -> indeks %d (%d qadam)\n", i, qadam);
+    i = ikkilik_qidir(tartibli, 8, 4, &qadam);
+    printf("ikkilik qidiruv: 4 -> %s (%d qadam)\n", i < 0 ? "topilmadi" : "topildi", qadam);
+
+    int a[] = {8, 3, 13, 1, 5, 2};
+    qoyib_saralash(a, 6);
+    printf("saralandi:");
+    for (int k = 0; k < 6; k++)
+        printf(" %d", a[k]);
+    printf("\n");
+
+    printf("djb2(\"salom\") %% 16 = %lu\n", djb2("salom") % 16);
+    printf("djb2(\"kalit\") %% 16 = %lu\n", djb2("kalit") % 16);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/28_labirint/isitish.txt`):
+
+```text
+ikkilik qidiruv: 21 -> indeks 5 (2 qadam)
+ikkilik qidiruv: 4 -> topilmadi (3 qadam)
+saralandi: 1 2 3 5 8 13
+djb2("salom") % 16 = 1
+djb2("kalit") % 16 = 10
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/28_labirint/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **42** (LRU kesh: xesh + ikki tomonlama ro'yxat), **46** (min-heap), **47** (AVL daraxt), **48** (deadlock: grafda sikl topish).
 - Takrorlash: **13, 16, 17, 19, 21, 22, 32**.
 

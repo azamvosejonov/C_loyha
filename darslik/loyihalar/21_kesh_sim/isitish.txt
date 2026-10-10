@@ -1,0 +1,4 @@
+manzil 0x12345678: tag 0x12345, to'plam 25, siljish 56
+qator bo'yicha: 4 ta yangi kesh qatori
+ustun bo'yicha: 64 ta yangi kesh qatori
+_Alignas(64) hisoblagich hajmi: 64 bayt

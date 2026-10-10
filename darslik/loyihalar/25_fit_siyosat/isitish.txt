@@ -1,0 +1,6 @@
+a = +0 (10 bayt -> 16)
+b = +16 (20 bayt -> 32)
+c = +48 (1 bayt -> 16)
+qoldi: 192 bayt
+d = NULL (256 bayt: joy yetmadi)
+buddy(0xc0, 64 bayt) = 0x80

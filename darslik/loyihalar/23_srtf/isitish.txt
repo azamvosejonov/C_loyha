@@ -1,0 +1,3 @@
+FIFO: AAAAABBBC o'rtacha aylanish 7.33
+SJF:  CBBBAAAAA o'rtacha aylanish 4.67
+RR2:  AABBCAABA o'rtacha aylanish 7.33

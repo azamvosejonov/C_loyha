@@ -476,6 +476,81 @@ make test          # oxirida: ==> Natija (bios): 43 OK, 0 FAIL
 - Sanitizer: `tools/myos_mashq.sh` dagi `gcc` qatorlariga `-fsanitize=address,undefined` qo'shib ko'ring
   (faqat test binarisi uchun) — ko'rsatkich xatolari darhol ko'rinadi.
 
+## Mashq
+
+### Isitish: printf'siz son chiqarish ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–32-boblar kerak (32.3 dagi raqamlarni teskari yig'ish).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 32-bob, isitish: printf'siz son chiqarish - faqat putchar. M1 (emit_number) ning soddasi. */
+#include <stdio.h>
+
+static void chiqar_satr(const char *s)
+{
+    while (*s)
+        putchar(*s++);
+}
+
+/* Ishorasiz son -> istalgan asosdagi raqamlar (2..16). Raqamlar teskari chiqadi (x % asos - ENG KICHIK raqam),
+ * shuning uchun buferni oxiridan to'ldiramiz (32.3). 64 ta ikkilik raqam + '\0' = 65. (Namuna - tayyor.) */
+static void chiqar_son(unsigned long x, unsigned asos)
+{
+    char buf[65];
+    int i = 64;
+    buf[i] = '\0';
+    do {                                /* do-while: x == 0 bo'lsa ham bitta '0' chiqsin */
+        buf[--i] = "0123456789abcdef"[x % asos];
+        x /= asos;
+    } while (x);
+    chiqar_satr(&buf[i]);
+}
+
+/* TODO: x < 0 bo'lsa putchar('-') va chiqar_son(0UL - (unsigned long)x, 10); aks holda chiqar_son((unsigned long)x, 10).
+ *       -x DEMANG: x = LONG_MIN bo'lsa -x long ga sig'maydi (UB, 13-bob). Ishorasizda ayirish - aniqlangan. */
+static void chiqar_ishorali(long x)
+{
+    (void)x;
+    chiqar_satr("?");
+}
+
+int main(void)
+{
+    chiqar_son(0, 10); putchar('\n');
+    chiqar_son(42, 10); putchar('\n');
+    chiqar_son(18446744073709551615UL, 10); putchar('\n');
+    chiqar_satr("0x"); chiqar_son(0xdeadbeef, 16); putchar('\n');
+    chiqar_son(5, 2); putchar('\n');
+    chiqar_ishorali(-9223372036854775807L - 1); putchar('\n');     /* LONG_MIN */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/32_myos_mashq/isitish.txt`):
+
+```text
+0
+42
+18446744073709551615
+0xdeadbeef
+101
+-9223372036854775808
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/32_myos_mashq/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **M1–M4** (32.3–32.7) — `emit_number`, `kprintf` format o'qish, `malloc`, `insert_free`: haqiqiy MyOS kodi.
+  Isitishdagi `chiqar_son` — M1 ning yuragi: endi unga kenglik, to'ldirish va ishorani qo'shasiz.
+
 ## Savol-javob
 
 **Savol:** `printf("%d", x)` da `x` `char` bo'lsa, `va_arg(ap, int)` to'g'rimi?

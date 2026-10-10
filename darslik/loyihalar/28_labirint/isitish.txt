@@ -1,0 +1,5 @@
+ikkilik qidiruv: 21 -> indeks 5 (2 qadam)
+ikkilik qidiruv: 4 -> topilmadi (3 qadam)
+saralandi: 1 2 3 5 8 13
+djb2("salom") % 16 = 1
+djb2("kalit") % 16 = 10

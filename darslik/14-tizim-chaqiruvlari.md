@@ -1106,6 +1106,69 @@ Linux'da `ps aux` → holat `Z`. MyOS'da `ps` → `zombie`.
 
 ## Mashq
 
+### Isitish: write, lseek, fork ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–14-boblar kerak (`write`, `open`, `lseek`, `fork`, `waitpid`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 14-bob, isitish: tizim chaqiruvlari - write, open/read/lseek, fork/wait. */
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int main(void)
+{
+    /* 1) write(fd, buf, n) - to'g'ridan-to'g'ri yadroga: fd 1 = stdout, buferlashsiz (14.2). (Namuna - tayyor.) */
+    const char *xabar = "write() bilan: salom\n";
+    write(1, xabar, strlen(xabar));
+
+    /* 2) open: O_CREAT - bo'lmasa yarat, O_TRUNC - bo'shat, O_RDWR - o'qish va yozish; 0644 - ruxsatlar (14.3). */
+    int fd = open("isitish_fayl.txt", O_CREAT | O_TRUNC | O_RDWR, 0644);
+    if (fd < 0)
+        return 1;
+    ssize_t n = write(fd, "salom dunyo", 11);
+    printf("faylga %zd bayt yozildi\n", n);
+
+    /* 3) TODO: lseek(fd, 6, SEEK_SET) - fayl "kursorini" 6-baytga; keyin read(fd, buf, sizeof(buf) - 1).
+     *    buf {0} bilan to'ldirilgan, shuning uchun o'qilgan matn oxirida '\0' bor. read qaytargani - baytlar soni.
+     *    Natija: o'qildi: "dunyo" (5 bayt) */
+    char buf[16] = {0};
+    (void)buf;                          /* 3-qadamni yozgach, bu qatorni o'chiring */
+
+    close(fd);
+    unlink("isitish_fayl.txt");         /* faylni o'chirish (nomini katalogdan olib tashlash) */
+
+    /* 4) TODO: fflush(stdout); pid_t pid = fork(); bolada (pid == 0) _exit(7);
+     *    otada waitpid(pid, &holat, 0) va WIFEXITED(holat) bo'lsa WEXITSTATUS(holat) ni chiqaring (14.4).
+     *    fflush NEGA kerak: printf buferidagi hali chiqmagan matn fork da bolaga ham NUSXALANADI -
+     *    `./isitish | cat` da qatorlar ikki marta chiqadi. fflush'siz sinab ko'ring!
+     *    Natija: bola chiqish kodi: 7 */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/14_mini_grep/isitish.txt`):
+
+```text
+write() bilan: salom
+faylga 11 bayt yozildi
+o'qildi: "dunyo" (5 bayt)
+bola chiqish kodi: 7
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/14_mini_grep/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **25** (`cp`), **26** (`wc`), **27** (`fork`/`exec`/`wait`), **28** (`pipe`/`dup2`).
 - Qo'shimcha loyiha: **o'z mini-shell'ingiz** — qatorni o'qish, bo'shliq bo'yicha ajratish (15-mashq), `fork`+`execvp`+`waitpid` (27), ichki `cd` va `exit`, keyin `>` va `|` (28).
   Tayyor bo'lgach, MyOS `user/bin/sh.c` bilan solishtiring.

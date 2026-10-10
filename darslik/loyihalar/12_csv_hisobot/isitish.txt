@@ -1,0 +1,4 @@
+saralangan: 2 5 8 13 21
+strtol("42abc"): 42, qolgan: "abc"
+fopen: xato 2 (No such file or directory)
+[  3.14] [3.14  ] [007]

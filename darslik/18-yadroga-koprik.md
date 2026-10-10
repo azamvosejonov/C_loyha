@@ -621,7 +621,102 @@ libk sinovi: hammasi to'g'ri (5 ta guruh, ~200000 tekshiruv)
 
 ## Mashq
 
-- **31–40** (yadro mexanizmlari oddiy dastur sifatida) — [mashqlar/README.md](../mashqlar/README.md).
+### Isitish: libc'siz o'n oltilik chiqarish ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–18-boblar kerak (18.1 dagi `chodir.c`, 16-bob bitlari).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 18-bob, isitish: libc'siz dastur (18.1 dagi chodir.c ga o'xshash). printf, strlen, main YO'Q. */
+typedef unsigned long size_t;           /* <stddef.h> ham yo'q - turni o'zimiz e'lon qilamiz */
+
+/* write(fd, buf, n): rax = 1 (syscall raqami), rdi, rsi, rdx - argumentlar; rcx, r11 ni syscall buzadi (17.5). */
+static long sys_write(int fd, const void *buf, size_t n)
+{
+    long r;
+    __asm__ volatile("syscall" : "=a"(r) : "a"(1L), "D"((long)fd), "S"(buf), "d"(n) : "rcx", "r11", "memory");
+    return r;
+}
+
+/* exit(kod): rax = 60. _start dan qaytib bo'lmaydi - qaytadigan joy yo'q, shuning uchun albatta exit. */
+static void sys_exit(int kod)
+{
+    __asm__ volatile("syscall" : : "a"(60L), "D"((long)kod));
+    for (;;) { }
+}
+
+static size_t mening_strlen(const char *s)
+{
+    size_t n = 0;
+    while (s[n])
+        n++;
+    return n;
+}
+
+static void yoz(const char *s) { sys_write(1, s, mening_strlen(s)); }
+
+/* Son -> o'nlik matn: raqamlar OXIRIDAN chiqadi (x % 10), shuning uchun buferni oxiridan to'ldiramiz. (Namuna - tayyor.) */
+static void yoz_son(unsigned long x)
+{
+    char buf[21];                       /* 2^64 = 20 raqam + '\0' */
+    int i = 20;
+    buf[i] = '\0';
+    do {
+        buf[--i] = (char)('0' + x % 10);
+        x /= 10;
+    } while (x);
+    yoz(&buf[i]);
+}
+
+/* TODO: o'n oltilikda "0x..." chiqaring. yoz_son bilan bir xil, lekin: raqam = "0123456789abcdef"[x & 0xF],
+ *       keyin x >>= 4 (16 ga bo'lish = 4 bitga surish, 16-bob). Oxirida oldiga 'x' va '0' qo'shing.
+ *       buf hajmi: 16 raqam + "0x" + '\0' = 19. */
+static void yoz_hex(unsigned long x)
+{
+    (void)x;
+    yoz("0x?");
+}
+
+void _start(void)                       /* OS yuklagandan keyingi BIRINCHI funksiya (main emas!) */
+{
+    const char *xabar = "Salom, yadro!";
+    yoz(xabar);
+    yoz("\nuzunlik: ");
+    yoz_son(mening_strlen(xabar));
+    yoz("\n255 = ");
+    yoz_hex(255);
+    yoz("\n4096 = ");
+    yoz_hex(4096);
+    yoz("\n");
+    sys_exit(7);                        /* shell'da: echo $?  -> 7 */
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/18_kprintf/isitish.txt`):
+
+```text
+Salom, yadro!
+uzunlik: 13
+255 = 0xff
+4096 = 0x1000
+```
+
+```console
+$ gcc -Wall -Wextra -O2 -ffreestanding -nostdlib -static -fno-stack-protector isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/18_kprintf/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+$ ./isitish > /dev/null; echo "chiqish kodi: $?"
+chiqish kodi: 7
+```
+
+### Keyingi mashqlar
+
+- **34** (spinlock, 15-bob), **39** (mini CPU, 17-bob), **40** (mini shell, 14-bob) — hozir yechsa bo'ladi.
+- Qolgan yadro mexanizmlari nazariyasi II qismda: **36** (ELF) — 22-bobdan, **35** (scheduler) — 23-bobdan,
+  **31** (sahifa jadvali) — 24-bobdan, **32** (buddy), **33** (slab) — 25-bobdan, **38** (kutish navbati) —
+  26-bobdan, **37** (ext2) — 27-bobdan keyin ([mashqlar/README.md](../mashqlar/README.md)).
 - MyOS: `kernel/main.c` ni boshidan oxirigacha o'qing va har bir `*_init()` chaqiruvi qaysi faylga olib borishini daftaringizga yozing. Bu — yadroning "mundarijasi".
 
 **Tabriklayman — darslikning I qismi (C tili) tugadi.** Endi siz yadro kodini o'qiy oladigan darajadasiz. II qism (19–31-boblar) — kompyuter tizimlari va operatsion tizimlar nazariyasi: odatda ingliz tilidagi

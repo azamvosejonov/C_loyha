@@ -977,6 +977,74 @@ ajratishlar: 8, bo'shatishlar: 3, jami: 16428 bayt, eng ko'pi bir vaqtda: 12268 
 
 ## Mashq
 
+### Isitish: xato ovchisi ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–29-boblar kerak (sanitizer hisobotlarini o'qish). Bu safar skelet **ataylab xatoli**: izohlar qaysi sanitizer nimani aytishini ko'rsatadi,
+xatoni o'zingiz topib tuzatasiz. Bir vaqtda bitta xato: tuzating, qayta yig'ing, keyingisini o'qing.
+
+```c
+/* isitish.c - 29-bob, isitish: XATO OVCHISI. Bu dasturda 4 ta xato bor - sanitizer'lar ularni ko'rsatadi.
+ * Usul (29.1): ishga tushiring -> hisobotning BIRINCHI qatorini o'qing (xato turi) -> "#0 ... isitish.c:QATOR"
+ * (qayerda) -> tuzating -> qayta ishga tushiring. Bir vaqtda bitta xato. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* XATO 1 (AddressSanitizer: heap-buffer-overflow): satr uchun joy hisobida nimadir yetishmaydi. */
+static char *nusxa(const char *s)
+{
+    char *p = malloc(strlen(s));
+    if (p)
+        strcpy(p, s);
+    return p;
+}
+
+/* XATO 2 (UndefinedBehaviorSanitizer: signed integer overflow): 13! int ga sig'maydi.
+ *       Turini o'zgartiring (funksiya, f va main dagi printf formati ham). */
+static int faktorial(int n)
+{
+    int f = 1;
+    for (int i = 2; i <= n; i++)
+        f *= i;
+    return f;
+}
+
+int main(void)
+{
+    char *n = nusxa("xatolar ovchisi");
+    if (!n)
+        return 1;
+    printf("nusxa: %s\n", n);
+    /* XATO 3 (LeakSanitizer: detected memory leaks): dastur oxirida chiqadi - malloc qilingan narsa qaytarilmadi. */
+
+    printf("13! = %d\n", faktorial(13));
+
+    /* XATO 4 (UndefinedBehaviorSanitizer: index 5 out of bounds; usiz - ASan stack-buffer-overflow): sikl chegarasi. */
+    int massiv[5] = {1, 2, 3, 4, 5};
+    int yig = 0;
+    for (int i = 0; i <= 5; i++)
+        yig += massiv[i];
+    printf("yig'indi: %d\n", yig);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/29_xato_ovchisi/isitish.txt`):
+
+```text
+nusxa: xatolar ovchisi
+13! = 6227020800
+yig'indi: 15
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/29_xato_ovchisi/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - 18-mashqni ASan'siz yig'ib, `valgrind` bilan xatolarni toping — hisobotlarni solishtiring.
 - `strace -f sh -c 'ls | wc -l'` chiqishida `pipe2`, `clone`, `dup2`, `execve` qatorlarini topib, 14-bob bilan bog'lang.
 - MyOS'da: `make run-nographic APPEND=demo=uaf` — slab qanday ushlashini ko'ring; `make debug` bilan `kmain` da to'xtab, `bt` va `info registers` ni sinang.

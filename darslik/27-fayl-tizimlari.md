@@ -1234,6 +1234,80 @@ fsck: fayl tizimi izchil (muammo yo'q)
 
 ## Mashq
 
+### Isitish: bitmap, link va rename ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–27-boblar kerak (blok bitmap, inode, `link`, `rename`, `fsync`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 27-bob, isitish: blok bitmap (vsfs g'oyasi) va haqiqiy fayl tizimi: stat, link, rename. */
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#define BLOK 1024
+
+int main(void)
+{
+    /* 1) Fayl qancha blok oladi: yuqoriga yaxlitlash (hajm + BLOK - 1) / BLOK; har band blok - bitmap'da 1 (27.5).
+     *    (Namuna - tayyor.) */
+    unsigned char bitmap = 0;
+    int hajm = 3000;
+    int bloklar = (hajm + BLOK - 1) / BLOK;
+    for (int i = 0; i < bloklar; i++)
+        bitmap |= (unsigned char)(1u << (7 - i));        /* chapdan: 0-blok - eng yuqori bit */
+    printf("fayl hajmi: %d bayt -> %d blok (%d bayt)\n", hajm, bloklar, BLOK);
+
+    /* 2) TODO: bitmap'ni ikkilikda: printf("blok bitmap: "); i = 7..0 uchun (bitmap >> i) & 1; oxirida "\n".
+     *    Natija: blok bitmap: 11100000 */
+
+    /* 3) Fayl yaratish. fsync - "diskka HOZIR yoz": usiz ma'lumot keshda turadi, tok o'chsa yo'qolishi mumkin (27.4). */
+    int fd = open("isitish_eski.txt", O_CREAT | O_TRUNC | O_WRONLY, 0644);
+    if (fd < 0)
+        return 1;
+    write(fd, "salom", 5);
+    fsync(fd);
+    close(fd);
+
+    /* 4) stat - inode ma'lumoti: hajm, havolalar soni (nechta NOM shu inode'ga ko'rsatadi). (Namuna - tayyor.) */
+    struct stat st;
+    stat("isitish_eski.txt", &st);
+    printf("stat: hajm %lld, havolalar %lu\n", (long long)st.st_size, (unsigned long)st.st_nlink);
+
+    /* 5) TODO: link("isitish_eski.txt", "isitish_havola.txt") - ikkinchi NOM (hard link), keyin yana stat.
+     *    printf("link dan keyin havolalar: %lu (inode bitta, nom ikkita)\n", ...);
+     *    Natija: link dan keyin havolalar: 2 (inode bitta, nom ikkita) */
+
+    /* 6) TODO: rename("isitish_eski.txt", "isitish_yangi.txt") - atomik: yo eski nom, yo yangi, oraliq holat yo'q.
+     *    access(nom, F_OK) == 0 - fayl bormi. printf("rename: yangi %s, eski %s\n", ...);
+     *    Keyin ikkala qolgan nomni unlink qiling (isitish_yangi.txt va isitish_havola.txt).
+     *    Natija: rename: yangi bor, eski yo'q */
+    unlink("isitish_eski.txt");         /* 6-qadamni yozgach, bu qatorni o'chiring */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/27_jurnal/isitish.txt`):
+
+```text
+fayl hajmi: 3000 bayt -> 3 blok (1024 bayt)
+blok bitmap: 11100000
+stat: hajm 5, havolalar 1
+link dan keyin havolalar: 2 (inode bitta, nom ikkita)
+rename: yangi bor, eski yo'q
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/27_jurnal/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **37** (ext2 o'qish) — agar hali qilmagan bo'lsangiz. Keyin unga faylni yozishni qo'shishni o'ylab ko'ring: qaysi tartibda yozish xavfsizroq?
 - MyOS: `docs/13-disk-ext2.md` va `tools/test.sh` dagi `e2fsck` tekshiruvi — yadro yozgan diskni Linux qanday tekshiradi.
 

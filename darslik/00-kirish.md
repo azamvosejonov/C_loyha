@@ -748,6 +748,58 @@ Kompilyator `;` yo'qligini faqat keyingi so'zni ko'rganda payqaydi. Shuning uchu
 
 ## Mashq
 
+### Isitish: vizitka ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat faqat 0-bob kerak (`printf`, `\n`, `%d`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 0-bob, isitish: vizitka. Faqat printf va bitta o'zgaruvchi. */
+#include <stdio.h>                      /* printf shu yerda e'lon qilingan */
+
+int main(void)                          /* dastur shu yerdan boshlanadi */
+{
+    int yosh = 20;                      /* int - butun son uchun quti, ichida 20 */
+
+    /* 1) Oddiy matn. \n - "yangi qatorga o't": usiz keyingi chiqish shu qatorga yopishadi. (Namuna - tayyor.) */
+    printf("Ism: Aziz\n");
+
+    /* 2) %d - "shu joyga butun son qo'y"; son vergul bilan keyin beriladi. (Namuna - tayyor.) */
+    printf("Yosh: %d\n", yosh);
+
+    /* 3) TODO: printf ichida hisoblash ham mumkin: yosh + 1.
+     *    Natija: Kelasi yili: 21 */
+
+    /* 4) TODO: bitta qatorda ikkita %d: 365 va 365 * 24 (vergul bilan ketma-ket beriladi).
+     *    Natija: Bir yilda: 365 kun, 8760 soat */
+
+    /* 5) TODO: matn ichida qo'shtirnoq - \" bilan (aks holda C satr shu yerda tugadi deb o'ylaydi, 0.8).
+     *    Natija: Qo'shtirnoq: "salom" */
+
+    return 0;                           /* 0 - "muvaffaqiyatli tugadi" (shell'da: echo $?) */
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/00_chek/isitish.txt`):
+
+```text
+Ism: Aziz
+Yosh: 20
+Kelasi yili: 21
+Bir yilda: 365 kun, 8760 soat
+Qo'shtirnoq: "salom"
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/00_chek/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - `salom.c` ni o'zgartiring: ismingiz va yoshingizni `printf` bilan chiqaring.
 - `;` ni ataylab o'chirib, xato xabarini o'qing. `}` ni o'chirib ko'ring. `#include` ni o'chirib ko'ring. Har safar xabarni **o'zingiz tushuntiring**.
 - `return 3;` qilib, `./salom; echo $?` bilan chiqish kodini ko'ring.

@@ -1,0 +1,3 @@
+qosh(2, 3) = 5
+qosh(10, -4) = 6
+chaqiruvlar: 2

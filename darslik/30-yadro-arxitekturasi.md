@@ -855,6 +855,80 @@ yadro to'xtadi: jami 30 tik
 
 ## Mashq
 
+### Isitish: syscall jadvali ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–30-boblar kerak (funksiya ko'rsatkichlari jadvali, monolit yadro).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 30-bob, isitish: monolit yadroning yuragi - syscall jadvali va dispetcher (simulyatsiya). */
+#include <stdio.h>
+
+#define ENOSYS 38                       /* "bunday syscall yo'q" - Linux'da ham 38 */
+
+typedef long (*syscall_fn)(long a, long b);   /* barcha syscall ishlovchilari bir xil imzoda (7.9) */
+
+static long sys_getpid(long a, long b) { (void)a; (void)b; return 42; }
+
+/* TODO: a - satr manzili (long ga aylantirilgan), b - uzunlik: fwrite((const char *)a, 1, (size_t)b, stdout);
+ *       va b ni qaytaring (Linux write ham yozilgan baytlar sonini qaytaradi). */
+static long sys_write(long a, long b)
+{
+    (void)a;
+    return b;
+}
+
+static long sys_qosh(long a, long b) { return a + b; }
+
+/* Jadval: indeks = syscall raqami. Linux: arch/x86/entry/syscalls/syscall_64.tbl dan yasaladi (30.4). */
+static const syscall_fn jadval[] = { sys_getpid, sys_write, sys_qosh };
+static const char *nomlar[] = { "getpid", "write", "qosh" };
+#define SONI ((long)(sizeof(jadval) / sizeof(jadval[0])))
+
+/* TODO: raqam < 0 yoki raqam >= SONI bo'lsa -ENOSYS qaytaring; aks holda jadval[raqam](a, b).
+ *       Tekshiruvsiz: user bergan raqam bilan jadvaldan TASHQARIDAGI "funksiya"ga sakrash - xavfsizlik teshigi. */
+static long dispatch(long raqam, long a, long b)
+{
+    (void)raqam;
+    (void)a;
+    (void)b;
+    (void)jadval;                       /* tanani yozgach, (void) qatorlarini o'chiring */
+    return -ENOSYS;
+}
+
+int main(void)
+{
+    printf("syscall 0 (%s) -> %ld\n", nomlar[0], dispatch(0, 0, 0));
+    long r = dispatch(1, (long)"salom\n", 6);
+    printf("syscall 1 (%s) -> %ld\n", nomlar[1], r);
+    printf("syscall 2 (%s) -> %ld\n", nomlar[2], dispatch(2, 40, 2));
+    printf("syscall 7 -> %ld (ENOSYS)\n", dispatch(7, 0, 0));
+    printf("syscall -1 -> %ld (ENOSYS)\n", dispatch(-1, 0, 0));
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/30_taymer_yadro/isitish.txt`):
+
+```text
+syscall 0 (getpid) -> 42
+salom
+syscall 1 (write) -> 6
+syscall 2 (qosh) -> 42
+syscall 7 -> -38 (ENOSYS)
+syscall -1 -> -38 (ENOSYS)
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/30_taymer_yadro/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - Linux manbasini yuklab olib, 30.4-dagi "solishtirib o'qish" juftliklaridan bittasini tanlang: MyOS funksiyasini va Linux funksiyasini yonma-yon o'qing, farqlarini daftarga yozing.
 - Virtual mashinada 30.6-dagi modulni yig'ib yuklang.
 

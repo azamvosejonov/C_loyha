@@ -596,6 +596,81 @@ Haqiqiy vaqtda bu farq ham seziladi: katta massivlarda `ikj` `ijk` dan odatda **
 
 ## Mashq
 
+### Isitish: kesh manzili va lokallik ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–21-boblar kerak (kesh qatori, to'plam, lokallik).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 21-bob, isitish: kesh manzilni qanday bo'ladi va qaysi tartibda o'qish tezroq. */
+#include <stdint.h>
+#include <stdio.h>
+
+#define QATOR 64                        /* kesh qatori: 64 bayt (21.3) */
+#define TOPLAM 64                       /* 32 KB, 8 yo'lli: 32768 / (64 * 8) = 64 ta to'plam (21.4) */
+
+static int matritsa[4][16] __attribute__((aligned(64)));   /* bir qator = 16 int = 64 bayt = 1 kesh qatori */
+static long oxirgi_qator = -1, yangi = 0;
+
+/* Juda soddalashtirilgan "bitta qatorli kesh": manzil boshqa kesh qatoriga tushsa - yangi qator yuklanadi. */
+static void murojaat(const void *p)
+{
+    long q = (long)((uintptr_t)p / QATOR);
+    if (q != oxirgi_qator) {
+        yangi++;
+        oxirgi_qator = q;
+    }
+}
+
+struct hisoblagich {
+    _Alignas(64) long qiymat;           /* har biri o'z kesh qatorida - "soxta bo'lishish" yo'q (21.5) */
+};
+
+int main(void)
+{
+    /* 1) Manzil = | tag | to'plam (6 bit) | siljish (6 bit) |. siljish = manzil % 64, to'plam = (manzil >> 6) % 64,
+     *    tag = manzil >> 12. (Namuna - tayyor.) */
+    uint64_t manzil = 0x12345678;
+    printf("manzil 0x%llx: tag 0x%llx, to'plam %llu, siljish %llu\n", (unsigned long long)manzil,
+           (unsigned long long)(manzil >> 12), (unsigned long long)((manzil >> 6) % TOPLAM),
+           (unsigned long long)(manzil % QATOR));
+
+    /* 2) Qator bo'yicha: qo'shni elementlar bir kesh qatorida - 16 murojaatdan faqat bittasi yangi qator
+     *    (lokallik, 21.2). (Namuna - tayyor.) */
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 16; j++)
+            murojaat(&matritsa[i][j]);
+    printf("qator bo'yicha: %ld ta yangi kesh qatori\n", yangi);
+
+    /* 3) TODO: oxirgi_qator = -1; yangi = 0; keyin USTUN bo'yicha: for j 0..15, ichida for i 0..3.
+     *    Har murojaat boshqa qatorga sakraydi. Haqiqiy matritsalarda bu 5-10 barobar sekin (21.7).
+     *    Natija: ustun bo'yicha: 64 ta yangi kesh qatori */
+
+    /* 4) TODO: sizeof(struct hisoblagich) ni %zu bilan: bitta long (8 bayt), lekin _Alignas(64) tufayli 64.
+     *    Natija: _Alignas(64) hisoblagich hajmi: 64 bayt */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/21_kesh_sim/isitish.txt`):
+
+```text
+manzil 0x12345678: tag 0x12345, to'plam 25, siljish 56
+qator bo'yicha: 4 ta yangi kesh qatori
+ustun bo'yicha: 64 ta yangi kesh qatori
+_Alignas(64) hisoblagich hajmi: 64 bayt
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/21_kesh_sim/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 Qo'shimcha tajriba (natijani o'zingiz o'lchang): 4096×4096 `int` matritsani qatorma-qator va ustunma-ustun yig'ing, `clock()` bilan vaqtni solishtiring (`-O2`). Keyin 8 ta oqim bilan 21.5-dagi
 ikkala `struct hisoblagich` variantini sinang.
 

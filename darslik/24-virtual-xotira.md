@@ -800,6 +800,66 @@ sahifa hajmi: 4096 bayt, bo'lak: 256 sahifa
 
 ## Mashq
 
+### Isitish: manzil tarjimasi ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–24-boblar kerak (sahifa jadvali, indekslar, page fault).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 24-bob, isitish: x86-64 manzil indekslari va sahifa jadvali orqali tarjima. */
+#include <stdint.h>
+#include <stdio.h>
+
+#define SAHIFA 4096
+static const int jadval[4] = {7, 5, -1, 9};     /* VPN -> kadr raqami; -1 - sahifa xotirada yo'q (present = 0) */
+
+/* TODO: vpn = va / SAHIFA, siljish = va % SAHIFA. vpn >= 4 yoki jadval[vpn] < 0 bo'lsa -
+ *       printf("0x%04x -> PAGE FAULT (sahifa %u yo'q)\n", va, vpn); aks holda fizik = kadr * SAHIFA + siljish:
+ *       printf("0x%04x -> 0x%05x (sahifa %u -> kadr %d)\n", ...). Siljish tarjimada O'ZGARMAYDI (24.3).
+ *       Natija: 0x2000 -> PAGE FAULT (sahifa 2 yo'q) */
+static void tarjima(uint32_t va)
+{
+    (void)jadval;
+    printf("0x%04x -> ?\n", va);
+}
+
+int main(void)
+{
+    /* 1) 4 darajali jadval: har daraja 9 bit (512 yozuv), siljish 12 bit (24.3). (Namuna - tayyor.) */
+    uint64_t va = 0x00007f1234567abcULL;
+    printf("VA 0x%llx: PML4 %llu, PDPT %llu, PD %llu, PT %llu, siljish 0x%llx\n", (unsigned long long)va,
+           (unsigned long long)((va >> 39) & 511), (unsigned long long)((va >> 30) & 511),
+           (unsigned long long)((va >> 21) & 511), (unsigned long long)((va >> 12) & 511),
+           (unsigned long long)(va & 0xFFF));
+
+    tarjima(0x0123);
+    tarjima(0x1fff);                    /* sahifaning OXIRGI bayti */
+    tarjima(0x2000);                    /* keyingi sahifaning birinchi bayti - u yo'q */
+    tarjima(0x3abc);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/24_vma/isitish.txt`):
+
+```text
+VA 0x7f1234567abc: PML4 254, PDPT 72, PD 418, PT 359, siljish 0xabc
+0x0123 -> 0x07123 (sahifa 0 -> kadr 7)
+0x1fff -> 0x05fff (sahifa 1 -> kadr 5)
+0x2000 -> PAGE FAULT (sahifa 2 yo'q)
+0x3abc -> 0x09abc (sahifa 3 -> kadr 9)
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/24_vma/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **31** (sahifa jadvali) — agar hali qilmagan bo'lsangiz.
 - **43** (sahifa almashtirish algoritmlari).
 - MyOS: `docs/04-virtual-xotira.md`, `docs/11-fork-cow.md`; `crash` dasturi bilan turli page fault'larni keltirib chiqarib, yadro xabarlarini o'qing.

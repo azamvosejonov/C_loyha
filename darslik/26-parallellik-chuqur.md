@@ -1260,6 +1260,92 @@ jami: 17984 ta tub son (0..199999). To'g'ri javob: 17984
 
 ## Mashq
 
+### Isitish: ticket lock va CAS ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–26-boblar kerak (atomik amallar, ticket lock, CAS).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 26-bob, isitish: o'zingiz qurgan qulf (ticket lock) va CAS bilan oshirish. */
+#include <pthread.h>
+#include <sched.h>
+#include <stdio.h>
+
+struct ticket {                         /* bank navbati: chipta olasiz va raqamingiz chaqirilishini kutasiz (26.4) */
+    unsigned kelgan;                    /* keyingi beriladigan chipta */
+    unsigned xizmat;                    /* hozir xizmat ko'rsatilayotgan chipta */
+};
+static struct ticket tq = {0, 0};
+static long hisob1 = 0, hisob2 = 0;
+
+/* TODO: mening = __atomic_fetch_add(&t->kelgan, 1, __ATOMIC_RELAXED); keyin
+ *       __atomic_load_n(&t->xizmat, __ATOMIC_ACQUIRE) != mening bo'lguncha sched_yield() (aylanishda CPU'ni
+ *       bo'shatamiz, 26.7). ACQUIRE: qulf olingandan keyingi o'qishlar undan oldinga o'tmasin. */
+static void qulfla(struct ticket *t)
+{
+    (void)t;
+}
+
+/* TODO: __atomic_store_n(&t->xizmat, t->xizmat + 1, __ATOMIC_RELEASE); - keyingi chipta.
+ *       RELEASE: qulf ichidagi yozuvlar ochishdan keyin ko'rinmasin. */
+static void och(struct ticket *t)
+{
+    (void)t;
+}
+
+/* "O'qi - hisobla - o'zgarmagan bo'lsa yoz" (26.5). Muvaffaqiyatsiz bo'lsa CAS eski ga yangi qiymatni yozadi.
+ * (Namuna - tayyor.) */
+static void cas_oshir(long *p)
+{
+    long eski = __atomic_load_n(p, __ATOMIC_RELAXED);
+    while (!__atomic_compare_exchange_n(p, &eski, eski + 1, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED))
+        ;
+}
+
+static void *oqim(void *arg)
+{
+    (void)arg;
+    for (int i = 0; i < 100000; i++) {
+        qulfla(&tq);
+        hisob1++;                       /* qulf ishlamaguncha - poyga, natija < 200000 */
+        och(&tq);
+        cas_oshir(&hisob2);
+    }
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t t[2];
+    for (int i = 0; i < 2; i++)
+        pthread_create(&t[i], NULL, oqim, NULL);
+    for (int i = 0; i < 2; i++)
+        pthread_join(t[i], NULL);
+    printf("ticket lock bilan: %ld\n", hisob1);
+    printf("CAS bilan: %ld\n", hisob2);
+    printf("chiptalar: kelgan %u, xizmat %u\n", tq.kelgan, tq.xizmat);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/26_tosiq/isitish.txt`):
+
+```text
+ticket lock bilan: 200000
+CAS bilan: 200000
+chiptalar: kelgan 200000, xizmat 200000
+```
+
+```console
+$ gcc -Wall -Wextra -g -O2 -pthread isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/26_tosiq/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - **29**, **34**, **38** — agar qilmagan bo'lsangiz.
 - **44** (semafor), **45** (o'quvchilar-yozuvchilar qulfi), **48** (deadlock'ni graf bilan aniqlash).
 - Qo'shimcha: `faylasuflar.c` da tartib qoidasini olib tashlang (hamma avval **chap**ni olsin) va ikkala vilka orasiga `usleep(1000)` qo'ying — deadlock'ni o'zingiz ko'ring (`timeout 10` bilan ishga tushiring!), keyin global tartib bilan tuzating.

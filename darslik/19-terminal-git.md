@@ -684,6 +684,54 @@ noyob IP lar:   8
 
 ## Mashq
 
+### Isitish: quvurlar va yo'naltirish ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 19-bob kerak (`grep`, `sort`, `uniq`, `wc`, `|`, `>`). Skriptni `isitish.sh` ga **qo'lda** yozing, izohlarni o'qing va `TODO` joylarini
+to'ldiring. Har qadamdan keyin `sh isitish.sh` bilan ishga tushirib boring.
+
+```sh
+# isitish.sh - 19-bob, isitish: quvurlar (|), yo'naltirish (>, <) va buyruq o'rnini bosish $(...).
+set -e                                  # biror buyruq xato bersa - skript darhol to'xtasin
+ish=$(mktemp -d)                        # vaqtinchalik papka; $(...) - buyruq natijasini satrga qo'yadi
+printf 'olma\nnok\nolma\nuzum\nolma\nnok\n' > "$ish/mevalar.txt"
+
+# 1) wc -l < fayl - qatorlar soni. "<" bilan berilsa, wc fayl nomini chiqarmaydi. (Namuna - tayyor.)
+echo "qatorlar: $(wc -l < "$ish/mevalar.txt")"
+
+# 2) TODO: grep -c '^olma$' fayl - mos qatorlar SONI. ^ va $ - qator boshi va oxiri ("olmaxon" mos kelmasin).
+#    Natija: olma: 3 marta
+
+# 3) TODO: eng ko'p uchragan meva: sort fayl | uniq -c | sort -rn | head -1, keyin
+#    awk '{print "eng ko'"'"'p: " $2 " (" $1 ")"}'. uniq faqat YONMA-YON takrorlarni sanaydi - shuning uchun avval sort.
+#    Natija: eng ko'p: olma (3)
+
+# 4) TODO: noyob mevalar soni: sort -u fayl | wc -l
+#    Natija: noyob mevalar: 3
+
+# 5) Tuzoq: "> fayl" buyruq ishga tushishidan OLDIN yaratiladi - shuning uchun ls royxat.txt ning o'zini ham ko'radi.
+#    (Namuna - tayyor.)
+ls "$ish" > "$ish/royxat.txt"
+echo "royxat.txt ichida: $(wc -l < "$ish/royxat.txt") ta nom"
+rm -rf "$ish"
+```
+
+**Kutilgan natija** (`darslik/loyihalar/19_mini_wc/isitish.txt`):
+
+```text
+qatorlar: 6
+olma: 3 marta
+eng ko'p: olma (3)
+noyob mevalar: 3
+royxat.txt ichida: 2 ta nom
+```
+
+```console
+$ sh isitish.sh | diff - ~/C_loyha/darslik/loyihalar/19_mini_wc/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - Loyihani o'z GitHub hisobingizga fork qiling va clone qiling. Har bir yechilgan mashqdan keyin commit qiling.
 - `grep -rn` bilan MyOS'da `kmalloc` chaqirilgan 5 ta joyni toping va har biri nimaga xotira so'rayotganini aniqlang.
 - `git log --oneline --reverse` — MyOS'ning birinchi 5 commitini `git show --stat` bilan ko'rib chiqing.

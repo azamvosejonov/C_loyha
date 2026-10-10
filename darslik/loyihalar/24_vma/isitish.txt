@@ -1,0 +1,5 @@
+VA 0x7f1234567abc: PML4 254, PDPT 72, PD 418, PT 359, siljish 0xabc
+0x0123 -> 0x07123 (sahifa 0 -> kadr 7)
+0x1fff -> 0x05fff (sahifa 1 -> kadr 5)
+0x2000 -> PAGE FAULT (sahifa 2 yo'q)
+0x3abc -> 0x09abc (sahifa 3 -> kadr 9)

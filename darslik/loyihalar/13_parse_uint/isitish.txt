@@ -1,0 +1,5 @@
+xavfsiz_qosh(INT_MAX, 1): toshadi
+xavfsiz_qosh(100, 23): 123
+indeks 7: chegaradan tashqari (uzunlik 5)
+indeks 4: 50
+memcpy bilan o'qildi: 0x04030201

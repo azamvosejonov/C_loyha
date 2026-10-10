@@ -1,0 +1,4 @@
+open("bunday_fayl_yoq.txt"): ENOENT (No such file or directory) -> fayl yoki katalog yo'q
+mkdir("."): EEXIST (File exists) -> allaqachon mavjud
+fcntl(1, 9999): EINVAL (Invalid argument) -> noto'g'ri argument
+qo'lda: EACCES (Permission denied) -> ruxsat yo'q

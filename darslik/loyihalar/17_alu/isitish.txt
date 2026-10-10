@@ -1,0 +1,4 @@
+asm add: 7 + 35 = 42
+asm shl: 5 << 3 = 40
+asm xchg: p = 2, q = 1
+asm movq $-1: -1
