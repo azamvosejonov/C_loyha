@@ -4,7 +4,7 @@
 > `& | ^ ~ << >>`, `++`, `?:`); ularning tuzoqlarini; va eng muhimi — **bitlar bilan ishlashni**: bitta sonning
 > ichidagi alohida "kalitlarni" yoqish, o'chirish, tekshirish. Yadroda bu — har kunlik ish.
 > **Oldindan nima kerak:** 2-bob (turlar, bit va bayt).   **Vaqt:** 6–8 soat (bitlar bo'limiga ko'proq vaqt bering!).
-> Mashqlar: 02, 03, 04.
+> Mashqlar: isitish (bob oxirida), 04. 02, 03 — 4–5-boblardan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/03_bitlar.c](misollar/03_bitlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1348,9 +1348,82 @@ yoniq kalitni **yoniq** qoldiradi — shuning uchun xavfsiz.
 
 ## Mashq
 
-- **02**, **03** — taqqoslash va toshishni oldindan tekshirish.
-- **04** (bitlar) — bu bobning asosiy mashqi. Hal qilgach, `kernel/mm/vmm.c` ni oching va bitli amallarni topib, har birini o'qib chiqing.
-- Qo'shimcha: `bitlar.h` bilan o'zingiz 8 ta kalitli panel yasang, kalitlarga ism bering, yoqish/o'chirish/almashtirishni mashq qiling.
+### Isitish: soat va bayroqlar ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–3-boblar kerak (`/`, `%`, taqqoslash, `++`, bitli amallar).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 3-bob, isitish: soat va bayroqlar. if va sikl kerak emas. */
+#include <stdio.h>
+
+int main(void)
+{
+    int soniya = 3725;
+    int i = 5;
+    unsigned bayroq = 0x01;             /* bitlar: 0000 0001 - faqat 0-bit yoqilgan */
+
+    /* 1) / - butun bo'lish, % - qoldiq (3.1). (Namuna - tayyor.)
+     *    soat   = soniya / 3600         -> 1
+     *    daqiqa = soniya % 3600 / 60    -> soatdan QOLGAN 125 soniyada 2 ta to'liq daqiqa
+     *    soniya = soniya % 60           -> 5 */
+    printf("%d soniya = %d soat %d daqiqa %d soniya\n", soniya, soniya / 3600, soniya % 3600 / 60, soniya % 60);
+
+    /* 2) TODO: taqqoslash natijasi - oddiy int: 1 (rost) yoki 0 (yolg'on) (3.2). if shart emas:
+     *    soniya % 2 == 0 ni to'g'ridan-to'g'ri %d ga bering.
+     *    Natija: 3725 juftmi? 0 */
+
+    /* 3) TODO: int x = i++;  - avval qiymat (5) olinadi, KEYIN i oshadi (6);
+     *          int y = ++i;  - avval i oshadi (7), keyin qiymat olinadi (3.6).
+     *    Natija: i++ -> 5, ++i -> 7, i = 7 */
+    (void)i;                            /* 3-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 4) n-bitni yoqish: x |= 1u << n (3.4). (Namuna - tayyor.) */
+    bayroq |= 1u << 2;                  /* 0000 0001 | 0000 0100 = 0000 0101 */
+    printf("2-bit yoqildi:    0x%02x\n", bayroq);
+
+    /* 5) TODO: 2-bit bormi? (bayroq >> 2) & 1u - bitni 0-o'ringa surib, qolganini niqob bilan o'chiramiz. %u.
+     *    Natija: 2-bit bormi?      1 */
+
+    /* 6) TODO: 0-bitni o'chiring: bayroq &= ~1u;   (~1u = ...1111 1110 - faqat 0-bit nol)
+     *    Natija: 0-bit o'chirildi: 0x04 */
+
+    /* 7) TODO: bayroq ^= 0x0Fu;   (XOR har bitni almashtiradi: 0000 0100 ^ 0000 1111 = 0000 1011)
+     *    Natija: 0x0F bilan XOR:   0x0b */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/03_ip_hisoblagich/isitish.txt`):
+
+```text
+3725 soniya = 1 soat 2 daqiqa 5 soniya
+3725 juftmi? 0
+i++ -> 5, ++i -> 7, i = 7
+2-bit yoqildi:    0x05
+2-bit bormi?      1
+0-bit o'chirildi: 0x04
+0x0F bilan XOR:   0x0b
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/03_ip_hisoblagich/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **04** (bitlar) — bu bobning asosiy mashqi: `bitni_yoq`, `bitni_ochir`, `bit_bormi`, `ikkining_darajasimi`,
+  `yuqoriga_tekislash` — bitta ifoda va `return` bilan yechiladi (funksiya imzosi tayyor, siz faqat tanasini yozasiz).
+  `bitlar_soni` ga sikl kerak — uni 4-bobdan keyin qo'shing (shungacha test to'liq o'tmaydi, bu normal).
+  Hal qilgach, `kernel/mm/vmm.c` ni oching va bitli amallarni topib, har birini o'qib chiqing.
+- Qo'shimcha: `bitlar.h` bilan o'zingiz 8 ta kalitli panel yasang, kalitlarga ism bering, yoqish/o'chirish/almashtirishni
+  mashq qiling.
+- **02**, **03** — taqqoslash va toshishni oldindan tekshirish, lekin `if`/sikl (4-bob) va `int *` (5-bob) kerak: 4–5-boblardan
+  keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: Unix fayl ruxsatlari (chmod)

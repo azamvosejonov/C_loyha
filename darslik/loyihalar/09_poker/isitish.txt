@@ -1,0 +1,5 @@
+Ali   72 C
+Vali  95 A
+Gani  88 B
+eng yaxshi: Vali (95)
+sizeof(struct talaba) = 20

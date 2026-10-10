@@ -1,0 +1,2 @@
+ikki_barobar(21) = 42
+ikki_barobar(-5) = -10

@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** o'z turlaringizni yaratishni (`struct`); struktura xotirada qanday joylashishini (tekislash va to'ldiruvchi baytlar);
 > `packed` va bit maydonlarini; `union` va `enum` ni; `typedef` ni; yashirin ("opaque") turlarni. Apparat va disk tuzilmalarini C'da tasvirlash uchun hammasi kerak.
 > **Oldindan nima kerak:** 2-, 7-, 8-boblar.   **Vaqt:** 6–7 soat.
-> Mashqlar: 13, 16, 17, 19, 22, 23.
+> Mashqlar: isitish (bob oxirida), 13, 16, 17, 19, 20, 22. 23 — 10-bobda.
 
 > **To'liq ishlaydigan misol:** [misollar/09_struct.c](misollar/09_struct.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1086,8 +1086,84 @@ sizeof(struct paket) = 4, ma'lumot: salom
 
 ## Mashq
 
-- **13** (struct vec), **16** (tugun), **17** (opaque xesh), **19** (struct saralash), **22** (halqa bufer struct'i), **23** (`container_of`, `offsetof`).
-- Qo'shimcha: `sizeof` va `offsetof` bilan 9.2 va 9.11-savoldagi tuzilmalarning joylashuvini chiqarib, qog'ozdagi rasmingiz bilan solishtiring.
+### Isitish: talabalar jurnali ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–9-boblar kerak (`struct`, `->`, `enum`, `sizeof`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 9-bob, isitish: talabalar jurnali. malloc kerak emas. */
+#include <stdio.h>
+
+struct talaba {                         /* bitta "yozuv": ism va ball birga yuradi (9.1) */
+    char ism[16];
+    int ball;
+};
+
+enum baho { BAHO_A, BAHO_B, BAHO_C };    /* nomlangan butun sonlar: 0, 1, 2 (9.6) */
+
+/* TODO: ball >= 90 -> BAHO_A, >= 80 -> BAHO_B, qolgani -> BAHO_C. */
+static enum baho baholash(int ball)
+{
+    (void)ball;
+    return BAHO_C;
+}
+
+/* enum -> harf. (Namuna - tayyor.) */
+static char harf(enum baho b)
+{
+    switch (b) {
+    case BAHO_A: return 'A';
+    case BAHO_B: return 'B';
+    default:     return 'C';
+    }
+}
+
+int main(void)
+{
+    struct talaba guruh[] = {{"Ali", 72}, {"Vali", 95}, {"Gani", 88}};  /* struct massivi + initsializator */
+    int n = (int)(sizeof(guruh) / sizeof(guruh[0]));
+    const struct talaba *eng = &guruh[0];   /* eng yaxshisini nusxalamaymiz - MANZILINI eslab qolamiz */
+
+    for (int i = 0; i < n; i++) {
+        printf("%-5s %d %c\n", guruh[i].ism, guruh[i].ball, harf(baholash(guruh[i].ball)));
+        /* TODO: guruh[i].ball > eng->ball bo'lsa - eng = &guruh[i];
+         *       eng->ball - bu (*eng).ball ning qisqa yozuvi (7.5). */
+    }
+    printf("eng yaxshi: %s (%d)\n", eng->ism, eng->ball);
+
+    /* TODO: sizeof(struct talaba) ni %zu bilan chiqaring: 16 + 4 = 20, to'ldiruvchi yo'q.
+     *       ism[15] qilsangiz nechchi bo'ladi va nega (9.2)? Avval qog'ozda hisoblang.
+     *       Natija: sizeof(struct talaba) = 20 */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/09_poker/isitish.txt`):
+
+```text
+Ali   72 C
+Vali  95 A
+Gani  88 B
+eng yaxshi: Vali (95)
+sizeof(struct talaba) = 20
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/09_poker/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **13** (struct vec), **16** (tugun), **17** (opaque xesh) — 8-bobda qoldirilgan edi. **19** (struct saralash),
+  **20** (funksiya jadvali — 7-bobda qoldirilgan), **22** (halqa bufer struct'i).
+- Qo'shimcha: `sizeof` va `offsetof` bilan 9.2 va 9.11-savoldagi tuzilmalarning joylashuvini chiqarib, qog'ozdagi rasmingiz
+  bilan solishtiring.
+- **23** (`container_of`, `offsetof`) — makrolar (10-bob) kerak: 10-bobda.
 
 <!-- loyiha:boshi -->
 ## Loyiha: geometriya — nuqta va to'g'ri to'rtburchak

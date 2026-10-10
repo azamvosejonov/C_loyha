@@ -1,0 +1,6 @@
+x = 10, *p = 10, **pp = 10
+*p = 20 dan keyin: x = 20
+**pp = 30 dan keyin: x = 30
+*q = 3, *(q + 2) = 4, q[4] = 5
+q += 3 dan keyin *q = 1, q - a = 3
+ko'rsatkich bilan yig'indi: 14

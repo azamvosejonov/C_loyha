@@ -1,0 +1,5 @@
+kattasi(7, 3) = 7
+kattasi(-2, -9) = -2
+kvadrat(9) = 81
+faktorial(10) = 3628800
+sanagich: 1 2 3

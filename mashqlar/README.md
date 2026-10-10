@@ -53,7 +53,7 @@ va odatda nimadan kelib chiqadi. Hisobotdagi `#0 ... yechim.c:QATOR` — xato ay
 | | **1-modul: turlar va sikllar** | | | |
 | 01 | Kvadratlar yig'indisi | 02–04 | `int`/`long`, `for`, toshish | hamma joyda |
 | 02 | Tub sonlar | 03–04 | `bool`, `unsigned`, toshmaydigan shart | — |
-| 03 | Toshishsiz arifmetika | 03, 13 | UB, `INT_MAX`, chegarani oldindan tekshirish | bufer hajmlarini hisoblash |
+| 03 | Toshishsiz arifmetika | 03–05, 13 | UB, `INT_MAX`, chegarani oldindan tekshirish | bufer hajmlarini hisoblash |
 | 04 | Bitlar | 03, 16 | `& \| ^ ~ << >>`, tekislash | sahifa jadvali, registrlar |
 | 05 | Massivlar | 06 | massiv + uzunlik, `size_t` tuzog'i | hamma joyda |
 | | **2-modul: ko'rsatkichlar** | | | |

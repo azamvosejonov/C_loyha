@@ -49,6 +49,12 @@ for bob in sorted(glob.glob(os.path.join(ildiz, 'asos-*.md'))) + sorted(glob.glo
     if m:
         tekshir(bob, 'Loyiha', m.group(1))
 
+# Bobda havola qilingan kutilgan natija fayllari (masalan isitish.txt) mavjud bo'lishi kerak
+for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
+    for yol in sorted(set(re.findall(r'darslik/loyihalar/(\w+/[\w.]+\.txt)', open(bob).read()))):
+        if not os.path.exists(os.path.join(ildiz, 'loyihalar', yol)):
+            xatolar += 1
+            print(f"XATO: {os.path.basename(bob)}: loyihalar/{yol} yo'q")
 # Mustaqil loyihalar: har papkada kutilgan.txt bo'lishi kerak
 for bob in sorted(glob.glob(os.path.join(ildiz, '[0-3][0-9]-*.md'))):
     nn = os.path.basename(bob)[:2]

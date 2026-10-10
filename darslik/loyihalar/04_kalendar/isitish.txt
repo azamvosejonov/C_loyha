@@ -1,0 +1,9 @@
+1 toq
+2 juft
+3 toq
+4 juft
+5 toq
+6 juft
+juftlar yig'indisi: 12
+1..20 da 3 ga karralilar: 6 ta
+5-kun: ish kuni

@@ -4,7 +4,7 @@
 > `do { } while (0)` nima uchun kerakligini; `#x` va `a##b` ni; shartli kompilyatsiyani (`#ifdef`, `-DDEBUG`).
 > Yadro kodining taxminan 10% i makrolar — ularni o'qiy olishingiz shart.
 > **Oldindan nima kerak:** 1-bob (kompilyatsiya bosqichlari), 3-bob (bitlar), 5-bob (funksiyalar).   **Vaqt:** 5–6 soat.
-> Mashqlar: 23 va barcha `test.h`.
+> Mashqlar: isitish (bob oxirida), 23 va barcha `test.h`.
 
 > **To'liq ishlaydigan misol:** [misollar/10_makrolar.c](misollar/10_makrolar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1242,8 +1242,64 @@ Chunki xato ochilgan kodda. GCC `note: in expansion of macro 'X'` bilan qaysi ma
 
 ## Mashq
 
+### Isitish: makrolar laboratoriyasi ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–10-boblar kerak (`#define`, `#`, `#ifdef`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 10-bob, isitish: makrolar laboratoriyasi. */
+#include <stdio.h>
+
+#define KVADRAT(x) ((x) * (x))          /* har argument VA butun ifoda qavsda (10.4) */
+
+/* TODO: #define YOMON_KVADRAT(x) x * x  - ataylab qavssiz: YOMON_KVADRAT(2 + 3) -> 2 + 3 * 2 + 3 = 11.
+ * TODO: #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  - faqat haqiqiy massivda; ko'rsatkichda noto'g'ri!
+ * TODO: #define MAX(a, b) ((a) > (b) ? (a) : (b))  - kamchiligi: MAX(i++, j) da i ikki marta oshishi mumkin. */
+
+/* #ifoda - argumentning MATNI, satr sifatida (10.6). U makro ochilishidan OLDIN olinadi:
+ * CHOP(KVADRAT(2 + 3)) -> "KVADRAT(2 + 3) = 25". "..." "..." - yonma-yon satrlar bitta satrga qo'shiladi.
+ * (long) ga aylantiramiz: ARRAY_SIZE - size_t, boshqalari - int; bitta %ld hammasiga yetadi. */
+#define CHOP(ifoda) printf(#ifoda " = %ld\n", (long)(ifoda))
+
+int main(void)
+{
+    /* TODO: #ifdef DEBUG  printf("[debug] DEBUG rejimi yoqilgan\n");  #endif
+     *       -DDEBUG bilan yig'ilsa bu qator kodda BOR, usiz - preprotsessor uni olib tashlaydi (10.8). */
+
+    int sonlar[] = {4, 8, 15, 16, 23};
+    CHOP(KVADRAT(2 + 3));
+    /* TODO: CHOP(YOMON_KVADRAT(2 + 3));  CHOP(ARRAY_SIZE(sonlar));  CHOP(MAX(7, 12));
+     *       Nega 11? `gcc -E isitish.c | tail` - preprotsessor ochgan matnni ko'ring. */
+    (void)sonlar;                       /* ARRAY_SIZE qatorini yozgach, bu qatorni o'chiring */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/10_log_makro/isitish.txt`):
+
+```text
+KVADRAT(2 + 3) = 25
+YOMON_KVADRAT(2 + 3) = 11
+ARRAY_SIZE(sonlar) = 5
+MAX(7, 12) = 12
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/10_log_makro/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+$ gcc -Wall -Wextra -DDEBUG isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/10_log_makro/isitish_debug.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
 - `mashqlar/test.h` ni to'liq o'qing: har bir makro nima qilishini va nega `do { } while (0)` ichida ekanini tushuntiring.
-- **23** — `container_of` va `offsetof`.
+- **23** — `container_of` va `offsetof` (7- va 9-boblarda qoldirilgan edi).
 - `kernel/lib/common.h` va `kernel/lib/list.h` ni o'qing — har bir makroni o'zingiz ochib yozing.
 
 <!-- loyiha:boshi -->

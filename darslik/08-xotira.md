@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** dastur xotirasi qanday bo'linganini (stek, heap, statik); `malloc` / `free` / `realloc` ni to'g'ri ishlatishni;
 > "egalik" (kim `free` qiladi) qoidasini; xotira xatolarini (leak, use-after-free, double free) topishni.
 > **Oldindan nima kerak:** 5-, 6-, 7-boblar (funksiya, massiv, ko'rsatkich).   **Vaqt:** 6–8 soat.
-> Mashqlar: 13–18, 30.
+> Mashqlar: isitish (bob oxirida), 14, 15, 18. 13, 16, 17 — 9-bobdan, 30 — 25-bobdan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/08_xotira.c](misollar/08_xotira.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -844,10 +844,87 @@ Python obyektlar sonini o'zi sanaydi va keraksiz bo'lganda o'zi tozalaydi. Bu qu
 
 ## Mashq
 
-- **13** dinamik massiv, **14** satr yasash, **15** split — `malloc`/`realloc`/`free`.
-- **16** bog'langan ro'yxat, **17** xesh jadval — egalik va tozalash.
-- **18** — xotira xatolarini topish (bu bobning asosiy mashqi).
-- **30** — o'z `malloc`'ingiz.
+### Isitish: o'suvchi massiv va satr nusxasi ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–8-boblar kerak (`malloc`, `realloc`, `free`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 8-bob, isitish: o'suvchi massiv va satr nusxasi. struct kerak emas. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* const - "o'qiyman, o'zgartirmayman" (7.6). Massiv o'z uzunligini bilmaydi - n alohida beriladi. */
+static void chiqar(const int *a, int n)
+{
+    printf("%d ta:", n);
+    for (int i = 0; i < n; i++)
+        printf(" %d", a[i]);
+    printf("\n");
+}
+
+int main(void)
+{
+    int n = 5;
+
+    /* 1) Heap'dan 5 ta int: n * sizeof(int) BAYT so'raymiz (8.3). Har malloc - NULL tekshiruvi. (Namuna - tayyor.) */
+    int *a = malloc(n * sizeof(int));
+    if (!a)
+        return 1;
+    for (int i = 0; i < n; i++)
+        a[i] = (i + 1) * (i + 1);       /* 1, 4, 9, 16, 25 */
+    chiqar(a, n);
+
+    /* 2) TODO: realloc bilan 2 * n ta elementga kattalashtiring.
+     *    a = realloc(a, ...) DEMANG: realloc NULL qaytarsa, eski blok manzili yo'qoladi - leak (8.5).
+     *    To'g'ri:  int *yangi = realloc(a, ...);  if (!yangi) { free(a); return 1; }  a = yangi;
+     *    Keyin a[5]..a[9] ni ham kvadratlar bilan to'ldiring, n *= 2 va chiqar(a, n).
+     *    Natija: 10 ta: 1 4 9 16 25 36 49 64 81 100 */
+
+    /* 3) TODO: n ta elementning yig'indisi long da -> "yig'indi: %ld\n", keyin free(a).
+     *    free dan keyin a[0] ni o'qish - use-after-free (8.5): sanitizer darhol ushlaydi.
+     *    Natija: yig'indi: 385 */
+
+    /* 4) Satr nusxasi: strlen + 1 - '\0' ham joy oladi! (Namuna - tayyor.) */
+    const char *asl = "salom dunyo";
+    char *nusxa = malloc(strlen(asl) + 1);
+    if (!nusxa)
+        return 1;
+    strcpy(nusxa, asl);
+    nusxa[0] = 'S';                     /* nusxa - bizniki, o'zgartirsa bo'ladi; asl - satr literali, yo'q */
+    printf("asl: %s, nusxa: %s (%zu belgi)\n", asl, nusxa, strlen(nusxa));
+
+    /* 5) TODO: free(nusxa). Hozir (2, 3, 5 yozilmaguncha) dastur oxirida LeakSanitizer
+     *    "detected memory leaks" deydi - hisobotni o'qing: qaysi qatorda ajratilgan xotira qaytarilmagan? */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/08_qavslar/isitish.txt`):
+
+```text
+5 ta: 1 4 9 16 25
+10 ta: 1 4 9 16 25 36 49 64 81 100
+yig'indi: 385
+asl: salom dunyo, nusxa: Salom dunyo (11 belgi)
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/08_qavslar/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **14** satr yasash, **15** split — `malloc`/`realloc`/`free`.
+- **18** — xotira xatolarini topish (bu bobning asosiy mashqi). Unda bog'langan ro'yxat bor (`struct tugun` va `->`, 7.5) —
+  9.1 ni ko'z yugurtirib chiqing.
+- **13** dinamik massiv, **16** bog'langan ro'yxat, **17** xesh jadval — `struct` (9-bob) kerak: 9-bobdan keyin.
+- **30** — o'z `malloc`'ingiz: `struct`, tekislash (9-bob) va xotira ajratish nazariyasi (25-bob) kerak: 25-bobdan keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: o'suvchi satr (string builder)

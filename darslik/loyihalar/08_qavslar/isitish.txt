@@ -1,0 +1,4 @@
+5 ta: 1 4 9 16 25
+10 ta: 1 4 9 16 25 36 49 64 81 100
+yig'indi: 385
+asl: salom dunyo, nusxa: Salom dunyo (11 belgi)

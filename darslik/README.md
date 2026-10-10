@@ -43,16 +43,16 @@ Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashti
 |---|---|---|
 | [Asos](asos-kompyuter-ichi.md) | **Kompyuter ichi (0-bobdan OLDIN o'qing)**: bit, bayt, ikkilik, o'n oltilik (`0x`, `0b`), oldidagi nollar, toshish, ma'no va tur, matn, xotira, qo'shish kalitlar bilan, jismoniy saqlash; katta loyiha — `konv` | — |
 | [00](00-kirish.md) | **Kirish**: C nima, o'rnatish, birinchi dastur — har bir belgi (`#include`, `main`, `void`, `{}`, `;`, `return`) | — |
-| [01](01-kompilyatsiya.md) | **Kompilyatsiya**: preprotsessor → kompilyator → assembler → linker; e'lon va ta'rif; gdb | 01 |
-| [02](02-turlar.md) | **Turlar**: `int`, `char`, `size_t`, `uint32_t`, signed/unsigned, toshish, cast | 01–03 |
-| [03](03-operatorlar.md) | **Operatorlar**: arifmetika, `&&` va `&`, bitli amallar, `++`, ustuvorlik tuzoqlari | 02–04 |
-| [04](04-boshqaruv.md) | **Boshqaruv**: `if`, `for`, `while`, `switch`, `goto` (nega yadroda kerak) | 01, 02, 05 |
-| [05](05-funksiyalar.md) | **Funksiyalar**: `void` ning barcha ma'nolari, nusxa bo'yicha uzatish, `static`, stek | 03, 06, 07 |
-| [06](06-massivlar-satrlar.md) | **Massivlar va satrlar**: `'\0'`, bufer to'lishi, `<string.h>` | 05, 08–12 |
-| [07](07-korsatkichlar.md) | **Ko'rsatkichlar**: `&`, `*`, `->`, `NULL`, arifmetika, `void *`, `char **`, funksiya ko'rsatkichlari | 06–08, 10, 16, 20, 23 |
-| [08](08-xotira.md) | **Xotira**: stek, heap, statik; `malloc`/`free`; leak, use-after-free | 13–18, 30 |
-| [09](09-struct.md) | **Struct, union, enum**: tekislash, `packed`, opaque turlar | 13, 16, 17, 19, 22, 23 |
-| [10](10-preprotsessor.md) | **Preprotsessor**: makrolar, `do { } while (0)`, `#x`, `container_of` | 23 |
+| [01](01-kompilyatsiya.md) | **Kompilyatsiya**: preprotsessor → kompilyator → assembler → linker; e'lon va ta'rif; gdb | Isitish |
+| [02](02-turlar.md) | **Turlar**: `int`, `char`, `size_t`, `uint32_t`, signed/unsigned, toshish, cast | Isitish |
+| [03](03-operatorlar.md) | **Operatorlar**: arifmetika, `&&` va `&`, bitli amallar, `++`, ustuvorlik tuzoqlari | Isitish, 04 |
+| [04](04-boshqaruv.md) | **Boshqaruv**: `if`, `for`, `while`, `switch`, `goto` (nega yadroda kerak) | Isitish, 01, 02, 04 |
+| [05](05-funksiyalar.md) | **Funksiyalar**: `void` ning barcha ma'nolari, nusxa bo'yicha uzatish, `static`, stek | Isitish, 03, 06 |
+| [06](06-massivlar-satrlar.md) | **Massivlar va satrlar**: `'\0'`, bufer to'lishi, `<string.h>` | Isitish, 05, 07–12 |
+| [07](07-korsatkichlar.md) | **Ko'rsatkichlar**: `&`, `*`, `->`, `NULL`, arifmetika, `void *`, `char **`, funksiya ko'rsatkichlari | Isitish, 06–08, 10 |
+| [08](08-xotira.md) | **Xotira**: stek, heap, statik; `malloc`/`free`; leak, use-after-free | Isitish, 14, 15, 18 |
+| [09](09-struct.md) | **Struct, union, enum**: tekislash, `packed`, opaque turlar | Isitish, 13, 16, 17, 19, 20, 22 |
+| [10](10-preprotsessor.md) | **Preprotsessor**: makrolar, `do { } while (0)`, `#x`, `container_of` | Isitish, 23 |
 | [11](11-kop-fayl-make.md) | **Ko'p faylli dasturlar va Make**: `extern`, `static`, kutubxonalar, Makefile | — |
 | [12](12-standart-kutubxona.md) | **Standart kutubxona**: `printf` to'liq, `FILE *` buferlash, `errno`, `qsort` | 11, 12, 19, 24 |
 | [13](13-ub-xavfsizlik.md) | **Aniqlanmagan xatti-harakat (UB)** va xavfsiz kod | 01, 03, 04, 09, 12, 18 |
@@ -61,6 +61,9 @@ Bir necha bobni **bitta masalada** ishlatish uchun: [birlashtiruvchi/](birlashti
 | [16](16-bitlar-apparat.md) | **Bitlar va apparat**: endianness, `volatile`, MMIO, port I/O, bitmap | 04, 21, 22 |
 | [17](17-assembly.md) | **Assembly**: registrlar, chaqirish qoidalari, stek kadri, inline asm | — |
 | [18](18-yadroga-koprik.md) | **Yadroga ko'prik**: freestanding C, linker skripti, MyOS'ni o'qish | 31–40 |
+
+**Isitish** — 1–10-boblardagi eng oson mashq: faqat shu va oldingi boblarda o'tilgan narsa kerak, natija `diff` bilan
+tekshiriladi. Mashq raqami esa o'sha bobda **to'liq** yechish mumkin bo'lgan joyda turibdi (oldin bobda tilga olinsa ham).
 
 ### II qism: kompyuter tizimlari va operatsion tizimlar
 

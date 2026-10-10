@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** massiv (bir xil turdagi qutilar qatori) xotirada qanday turishini; nega u o'z uzunligini **bilmasligini**;
 > satr — oxirida maxsus `'\0'` belgisi turgan `char` massivi ekanini; **bufer to'lishi** (buffer overflow) qanday paydo bo'lishini va undan qanday qochishni.
 > **Oldindan nima kerak:** 2–5-boblar (turlar, sikllar, funksiyalar).   **Vaqt:** 6–7 soat.
-> Mashqlar: 05, 08, 09, 10, 11, 12.
+> Mashqlar: isitish (bob oxirida), 05, 07, 08 (`strchr` — 7-bobdan keyin), 09, 10, 11, 12.
 
 > **To'liq ishlaydigan misol:** [misollar/06_satrlar.c](misollar/06_satrlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1059,8 +1059,64 @@ Massiv — shunchaki xotira bo'lagi; hech qayerda uzunlik yozilmagan (Python ro'
 
 ## Mashq
 
-- **05** — massivlar. **08** — `strlen`, `strchr`, `strcmp` ni o'zingiz yozish.
-- **09** — xavfsiz nusxalash. **10** — ikki ko'rsatkich usuli.
+### Isitish: ballar va shahar nomi ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–6-boblar kerak (massiv, satr, `strlen`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 6-bob, isitish: ballar va shahar nomi. Ko'rsatkich arifmetikasi kerak emas - faqat indekslar. */
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    int ballar[] = {72, 95, 58, 88, 64};
+    size_t n = sizeof(ballar) / sizeof(ballar[0]);  /* butun massiv baytlari / bitta element = 5 (6.1) */
+    int yigindi = 0;
+    int eng = ballar[0];                /* "eng katta" ni 0 dan emas, birinchi elementdan boshlaymiz */
+
+    /* 1) TODO: bitta sikl, i = 0 .. n-1: yigindi += ballar[i]; ballar[i] > eng bo'lsa - eng = ballar[i]. */
+
+    printf("%zu ta ball, yig'indi %d, o'rtacha %d, eng katta %d\n", n, yigindi, yigindi / (int)n, eng);
+
+    char ism[16] = "Toshkent";          /* 8 harf + '\0' = 9 bayt band, 16 ta joy bor (6.4) */
+    size_t uz = strlen(ism);            /* '\0' gacha bo'lgan harflar soni: 8 */
+    int unlilar = 0;
+
+    /* 2) TODO: ism[0] .. ism[uz - 1] ni aylanib, 'a', 'e', 'i', 'o', 'u' larni sanang (|| bilan, 3.3). */
+
+    printf("\"%s\": %zu harf, %d unli, oxirgi harf '%c'\n", ism, uz, unlilar, ism[uz - 1]);
+
+    /* 3) TODO: printf("teskari: "); keyin harflarni oxiridan %c bilan, oxirida printf("\n").
+     *    DIQQAT: for (size_t i = uz - 1; i >= 0; i--) - CHEKSIZ sikl: size_t hech qachon < 0 bo'lmaydi,
+     *    0 dan keyin eng katta songa aylanadi. To'g'ri: for (size_t i = uz; i > 0; i--) va ism[i - 1].
+     *    Natija: teskari: tnekhsoT */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/06_anagram/isitish.txt`):
+
+```text
+5 ta ball, yig'indi 377, o'rtacha 75, eng katta 95
+"Toshkent": 8 harf, 2 unli, oxirgi harf 't'
+teskari: tnekhsoT
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/06_anagram/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **05** — massivlar (4-bobda qoldirilgan edi). **07** — chiqish parametrlari (5-bobda qoldirilgan edi).
+- **08** — `strlen`, `strcmp` ni o'zingiz yozish. `strchr` ko'rsatkich qaytaradi (`s + i`, 7.4) — uni 7-bobdan keyin qo'shing.
+- **09** — xavfsiz nusxalash. **10** — teskari satr va palindrom (indekslar bilan ham yechiladi).
 - **11** — son → satr. **12** — satr → son.
 
 <!-- loyiha:boshi -->

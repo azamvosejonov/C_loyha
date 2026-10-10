@@ -1,0 +1,7 @@
+3725 soniya = 1 soat 2 daqiqa 5 soniya
+3725 juftmi? 0
+i++ -> 5, ++i -> 7, i = 7
+2-bit yoqildi:    0x05
+2-bit bormi?      1
+0-bit o'chirildi: 0x04
+0x0F bilan XOR:   0x0b

@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** dasturni **qaror qabul qilishga** (`if`, `switch`) va **takrorlashga** (`while`, `for`)
 > o'rgatishni. `{ }` qo'yilmasa nima bo'lishini, `switch` dagi "tushib ketish"ni va yadroda nega `goto` ishlatilishini bilib olasiz.
 > **Oldindan nima kerak:** 2–3-boblar (turlar, taqqoslash).   **Vaqt:** 4–5 soat.
-> Mashqlar: 01, 02, 05.
+> Mashqlar: isitish (bob oxirida), 01, 02, 04. 05 — 6-bobdan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/04_boshqaruv.c](misollar/04_boshqaruv.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -927,9 +927,76 @@ Yadro hech qachon "tugamaydi": u uzilishlarni kutadi va jarayonlarni almashtirad
 
 ## Mashq
 
-- **01**, **02** — sikllar.
-- **05** (massivlar) — teskari sikl va `size_t` tuzog'i.
-- Qo'shimcha: 1 dan 100 gacha FizzBuzz; ko'paytirish jadvali (ichma-ich `for`); kiritilgan sonning raqamlari yig'indisi (`while` + `% 10` va `/ 10`).
+### Isitish: juft, toq va hafta kuni ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–4-boblar kerak (`if`, `for`, `continue`, `switch`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 4-bob, isitish: juft, toq va hafta kuni. O'z funksiya va massiv kerak emas. */
+#include <stdio.h>
+
+int main(void)
+{
+    int juftlar = 0;                    /* juft sonlar yig'indisi */
+    int uchlar = 0;                     /* 3 ga karralilar soni */
+    int kun = 5;
+
+    /* 1) 1..6: har son juft yoki toq; shu siklning o'zida juftlarni yig'amiz. (Namuna - tayyor.) */
+    for (int n = 1; n <= 6; n++) {
+        if (n % 2 == 0) {               /* 2 ga qoldiqsiz bo'linadi - juft */
+            printf("%d juft\n", n);
+            juftlar += n;
+        } else {
+            printf("%d toq\n", n);
+        }
+    }
+
+    /* 2) TODO: 1..20 da 3 ga karralilarni sanang. 3 ga BO'LINMASA - continue (4.5): sikl
+     *    tanasining qolgani o'tkazib yuboriladi. Aks holda uchlar++. */
+
+    printf("juftlar yig'indisi: %d\n", juftlar);
+    printf("1..20 da 3 ga karralilar: %d ta\n", uchlar);
+
+    /* 3) TODO: switch (kun). case 6: va case 7: ni KETMA-KET yozsangiz, ikkalasi bitta tarmoqqa
+     *    tushadi ("tushib ketish", 4.6) -> "%d-kun: dam olish\n". default -> "%d-kun: ish kuni\n".
+     *    Har tarmoq oxirida break! kun = 7 qilib ham sinang.
+     *    Natija: 5-kun: ish kuni */
+    (void)kun;                          /* 3-qadamni yozgach, bu qatorni o'chiring */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/04_kalendar/isitish.txt`):
+
+```text
+1 toq
+2 juft
+3 toq
+4 juft
+5 toq
+6 juft
+juftlar yig'indisi: 12
+1..20 da 3 ga karralilar: 6 ta
+5-kun: ish kuni
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/04_kalendar/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **01**, **02** — sikllar (bu bobning asosiy mashqlari; 2-bobda qoldirilgan edi). Funksiya imzosi tayyor — siz faqat
+  tanasini yozasiz.
+- **04** — 3-bobda qoldirilgan `bitlar_soni` ni endi sikl bilan qo'shing.
+- Qo'shimcha: 1 dan 100 gacha FizzBuzz; ko'paytirish jadvali (ichma-ich `for`); kiritilgan sonning raqamlari yig'indisi
+  (`while` + `% 10` va `/ 10`).
+- **05** (massivlar) — teskari sikl va `size_t` tuzog'i, lekin massiv (6-bob) kerak: 6-bobdan keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: taxmin o'yini (ikkilik qidiruv)

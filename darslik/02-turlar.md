@@ -4,7 +4,7 @@
 > bo'lishini; har bir tur necha bayt joy olishini va qanday sonlarni sig'dirishini; nega son **toshib ketishi**
 > mumkinligini; yadroda nega `uint32_t` kabi turlar ishlatilishini.
 > **Oldindan nima kerak:** 0- va 1-boblar.   **Vaqt:** 4–5 soat.
-> Mashqlar: 01, 02, 03.
+> Mashqlar: isitish (bob oxirida). 01, 02 — 4-bobdan, 03 — 5-bobdan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/02_turlar.c](misollar/02_turlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1012,10 +1012,72 @@ Chunki C xatoni **jim** qoldiradi (toshish, aralash tur, boshlang'ich qiymatsiz)
 
 ## Mashq
 
-- **01** (kvadratlar yig'indisi) — tur va toshish.
-- **02** (tub sonlar) — `unsigned` va toshmaydigan shart.
-- **03** (toshishsiz arifmetika) — chegaralar va UB.
-- Qo'shimcha: `sizeof` bilan barcha turlarning hajmini chiqaradigan dastur yozing.
+### Isitish: turlar bilan tanishuv ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–2-boblar kerak (`char`, `sizeof`, `uint8_t`, cast).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 2-bob, isitish: turlar bilan tanishuv. if va sikl kerak emas. */
+#include <stdint.h>                     /* uint8_t - aniq 8 bitli ishorasiz tur (2.3) */
+#include <stdio.h>
+
+int main(void)
+{
+    char harf = 'C';                    /* char - aslida kichik son: 'C' ning kodi 67 (2.8) */
+    uint8_t yorqinlik = 250;            /* 0..255 - bitta bayt sig'diradigan oraliq */
+    int a = 7, b = 2;
+
+    /* 1) Bitta o'zgaruvchi, ikki format: %c - belgi, %d - son. (Namuna - tayyor.) */
+    printf("'%c' harfining kodi: %d\n", harf, harf);
+
+    /* 2) TODO: harf dan keyingi harf. harf + 1 - bu 68; uni %c bilan chiqarsangiz 'D' ko'rinadi.
+     *    Natija: 'C' dan keyingi harf: D */
+
+    /* 3) TODO: char, int, long, double hajmlari. sizeof natijasi size_t - formati %zu.
+     *    Natija: sizeof: char=1 int=4 long=8 double=8 */
+
+    /* 4) TODO: yorqinlik = yorqinlik + 10; va %d bilan chiqaring. 260 uint8_t ga sig'maydi:
+     *    ishorasiz toshish "aylanadi" - 260 - 256 = 4 qoladi (2.5).
+     *    Natija: 250 + 10 (uint8_t): 4 */
+    (void)yorqinlik;                    /* 4-qadamni yozgach, bu qatorni o'chiring */
+
+    /* 5) Butun bo'lish kasrni tashlab yuboradi. (Namuna - tayyor.) */
+    printf("%d / %d = %d (butun bo'lish)\n", a, b, a / b);
+
+    /* 6) TODO: xuddi shu bo'lish double da: (double)a / b. %.2f - verguldan keyin 2 xona (2.7).
+     *    Sinab ko'ring: (double)(a / b) nima beradi va nega (2.11)?
+     *    Natija: 7 / 2 = 3.50 (double) */
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/02_tur_jadvali/isitish.txt`):
+
+```text
+'C' harfining kodi: 67
+'C' dan keyingi harf: D
+sizeof: char=1 int=4 long=8 double=8
+250 + 10 (uint8_t): 4
+7 / 2 = 3 (butun bo'lish)
+7 / 2 = 3.50 (double)
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/02_tur_jadvali/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- Qo'shimcha: `sizeof` bilan barcha turlarning (`short`, `long long`, `float`, `size_t`, `uint64_t` ...) hajmini chiqaradigan
+  dastur yozing.
+- **01** (kvadratlar yig'indisi), **02** (tub sonlar) — tur va toshish haqida, lekin ularga **sikl va `if`** kerak:
+  4-bobdan keyin yeching. Hozir faqat `yechim.c` boshidagi shartni o'qing va qaysi tur kerakligini o'ylang.
+- **03** (toshishsiz arifmetika) — `if` (4-bob) va `int *natija` (5.4) kerak: 5-bobdan keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: turlar jadvali va toshish

@@ -3,7 +3,7 @@
 > **Bu bobda nima o'rganasiz:** funksiya nima va nega kerakligini; uni qanday yozish va chaqirishni; `void` so'zining hamma ma'nolarini;
 > argumentlar nega **nusxa** bo'lib uzatilishini; `static` funksiyalarni; stek va rekursiya nima ekanini.
 > **Oldindan nima kerak:** 1–4-boblar.   **Vaqt:** 5–6 soat.
-> Mashqlar: 03, 06, 07.
+> Mashqlar: isitish (bob oxirida), 03, 06. 07 — 6-bobdan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/05_funksiyalar.c](misollar/05_funksiyalar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -998,9 +998,84 @@ Har chaqiruv kadr ochadi, argumentlarni nusxalaydi. Juda kichik funksiyalar uchu
 
 ## Mashq
 
-- **03** — xato kodini qaytarish va chiqish parametri.
+### Isitish: kichik funksiyalar ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–5-boblar kerak (funksiya, `return`, `static`).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 5-bob, isitish: kichik funksiyalar. Massiv va ko'rsatkich kerak emas. */
+#include <stdio.h>
+
+/* static - funksiya faqat shu faylda ko'rinadi (5.6). (Namuna - tayyor.) */
+static int kattasi(int a, int b)
+{
+    return a > b ? a : b;               /* ternar (3.7): shart ? rost bo'lsa : yolg'on bo'lsa */
+}
+
+/* TODO: x * x ni qaytaring. */
+static int kvadrat(int x)
+{
+    (void)x;
+    return 0;
+}
+
+/* TODO: 1 * 2 * ... * n - sikl bilan. Nega long: 13! int ga sig'maydi.
+ *       Keyin 5.8 dagi kabi rekursiya bilan ham yozib ko'ring. */
+static long faktorial(int n)
+{
+    (void)n;
+    return 0;
+}
+
+/* TODO: har chaqirilganda 1, 2, 3, ... qaytarsin - global o'zgaruvchisiz.
+ *       Funksiya ichidagi `static int marta = 0;` qiymatini chaqiruvlar orasida saqlaydi (5.6);
+ *       oddiy lokal o'zgaruvchi esa har chaqiruvda qaytadan 0 bo'lardi. */
+static int sanagich(void)
+{
+    return 0;
+}
+
+int main(void)
+{
+    printf("kattasi(7, 3) = %d\n", kattasi(7, 3));
+    printf("kattasi(-2, -9) = %d\n", kattasi(-2, -9));
+    printf("kvadrat(9) = %d\n", kvadrat(9));
+    printf("faktorial(10) = %ld\n", faktorial(10));
+
+    /* Nega avval o'zgaruvchilarga olamiz? printf argumentlari QAYSI TARTIBDA hisoblanishi C'da
+     * kafolatlanmagan: printf("%d %d %d", sanagich(), sanagich(), sanagich()) "3 2 1" ham berishi mumkin. */
+    int a = sanagich();
+    int b = sanagich();
+    int c = sanagich();
+    printf("sanagich: %d %d %d\n", a, b, c);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/05_hanoy_paskal/isitish.txt`):
+
+```text
+kattasi(7, 3) = 7
+kattasi(-2, -9) = -2
+kvadrat(9) = 81
+faktorial(10) = 3628800
+sanagich: 1 2 3
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/05_hanoy_paskal/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **03** — xato kodini qaytarish va chiqish parametri (2–3-boblarda qoldirilgan; 5.4 dagi `int *` usuli).
 - **06** — manzil orqali o'zgartirish (bu bobning asosiy mashqi).
-- **07** — chiqish parametrlari va bufer hajmi.
+- **07** — chiqish parametrlari va bufer hajmi, lekin massiv (6-bob) kerak: 6-bobdan keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: sonlar laboratoriyasi

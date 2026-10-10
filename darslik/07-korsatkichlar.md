@@ -4,7 +4,7 @@
 > **Bu bobda nima o'rganasiz:** ko'rsatkich (manzil saqlaydigan quti) nima va nega kerakligini; `&`, `*`, `->` belgilari nima qilishini;
 > `NULL`; ko'rsatkich arifmetikasi; `const` ko'rsatkichlar; `void *`; `char **`; funksiya ko'rsatkichlari.
 > **Oldindan nima kerak:** 2–6-boblar (ayniqsa 5.4 "nusxa bo'yicha uzatish" va 6-bob massivlar).   **Vaqt:** 8–10 soat — shoshilmang.
-> Mashqlar: 06, 07, 08, 10, 16, 20, 23.
+> Mashqlar: isitish (bob oxirida), 06, 07, 08, 10. 16, 20 — 9-bobdan, 23 — 10-bobdan keyin.
 
 > **To'liq ishlaydigan misol:** [misollar/07_korsatkichlar.c](misollar/07_korsatkichlar.c) — yig'ib ishga tushiring, fayl boshidagi
 > "Sinab ko'ring" topshiriqlarini bajaring. Bobdagi parchalarni qanday sinash: [misollar/README.md](misollar/README.md#darslikdagi-parchani-ozingiz-qanday-sinaysiz).
@@ -1159,9 +1159,77 @@ int *p = a + 1;
 
 ## Mashq
 
-- **06** — `&` va `*` asoslari. **07** — chiqish parametrlari. **08** — ko'rsatkich arifmetikasi.
-- **10** — ikki ko'rsatkich. **16** — ro'yxat, `->`, `**pp`. **20** — funksiya jadvali. **23** — `container_of`.
-- Qo'shimcha: qog'ozda 7.13 dagi xotira rasmini chizing; `int x; int *p = &x; int **pp = &p;` uchun uchta o'zgaruvchining manzilini `%p` bilan chiqarib, rasmingiz bilan solishtiring.
+### Isitish: ko'rsatkichlarni kuzatish ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–7-boblar kerak (`&`, `*`, `**`, ko'rsatkich arifmetikasi).
+Skeletni `isitish.c` ga **qo'lda** yozing (ko'chirmang), izohlarni o'qing va `TODO` joylarini to'ldiring.
+"Namuna" qismlar tayyor — qolganini qanday yozishni ko'rsatadi. Skelet hozir ham ogohlantirishsiz yig'iladi:
+har `TODO` dan keyin yig'ib, ishga tushirib boring.
+
+```c
+/* isitish.c - 7-bob, isitish: ko'rsatkichlarni kuzatish. malloc va struct kerak emas. */
+#include <stdio.h>
+
+int main(void)
+{
+    int x = 10;
+    int *p = &x;                        /* p ichida - x ning MANZILI:            p -> x */
+    int **pp = &p;                      /* pp ichida - p ning manzili (7.8):   pp -> p -> x */
+
+    /* 1) Bitta qiymatga uch yo'l. (Namuna - tayyor.) */
+    printf("x = %d, *p = %d, **pp = %d\n", x, *p, **pp);
+
+    /* 2) TODO: *p = 20;  keyin  "*p = 20 dan keyin: x = %d\n"   (x ga to'g'ridan-to'g'ri tegmang!)
+     *          **pp = 30; keyin  "**pp = 30 dan keyin: x = %d\n"
+     *    *p - "p dagi manzilga bor"; **pp - "pp dagi manzilga bor, u yerdagi manzilga yana bor". */
+
+    int a[] = {3, 1, 4, 1, 5};
+    int *q = a;                         /* massiv nomi - birinchi elementning manzili: q = &a[0] */
+
+    /* 3) TODO: *q, *(q + 2), q[4]. q + 2 - "2 ta INT keyin" (2 bayt emas, 7.4); q[4] - bu *(q + 4).
+     *    Natija: *q = 3, *(q + 2) = 4, q[4] = 5 */
+
+    /* 4) TODO: q += 3; keyin *q va q - a. Ikki ko'rsatkich ayirmasi - orasidagi ELEMENTLAR soni,
+     *    turi ptrdiff_t, formati %td.
+     *    Natija: q += 3 dan keyin *q = 1, q - a = 3 */
+    (void)q;                            /* 3-4-qadamlarni yozgach, bu qatorni o'chiring */
+
+    /* 5) Yig'indi - indekssiz, faqat ko'rsatkich bilan. (Namuna - tayyor.)
+     *    a + 5 - massivdan KEYINGI joy: unga solishtirish mumkin, *(a + 5) ni o'qish - mumkin emas. */
+    int yig = 0;
+    for (int *r = a; r < a + 5; r++)
+        yig += *r;
+    printf("ko'rsatkich bilan yig'indi: %d\n", yig);
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/07_joyida/isitish.txt`):
+
+```text
+x = 10, *p = 10, **pp = 10
+*p = 20 dan keyin: x = 20
+**pp = 30 dan keyin: x = 30
+*q = 3, *(q + 2) = 4, q[4] = 5
+q += 3 dan keyin *q = 1, q - a = 3
+ko'rsatkich bilan yig'indi: 14
+```
+
+```console
+$ gcc -Wall -Wextra -g -fsanitize=address,undefined isitish.c -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/07_joyida/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+```
+
+### Keyingi mashqlar
+
+- **06** — `&` va `*` asoslari. **07** — chiqish parametrlari. **08** — ko'rsatkich arifmetikasi (endi `strchr` ham).
+  **10** — ikki ko'rsatkich.
+- Qo'shimcha: qog'ozda 7.13 dagi xotira rasmini chizing; `int x; int *p = &x; int **pp = &p;` uchun uchta o'zgaruvchining
+  manzilini `%p` bilan chiqarib, rasmingiz bilan solishtiring.
+- **16** (ro'yxat, `->`, `**pp`) — `struct` (9-bob) va `malloc` (8-bob) kerak: 9-bobdan keyin.
+- **20** (funksiya jadvali) — `struct` va `typedef` (9-bob) kerak: 9-bobdan keyin.
+- **23** (`container_of`) — `struct` (9-bob) va makrolar (10-bob) kerak: 10-bobdan keyin.
 
 <!-- loyiha:boshi -->
 ## Loyiha: map / filter / reduce

@@ -1,0 +1,5 @@
+[debug] DEBUG rejimi yoqilgan
+KVADRAT(2 + 3) = 25
+YOMON_KVADRAT(2 + 3) = 11
+ARRAY_SIZE(sonlar) = 5
+MAX(7, 12) = 12

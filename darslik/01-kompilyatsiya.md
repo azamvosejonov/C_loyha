@@ -730,10 +730,79 @@ Chunki unda `kvadrat` uchun bo'sh joy bor — kod to'liq emas. Faqat linker hamm
 
 ## Mashq
 
+### Isitish: ikki faylli dastur ★☆☆ — eng osoni, avval shuni qiling
+
+Faqat 0–1-boblar kerak: e'lon va ta'rif (1.2), sarlavha fayli (1.3), alohida kompilyatsiya (1.4). Uchala faylni
+**qo'lda** yozing va izohlarini o'qing. `yordam.c` dagi `TODO` ni to'ldiring.
+
+```c
+/* yordam.h - E'LON: "shunday funksiya bor" (1.2). Tanasi yo'q - faqat imzo. */
+#pragma once                            /* bir faylga ikki marta qo'shilsa ham, bir marta o'qilsin */
+
+int ikki_barobar(int x);
+```
+
+```c
+/* yordam.c - TA'RIF: funksiyaning tanasi. O'z sarlavhasini ham ulaydi: e'lon va ta'rif
+ * bir-biriga mos kelmasa, kompilyator xatoni shu yerda aytadi. */
+#include "yordam.h"
+
+int ikki_barobar(int x)
+{
+    /* TODO: x ni 2 ga ko'paytirib qaytaring. */
+    (void)x;                            /* tanani yozgach, bu qatorni o'chiring */
+    return 0;
+}
+```
+
+```c
+/* main.c - funksiyani CHAQIRADI, lekin tanasini ko'rmaydi - faqat yordam.h dagi e'lonni.
+ * Chaqiruv va tana bog'lash (linker) bosqichida "uchrashadi" (1.1). */
+#include <stdio.h>
+#include "yordam.h"                     /* "..." - o'zimizning sarlavha; <...> - tizimniki */
+
+int main(void)
+{
+    printf("ikki_barobar(21) = %d\n", ikki_barobar(21));
+    printf("ikki_barobar(-5) = %d\n", ikki_barobar(-5));
+    return 0;
+}
+```
+
+**Kutilgan natija** (`darslik/loyihalar/01_geometriya/isitish.txt`):
+
+```text
+ikki_barobar(21) = 42
+ikki_barobar(-5) = -10
+```
+
+```console
+$ gcc -Wall -Wextra -c yordam.c
+$ gcc -Wall -Wextra -c main.c
+$ gcc yordam.o main.o -o isitish
+$ ./isitish | diff - ~/C_loyha/darslik/loyihalar/01_geometriya/isitish.txt && echo "TO'G'RI"
+TO'G'RI
+$ nm yordam.o main.o
+
+yordam.o:
+0000000000000000 T ikki_barobar
+
+main.o:
+                 U ikki_barobar
+0000000000000000 T main
+                 U printf
+```
+
+**O'zingizni tekshiring:** `ikki_barobar` `yordam.o` da `T`, `main.o` da `U` — nega (1.2)? `yordam.o` ni oxirgi
+buyruqdan olib tashlasangiz, qaysi bosqich xato beradi va xabar qanday bo'ladi?
+
+### Keyingi mashqlar
+
 - 1.3-bo'limdagi uch faylli dasturni yarating. Keyin `matematika.o` ni bog'lash buyrug'idan olib tashlab, linker xatosini
   o'qing. `#include "matematika.h"` ni olib tashlab, kompilyator xatosini o'qing.
 - `gcc -S -O0` va `gcc -S -O2` bilan kichik funksiyaning assembly'sini solishtiring.
-- `mashqlar/01_kvadratlar` ni oching: `mashq.h`, `yechim.c`, `test.c` qanday bog'langanini tushuning. Hozircha yechmasangiz ham bo'ladi.
+- `mashqlar/01_kvadratlar` ni oching: `mashq.h`, `yechim.c`, `test.c` qanday bog'langanini tushuning. Hozircha yechmasangiz ham
+  bo'ladi — unga sikl (4-bob) kerak.
 
 <!-- loyiha:boshi -->
 ## Loyiha: geometriya moduli
